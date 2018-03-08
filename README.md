@@ -37,14 +37,13 @@ The Decent.bet platform currently supports the following contracts:
     
     **For development (Use a network ID of 10)**
     ```
-    ganache-cli --mnemonic "mimic soda meat inmate cup someone labor odor invest scout fat ketchup" -i 10
+        ganache-cli --mnemonic "mimic soda meat inmate cup someone labor odor invest scout fat ketchup" -i 10
     ```
-6. Add a .env file to the current directory with the following variables
-   
+6. Add an .env file to the current directory with the following variables
    ```
-   MNEMONIC='<MNEMONIC TO DEPLOY CONTRACTS AND CONTR˚OL THE PLATFORM>'
-   INFURA_KEY='<REGISTERED INFURA KEY>'
-   DEFAULT_ACCOUNT='<DEFAULT ACCOUNT LINKED TO YOUR MNEMONIC>'
+       MNEMONIC='<MNEMONIC TO DEPLOY CONTRACTS AND CONTR˚OL THE PLATFORM>'
+       INFURA_KEY='<REGISTERED INFURA KEY>'
+       DEFAULT_ACCOUNT='<DEFAULT ACCOUNT LINKED TO YOUR MNEMONIC>'
    ```
        
 7. Optionally clone the [platform-frontend](https://github.com/decent-bet/platform-frontend), 
