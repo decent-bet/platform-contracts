@@ -1,0 +1,12 @@
+{
+  "name": "platform-contracts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "dev <dev@decent.bet>",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^5.0.1",
+    "truffle": "^4.1.3",
+    "truffle-hdwallet-provider": "^0.0.3"
+  }
+}
