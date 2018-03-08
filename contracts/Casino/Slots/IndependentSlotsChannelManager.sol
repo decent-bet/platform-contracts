@@ -3,7 +3,6 @@ pragma solidity ^0.4.0;
 import './SlotsImplementation.sol';
 import './AbstractSlotsHelper.sol';
 import '../../Token/AbstractDecentBetToken.sol';
-import '../../House/AbstractHouse.sol';
 import '../../House/HouseOffering.sol';
 
 import '../../Libraries/ECVerify.sol';
@@ -14,7 +13,7 @@ import '../../Libraries/Utils.sol';
 
 // A stand-alone state channel contract to handle slot games on the Decent.bet platform without depending on the
 // House contract for funds, balance management etc.
-contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Utils {
+contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils {
 
     using strings for *;
     using ECVerify for *;
@@ -31,25 +30,17 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
 
     /* Variables */
 
-    // Address of the house contract - passed through during contract creation
-    address public houseAddress;
-
     // Address of the slots channel finalizer contract - passed through during contract creation
     address public slotsChannelFinalizer;
 
     // Used to create incremented channel ids.
     uint public channelCount;
 
-    // Current house session.
-    uint public currentSession;
-
     // Time for channel to stay active, after which will be closed
     uint constant public timeToLive = 3 hours;
 
     /* Contracts */
     AbstractDecentBetToken decentBetToken;
-
-    AbstractHouse house;
 
     AbstractSlotsHelper slotsHelper;
 
@@ -67,10 +58,10 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
     // Addresses of the players involved - false = user, true = house for a channel.
     mapping (uint => mapping(bool => address)) public players;
 
-    // Users need to deposit/withdraw tokens for a session with the provider before creating channels.
+    // Users need to deposit/withdraw tokens with the provider before creating channels.
     // These can be withdrawn at any time.
-    // mapping (userAddress => mapping (sessionNumber => amount))
-    mapping (address => mapping (uint => uint)) public depositedTokens;
+    // mapping (userAddress => amount)
+    mapping (address => uint) public depositedTokens;
 
     /* Events */
     event LogNewChannel(uint id, address indexed user, uint initialDeposit);
@@ -83,35 +74,26 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
 
     event LogClaimChannelTokens(uint indexed id, bool isHouse, uint timestamp);
 
-    event LogDeposit(address _address, uint amount, uint session, uint balance);
+    event LogDeposit(address _address, uint amount, uint balance);
 
-    event LogWithdraw(address _address, uint amount, uint session, uint balance);
+    event LogWithdraw(address _address, uint amount, uint balance);
 
     /* Constructor */
 
-    function SlotsChannelManager(address _house, address _token, address _slotsHelper,
+    function SlotsChannelManager(address _token, address _slotsHelper,
         address _slotsChannelFinalizer) /* onlyHouse */ {
-        if(_house == 0) throw;
         if(_token == 0) throw;
         if(_slotsHelper == 0) throw;
         if(_slotsChannelFinalizer == 0) throw;
-        houseAddress = _house;
         decentBetToken = AbstractDecentBetToken(_token);
-        house = AbstractHouse(_house);
         slotsHelper = AbstractSlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
         if(!slotsHelper.isSlotsHelper()) throw;
-        name = 'Slots Channel Manager';
+        name = 'Independent Slots Channel Manager';
         isHouseOffering = true;
     }
 
     /* Modifiers */
-
-    modifier onlyHouse() {
-        if (msg.sender != houseAddress) throw;
-        _;
-    }
-
     modifier onlyAuthorized() {
         if (house.authorized(msg.sender) == false) throw;
         _;
@@ -123,22 +105,9 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
         _;
     }
 
-    // Allows functions to execute only if the session is prior or equal to current house session
-    // and if session is not 0.
-    modifier isValidPriorSession(uint session) {
-        if(session > currentSession || session == 0) throw;
-        _;
-    }
-
     // Allows functions to execute only if users have "amount" tokens in their depositedTokens balance.
     modifier isTokensAvailable(uint amount, uint session) {
-        if (depositedTokens[msg.sender][session] < amount) throw;
-        _;
-    }
-
-    // Allows only the house to proceed
-    modifier isHouse(uint id) {
-        if (msg.sender != players[id][true]) throw;
+        if (depositedTokens[msg.sender] < amount) throw;
         _;
     }
 
@@ -220,29 +189,25 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
         return players[id][isHouse];
     }
 
-    // Allows the house to add funds to the provider for this session or the next.
-    function houseDeposit(uint amount, uint session)
-    onlyHouse
+    // Allows authorized addresses to add funds to the provider.
+    function authorizedDeposit(uint amount)
+    onlyAuthorized
     returns (bool) {
-        // House deposits are allowed only for this session or the next.
-        if(session != currentSession && session != currentSession + 1) return false;
-
         // Record the total number of tokens deposited into the house.
-        depositedTokens[houseAddress][session] = safeAdd(depositedTokens[houseAddress][session], amount);
+        depositedTokens[address(this)] = safeAdd(depositedTokens[address(this)], amount);
 
         // Transfer tokens from house to betting provider.
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
 
-        LogDeposit(houseAddress, amount, session, depositedTokens[houseAddress][session]);
+        LogDeposit(houseAddress, amount, depositedTokens[address(this)]);
         return true;
     }
 
-    // Allows house to withdraw session tokens for the previous session.
-    function withdrawPreviousSessionTokens()
-    onlyHouse returns (bool) {
-        uint previousSession = currentSession - 1;
-        if(depositedTokens[address(this)][previousSession] == 0) return false;
-        if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)][previousSession])) return false;
+    // Allows authorized addresses to withdraw tokens from the contract.
+    function authorizedWithdraw()
+    onlyAuthorized returns (bool) {
+        if(depositedTokens[address(this)] == 0) return false;
+        if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)])) return false;
         return true;
     }
 
@@ -250,33 +215,25 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
     // User needs to approve contract address for amount prior to calling this function.
     function deposit(uint amount)
     isDbetsAvailable(amount) returns (bool) {
-        depositedTokens[msg.sender][currentSession] =
-        safeAdd(depositedTokens[msg.sender][currentSession], amount);
+        depositedTokens[msg.sender] =
+        safeAdd(depositedTokens[msg.sender], amount);
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
-        LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
+        LogDeposit(msg.sender, amount, depositedTokens[msg.sender]);
         return true;
     }
 
     // Withdraw DBETS from contract to sender address.
     function withdraw(uint amount, uint session)
-    isValidPriorSession(session)
-    isTokensAvailable(amount, session) returns (bool) {
-        depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
+    isTokensAvailable(amount) returns (bool) {
+        depositedTokens[msg.sender] = safeSub(depositedTokens[msg.sender], amount);
         if(!decentBetToken.transfer(msg.sender, amount)) return false;
-        LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
+        LogWithdraw(msg.sender, amount, depositedTokens[msg.sender]);
         return true;
     }
 
     // Query balance of deposited tokens for a user.
-    function balanceOf(address _address, uint session) constant returns (uint) {
-        return depositedTokens[_address][session];
-    }
-
-    function setSession(uint session)
-        // Replace other functions with onlyAuthorized
-    onlyHouse returns (bool) {
-        currentSession = session;
-        return true;
+    function balanceOf(address _address) constant returns (uint) {
+        return depositedTokens[_address];
     }
 
     // User deposits DBETs into contract and saves the AES-256 encrypted string of the initial random numbers
@@ -287,7 +244,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
     returns (bool) {
         if (strLen(_finalUserHash) != 64) throw;
         if (strLen(_initialUserNumber) != 64) throw;
-        if (balanceOf(msg.sender, channels[id].session) < channels[id].initialDeposit) throw;
+        if (balanceOf(msg.sender) < channels[id].initialDeposit) throw;
         channels[id].initialUserNumber = _initialUserNumber;
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
@@ -304,8 +261,8 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
     isNotActivated(id) {
         uint deposit = channelDeposits[id][false];
         channelDeposits[id][false] = 0;
-        depositedTokens[msg.sender][channels[id].session] =
-        safeAdd(depositedTokens[msg.sender][channels[id].session], channels[id].initialDeposit);
+        depositedTokens[msg.sender] =
+        safeAdd(depositedTokens[msg.sender], channels[id].initialDeposit);
     }
 
     // House sends the final reel and seed hashes to activate the channel along with the initial house seed hash
@@ -318,7 +275,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
     returns (bool) {
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
-        if (balanceOf(houseAddress, channels[id].session) < channels[id].initialDeposit) throw;
+        if (balanceOf(houseAddress) < channels[id].initialDeposit) throw;
         channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
@@ -335,8 +292,8 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
         address _address = isHouse ? houseAddress : players[id][false];
         channelDeposits[id][isHouse] =
         safeAdd(channelDeposits[id][isHouse], channels[id].initialDeposit);
-        depositedTokens[_address][channels[id].session] =
-        safeSub(depositedTokens[_address][channels[id].session], channels[id].initialDeposit);
+        depositedTokens[_address] =
+        safeSub(depositedTokens[_address], channels[id].initialDeposit);
     }
 
     // Checks the signature of a spin sent and verifies it's validity
@@ -366,6 +323,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
         channels[id].finalNonce = nonce;
         channels[id].finalTurn = turn;
         channels[id].endTime = block.timestamp + 1 minutes;
+
         // Set at 1 minute only for Testnet
         if (!channels[id].finalized) channels[id].finalized = true;
         LogChannelFinalized(id, turn);
@@ -386,8 +344,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, HouseOffering, S
                 // Deposit to the house address instead of authorized addresses sending txs on behalf of the house
                 address _address = isHouse ? houseAddress : msg.sender;
 
-                depositedTokens[_address][channels[id].session] =
-                safeAdd(depositedTokens[_address][channels[id].session], amount);
+                depositedTokens[_address] = safeAdd(depositedTokens[_address], amount);
 
                 LogClaimChannelTokens(id, isHouse, block.timestamp);
             }
