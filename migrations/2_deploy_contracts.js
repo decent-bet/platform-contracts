@@ -12,7 +12,7 @@ const SlotsChannelFinalizer = artifacts.require('SlotsChannelFinalizer')
 const SlotsChannelManager = artifacts.require('SlotsChannelManager')
 const SlotsHelper = artifacts.require('SlotsHelper')
 
-module.exports = async function(deployer, network) {
+let deploy = async (deployer, network) => {
     let decentBetMultisig
     let upgradeMaster, agentOwner
     let startTime, endTime
@@ -36,10 +36,13 @@ module.exports = async function(deployer, network) {
     console.log('Deploying with network', network)
 
     if (network === 'rinkeby' || network === 'development') {
-
         const timestamp = Math.round(new Date().getTime() / 1000)
 
-        decentBetMultisig = await deployer.deploy(MultiSigWallet, accounts, signaturesRequired)
+        wallet = await deployer.deploy(
+            MultiSigWallet,
+            accounts,
+            signaturesRequired
+        )
 
         upgradeMaster = accounts[0]
         team = accounts[0]
@@ -53,7 +56,6 @@ module.exports = async function(deployer, network) {
         endTime = timestamp + 28 * 24 * 60 * 60
 
         try {
-
             // Deploy the DecentBetToken contract
             await deployer.deploy(
                 DecentBetToken,
@@ -141,33 +143,54 @@ module.exports = async function(deployer, network) {
                     gas: 3000000
                 }
             )
+
+            console.log(
+                'Deployed:',
+                '\nToken: ' + token.address,
+                '\nHouse: ' + house.address,
+                '\nSlotsChannelManager: ' + SlotsChannelManager.address,
+                '\nHouseLottery: ' + houseLottery.address,
+                '\nBettingProviderHelper: ' + bettingProviderHelper.address,
+                '\nBettingProvider: ' + bettingProvider.address,
+                '\nSports Oracle: ' + sportsOracle.address,
+                '\nSlotsChannelFinalizer: ' + slotsChannelFinalizer.address
+            )
         } catch (e) {
             console.log('Error deploying contracts', e.message)
         }
     } else if (network === 'mainnet') {
+        try {
+            await MultiSigWallet.at(utils.multisigWalletAddressMainNet)
+            upgradeMaster = web3.eth.accounts[0]
+            agentOwner = upgradeMaster
+            decentBetMultisig = MultiSigWallet.address
+            let startBlock = startBlockMainNet
+            let endBlock = endBlockMainNet
+            await deployer.deploy(
+                DecentBetToken,
+                decentBetMultisig,
+                upgradeMaster,
+                startBlock,
+                endBlock
+            )
+            token = await DecentBetToken.deployed()
 
-        await MultiSigWallet.at(utils.multisigWalletAddressMainNet)
-        upgradeMaster = web3.eth.accounts[0]
-        agentOwner = upgradeMaster
-        decentBetMultisig = MultiSigWallet.address
-        let startBlock = startBlockMainNet
-        let endBlock = endBlockMainNet
-        await deployer.deploy(
-            DecentBetToken,
-            decentBetMultisig,
-            upgradeMaster,
-            startBlock,
-            endBlock
-        )
-        token = await DecentBetToken.deployed()
-
-        // Deploy UpgradeAgent contract
-        let gasEstimate = 2000000
-        await deployer.deploy(UpgradeAgent, token.address, {
-            from: agentOwner,
-            gas: gasEstimate + utils.gasEpsilon
-        })
-        upgradeAgent = await UpgradeAgent.deployed()
-        await token.setUpgradeAgent(upgradeAgent.address)
+            // Deploy UpgradeAgent contract
+            let gasEstimate = 2000000
+            await deployer.deploy(UpgradeAgent, token.address, {
+                from: agentOwner,
+                gas: gasEstimate + utils.gasEpsilon
+            })
+            upgradeAgent = await UpgradeAgent.deployed()
+            await token.setUpgradeAgent(upgradeAgent.address)
+        } catch (e) {
+            console.log('Error deploying contracts', e.message)
+        }
     }
+}
+
+module.exports = function(deployer, network) {
+    // Work-around to stage tasks in the migration script and not actually run them
+    // https://github.com/trufflesuite/truffle/issues/501#issuecomment-332589663
+    deployer.then(() => deploy(deployer, network))
 }
