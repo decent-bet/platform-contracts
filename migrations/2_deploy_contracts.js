@@ -36,10 +36,13 @@ let deploy = async (deployer, network) => {
     console.log('Deploying with network', network)
 
     if (network === 'rinkeby' || network === 'development') {
-
         const timestamp = Math.round(new Date().getTime() / 1000)
 
-        wallet = await deployer.deploy(MultiSigWallet, accounts, signaturesRequired)
+        wallet = await deployer.deploy(
+            MultiSigWallet,
+            accounts,
+            signaturesRequired
+        )
 
         upgradeMaster = accounts[0]
         team = accounts[0]
@@ -53,7 +56,6 @@ let deploy = async (deployer, network) => {
         endTime = timestamp + 28 * 24 * 60 * 60
 
         try {
-
             // Deploy the DecentBetToken contract
             await deployer.deploy(
                 DecentBetToken,
@@ -142,21 +144,21 @@ let deploy = async (deployer, network) => {
                 }
             )
 
-            console.log('Deployed:',
-                ('\nToken: ' + token.address),
-                ('\nHouse: ' + house.address),
-                ('\nSlotsChannelManager: ' + SlotsChannelManager.address),
-                ('\nHouseLottery: ' + houseLottery.address),
-                ('\nBettingProviderHelper: ' + bettingProviderHelper.address),
-                ('\nBettingProvider: ' + bettingProvider.address),
-                ('\nSports Oracle: ' + sportsOracle.address),
-                ('\nSlotsChannelFinalizer: ' + slotsChannelFinalizer.address))
-
+            console.log(
+                'Deployed:',
+                '\nToken: ' + token.address,
+                '\nHouse: ' + house.address,
+                '\nSlotsChannelManager: ' + SlotsChannelManager.address,
+                '\nHouseLottery: ' + houseLottery.address,
+                '\nBettingProviderHelper: ' + bettingProviderHelper.address,
+                '\nBettingProvider: ' + bettingProvider.address,
+                '\nSports Oracle: ' + sportsOracle.address,
+                '\nSlotsChannelFinalizer: ' + slotsChannelFinalizer.address
+            )
         } catch (e) {
             console.log('Error deploying contracts', e.message)
         }
     } else if (network === 'mainnet') {
-
         try {
             await MultiSigWallet.at(utils.multisigWalletAddressMainNet)
             upgradeMaster = web3.eth.accounts[0]
@@ -188,7 +190,6 @@ let deploy = async (deployer, network) => {
 }
 
 module.exports = function(deployer, network) {
-
     // Work-around to stage tasks in the migration script and not actually run them
     // https://github.com/trufflesuite/truffle/issues/501#issuecomment-332589663
     deployer.then(() => deploy(deployer, network))

@@ -1,8 +1,8 @@
 require('dotenv').config()
 
 const NETWORK_DEVELOPMENT = 'development',
-      NETWORK_RINKEBY = 'rinkeby',
-      NETWORK_MAINNET = 'mainnet'
+    NETWORK_RINKEBY = 'rinkeby',
+    NETWORK_MAINNET = 'mainnet'
 
 const HDWalletProvider = require('truffle-hdwallet-provider')
 
@@ -15,9 +15,9 @@ const networkUrl =
         ? 'http://localhost:8545'
         : network === NETWORK_RINKEBY
             ? 'https://rinkeby.infura.io/' + infuraKey
-            : network === NETWORK_MAINNET ?
-            'https://mainnet.infura.io/' + infuraKey :
-            'http://localhost:8545'
+            : network === NETWORK_MAINNET
+                ? 'https://mainnet.infura.io/' + infuraKey
+                : 'http://localhost:8545'
 
 console.log('Network url', networkUrl, network)
 
