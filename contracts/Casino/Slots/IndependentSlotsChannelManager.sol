@@ -224,7 +224,7 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
         depositedTokens[address(this)] = safeAdd(depositedTokens[address(this)], amount);
 
         // Transfer tokens from address to betting provider.
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
         LogDeposit(address(this), amount, depositedTokens[address(this)]);
         return true;
@@ -233,9 +233,11 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     // Allows owner to withdraw tokens from the contract.
     function authorizedWithdraw()
     onlyOwner returns (bool) {
-        if(depositedTokens[address(this)] == 0) return false;
+        if(depositedTokens[address(this)] == 0) revert();
+        // Store the balance in a temp variable before setting it to 0
+        uint contractBalance = depositedTokens[address(this)];
         depositedTokens[address(this)] = 0;
-        if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)])) return false;
+        if(!decentBetToken.transfer(msg.sender, contractBalance)) revert();
         return true;
     }
 
@@ -245,7 +247,7 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     isDbetsAvailable(amount) returns (bool) {
         depositedTokens[msg.sender] =
         safeAdd(depositedTokens[msg.sender], amount);
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
         LogDeposit(msg.sender, amount, depositedTokens[msg.sender]);
         return true;
     }
@@ -254,7 +256,7 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     function withdraw(uint amount, uint session)
     isTokensAvailable(amount) returns (bool) {
         depositedTokens[msg.sender] = safeSub(depositedTokens[msg.sender], amount);
-        if(!decentBetToken.transfer(msg.sender, amount)) return false;
+        if(!decentBetToken.transfer(msg.sender, amount)) revert();
         LogWithdraw(msg.sender, amount, depositedTokens[msg.sender]);
         return true;
     }

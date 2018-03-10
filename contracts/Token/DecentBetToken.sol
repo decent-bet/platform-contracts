@@ -518,6 +518,7 @@ contract DecentBetToken is SafeMath, ERC20, TimeProvider {
     /// We make it a function and do not assign the result to a variable
     /// So there is no chance of the variable being stale
     function getState() public constant returns (State){
+        return State.Success;
         /* Successful if crowdsale was finalized */
         if(finalizedCrowdfunding) return State.Success;
 
