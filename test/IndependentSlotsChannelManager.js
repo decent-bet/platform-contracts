@@ -2,41 +2,150 @@ let utils = require('./utils/utils.js')
 
 let MultiSigWallet = artifacts.require('MultiSigWallet')
 let DecentBetToken = artifacts.require('TestDecentBetToken')
-let House = artifacts.require('House')
-let HouseLottery = artifacts.require('HouseLottery')
-let BettingProvider = artifacts.require('BettingProvider')
-let BettingProviderHelper = artifacts.require('BettingProviderHelper')
-let IndependentSlotsChannelManager = artifacts.require('IndependentSlotsChannelManager')
+let SlotsChannelManager = artifacts.require('IndependentSlotsChannelManager')
+let SlotsHelper = artifacts.require('SlotsHelper')
 
 let wallet
 let token
-let house
+let slotsChannelManager
+let slotsHelper
 
-let independentSlotsChannelManager
-
-let founder
-let nonFounder
+let owner
+let nonOwner
 
 contract('IndependentSlotsChannelManager', accounts => {
     it('initializes independent slots channel manager contract', async () => {
-        founder = accounts[0]
-        nonFounder = accounts[1]
-oyed()
+        owner = accounts[0]
+        nonOwner = accounts[1]
+
         wallet = await MultiSigWallet.deployed()
         token = await DecentBetToken.deployed()
-        house = await House.deployed()
-        independentSlotsChannelManager = await SlotsChannelManager.deployed()
+        slotsChannelManager = await SlotsChannelManager.deployed()
+        slotsHelper = await SlotsHelper.deployed()
 
-        let _founder = await house.founder()
-        assert.equal(founder, _founder, 'Invalid founder')
+        let _owner = await slotsChannelManager.owner()
+        assert.equal(owner, _owner, 'Invalid owner')
 
-        let houseToken = await house.decentBetToken()
+        let slotsToken = await slotsChannelManager.decentBetToken()
+        let _slotsHelper = await slotsChannelManager.slotsHelper()
 
-        console.log(token.address, houseToken)
+        console.log(token.address, slotsToken)
         assert.equal(
             token.address,
-            houseToken,
-            'Invalid token address in house'
+            slotsToken,
+            'Invalid token address in SlotsChannelManager'
+        )
+
+        assert.equal(
+            _owner,
+            owner,
+            'Invalid owner in SlotsChannelManager'
+        )
+
+        assert.equal(
+            slotsHelper.address,
+            _slotsHelper,
+            'Invalid slots helper contract address'
         )
     })
+
+    it('disallows owner from adding already authorized addresses', async () => {
+        await utils.assertFail(
+            slotsChannelManager.addToAuthorizedAddresses.sendTransaction(owner, {
+                from: owner
+            })
+        )
+    })
+
+    it('disallows non-owners from adding authorized addresses', async () => {
+        await utils.assertFail(
+            slotsChannelManager.addToAuthorizedAddresses.sendTransaction(nonOwner, {
+                from: nonOwner
+            })
+        )
+    })
+
+    it('allows owners to add authorized addresses', async () => {
+        await slotsChannelManager.addToAuthorizedAddresses.sendTransaction(nonOwner, {
+            from: owner
+        })
+
+        let authorized = await slotsChannelManager.authorized(owner)
+        assert.equal(authorized, true, 'Owner should be allowed to add authorized addresses')
+    })
+
+    it('disallows non-owners from removing authorized addresses', async () => {
+        await utils.assertFail(
+            slotsChannelManager.removeFromAuthorizedAddresses.sendTransaction(nonOwner, {
+                from: nonOwner
+            })
+        )
+    })
+
+    it('allows owners to remove authorized addresses', async () => {
+        await slotsChannelManager.removeFromAuthorizedAddresses.sendTransaction(nonOwner, {
+            from: owner
+        })
+
+        let authorized = await slotsChannelManager.authorized(nonOwner)
+        assert.equal(authorized, false, 'Owner should be allowed to remove authorized addresses')
+    })
+
+    it('disallows owners from removing unauthorized addresses', async () => {
+        await utils.assertFail(
+            slotsChannelManager.removeFromAuthorizedAddresses.sendTransaction(nonOwner, {
+                from: owner
+            })
+        )
+    })
+
+    it('disallows unauthorized addresses from creating authorized deposits', async () => {
+        // Retrieve DBETs in non-owner address
+        await token.faucet({ from: nonOwner })
+
+        let faucetTokens = '10000000000000000000000'
+        let tokenBalance = await token.balanceOf(nonOwner, {from: nonOwner})
+        assert.equal(tokenBalance.toFixed(), faucetTokens, 'Invalid balance after retrieving faucet tokens')
+
+        await token.approve(tokenBalance.toFixed(), slotsChannelManager.address, {from: nonOwner})
+
+        await utils.assertFail(
+            slotsChannelManager.authorizedDeposit.sendTransaction(faucetTokens, {
+                from: nonOwner
+            })
+        )
+    })
+
+    it('allows authorized addresses to create authorized deposits', async () => {
+        // Retrieve DBETs in non-owner address
+        await token.faucet({ from: owner })
+
+        let faucetTokens = '10000000000000000000000'
+        let tokenBalance = await token.balanceOf(owner, {from: owner})
+        assert.equal(tokenBalance.toFixed(), faucetTokens, 'Invalid balance after retrieving faucet tokens')
+
+        await token.approve(tokenBalance.toFixed(), slotsChannelManager.address, {from: owner})
+
+        await slotsChannelManager.authorizedDeposit.sendTransaction(faucetTokens, {
+            from: owner
+        })
+
+        let slotsBalance = await slotsChannelManager.balanceOf(slotsChannelManager.address)
+
+        assert.equal(faucetTokens, slotsBalance.toFixed(),
+                    'SlotsChannelManager has incorrect balance after authorized deposit')
+    })
+
+    it('disallows unauthorized addresses from withdrawing contract deposits', async () => {
+
+    })
+
+    it('disallows authorized addresses from withdrawing contract deposits greater than contract balance', async () => {
+
+    })
+
+    it('allows authorized addresses to withdraw contract deposits lesser or equal to the contract balance', async () => {
+
+    })
+
 })

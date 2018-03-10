@@ -43,9 +43,9 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     uint constant public timeToLive = 24 hours;
 
     /* Contracts */
-    AbstractDecentBetToken decentBetToken;
+    AbstractDecentBetToken public decentBetToken;
 
-    AbstractSlotsHelper slotsHelper;
+    AbstractSlotsHelper public slotsHelper;
 
     /* Mappings */
 
@@ -99,11 +99,12 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
         slotsChannelFinalizer = _slotsChannelFinalizer;
         if(!slotsHelper.isSlotsHelper()) throw;
         owner = msg.sender;
+        authorized[owner] = true;
     }
 
     /* Modifiers */
     modifier onlyAuthorized() {
-        if (authorized[msg.sender] == false) throw;
+        if (authorized[msg.sender] == false && msg.sender != owner) throw;
         _;
     }
 
@@ -150,12 +151,12 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     }
 
     /* Functions */
-    function addAuthorized(address _address) onlyOwner {
+    function addToAuthorizedAddresses(address _address) onlyOwner {
         if(authorized[_address]) revert();
         authorized[_address] = true;
     }
 
-    function removeAuthorized(address _address) onlyOwner {
+    function removeFromAuthorizedAddresses(address _address) onlyOwner {
         if(!authorized[_address]) revert();
         authorized[_address] = false;
     }
@@ -216,20 +217,24 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     function authorizedDeposit(uint amount)
     onlyAuthorized
     returns (bool) {
+        // Revert the transaction if the authorized address doesn't have enough DBETs
+        if(decentBetToken.balanceOf(msg.sender) < amount) revert();
+
         // Record the total number of tokens deposited into the house.
         depositedTokens[address(this)] = safeAdd(depositedTokens[address(this)], amount);
 
-        // Transfer tokens from house to betting provider.
+        // Transfer tokens from address to betting provider.
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
 
         LogDeposit(address(this), amount, depositedTokens[address(this)]);
         return true;
     }
 
-    // Allows authorized addresses to withdraw tokens from the contract.
+    // Allows owner to withdraw tokens from the contract.
     function authorizedWithdraw()
-    onlyAuthorized returns (bool) {
+    onlyOwner returns (bool) {
         if(depositedTokens[address(this)] == 0) return false;
+        depositedTokens[address(this)] = 0;
         if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)])) return false;
         return true;
     }
