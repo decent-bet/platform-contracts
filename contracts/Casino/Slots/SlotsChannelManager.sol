@@ -169,7 +169,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     function createChannel(uint initialDeposit) {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
         if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
-        if (balanceOf(msg.sender) < initialDeposit) throw;
+        if (balanceOf(msg.sender, currentSession) < initialDeposit) throw;
         channels[channelCount] = Channel({
             ready: false,
             activated: false,
