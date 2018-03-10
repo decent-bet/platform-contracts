@@ -91,62 +91,62 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
 
     function IndependentSlotsChannelManager(address _token, address _slotsHelper,
         address _slotsChannelFinalizer) /* onlyHouse */ {
-        if(_token == 0) throw;
-        if(_slotsHelper == 0) throw;
-        if(_slotsChannelFinalizer == 0) throw;
+        if(_token == 0) revert();
+        if(_slotsHelper == 0) revert();
+        if(_slotsChannelFinalizer == 0) revert();
         decentBetToken = AbstractDecentBetToken(_token);
         slotsHelper = AbstractSlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
-        if(!slotsHelper.isSlotsHelper()) throw;
+        if(!slotsHelper.isSlotsHelper()) revert();
         owner = msg.sender;
         authorized[owner] = true;
     }
 
     /* Modifiers */
     modifier onlyAuthorized() {
-        if (authorized[msg.sender] == false && msg.sender != owner) throw;
+        if (authorized[msg.sender] == false && msg.sender != owner) revert();
         _;
     }
 
     // Allows functions to execute only if users have "amount" dbets in their token contract balance.
     modifier isDbetsAvailable(uint amount) {
-        if(decentBetToken.balanceOf(msg.sender) < amount) throw;
+        if(decentBetToken.balanceOf(msg.sender) < amount) revert();
         _;
     }
 
     // Allows functions to execute only if users have "amount" tokens in their depositedTokens balance.
     modifier isTokensAvailable(uint amount) {
-        if (depositedTokens[msg.sender] < amount) throw;
+        if (depositedTokens[msg.sender] < amount) revert();
         _;
     }
 
     // Allows only the player to proceed
     modifier isPlayer(uint id) {
-        if (msg.sender != players[id][false]) throw;
+        if (msg.sender != players[id][false]) revert();
         _;
     }
 
     // Allows only if the user is ready
     modifier isUserReady(uint id) {
-        if (channels[id].ready != true) throw;
+        if (channels[id].ready != true) revert();
         _;
     }
 
     // Allows only if the user is not ready
     modifier isUserNotReady(uint id) {
-        if (channels[id].ready == true) throw;
+        if (channels[id].ready == true) revert();
         _;
     }
 
     // Allows only if channel has not been activated
     modifier isNotActivated(uint id) {
-        if (channels[id].activated == true) throw;
+        if (channels[id].activated == true) revert();
         _;
     }
 
     // Allows only if the contract owner is calling a function
     modifier onlyOwner() {
-        if (msg.sender != owner) throw;
+        if (msg.sender != owner) revert();
         _;
     }
 
@@ -179,7 +179,7 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
             finalNonce: 0,
             finalTurn: false,
             exists: true
-            });
+        });
         players[channelCount][false] = msg.sender;
         LogNewChannel(channelCount, msg.sender, initialDeposit);
         channelCount++;
@@ -273,9 +273,9 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     isPlayer(id)
     isUserNotReady(id)
     returns (bool) {
-        if (strLen(_finalUserHash) != 64) throw;
-        if (strLen(_initialUserNumber) != 64) throw;
-        if (balanceOf(msg.sender) < channels[id].initialDeposit) throw;
+        if (strLen(_finalUserHash) != 64) revert();
+        if (strLen(_initialUserNumber) != 64) revert();
+        if (balanceOf(msg.sender) < channels[id].initialDeposit) revert();
         channels[id].initialUserNumber = _initialUserNumber;
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
@@ -306,7 +306,7 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
     returns (bool) {
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
-        if (balanceOf(address(this)) < channels[id].initialDeposit) throw;
+        if (balanceOf(address(this)) < channels[id].initialDeposit) revert();
         channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
@@ -347,7 +347,7 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
 
     // Sets the final spin for the channel
     function setFinal(uint id, uint userBalance, uint houseBalance, uint nonce, bool turn) external {
-        if(msg.sender != address(slotsChannelFinalizer)) throw;
+        if(msg.sender != address(slotsChannelFinalizer)) revert();
 
         finalBalances[id][false] = userBalance;
         finalBalances[id][true] = houseBalance;
@@ -382,9 +382,14 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
         }
     }
 
-    // Utility function to check whether the channel has closed
+    // Utility function to check whether a channel has closed
     function isChannelClosed(uint id) constant returns (bool) {
         return channels[id].finalized && block.timestamp > channels[id].endTime;
+    }
+
+    // Utility function to check whether a channel can be finalized
+    function isChannelFinalizeable(uint id) constant returns (bool) {
+        return channels[id].ready && channels[id].activated && !channels[id].finalized;
     }
 
 }

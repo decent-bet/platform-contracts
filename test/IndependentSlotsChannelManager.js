@@ -3,16 +3,22 @@ let utils = require('./utils/utils.js')
 let MultiSigWallet = artifacts.require('MultiSigWallet')
 let DecentBetToken = artifacts.require('TestDecentBetToken')
 let SlotsChannelManager = artifacts.require('IndependentSlotsChannelManager')
+let SlotsChannelFinalizer = artifacts.require(
+    'IndependentSlotsChannelFinalizer'
+)
 let SlotsHelper = artifacts.require('SlotsHelper')
 
 let wallet
 let token
 let slotsChannelManager
+let slotsChannelFinalizer
 let slotsHelper
 
 let owner
 let nonOwner
 let otherNonOwner
+
+let channelId
 
 contract('IndependentSlotsChannelManager', accounts => {
     it('initializes independent slots channel manager contract', async () => {
@@ -23,6 +29,7 @@ contract('IndependentSlotsChannelManager', accounts => {
         wallet = await MultiSigWallet.deployed()
         token = await DecentBetToken.deployed()
         slotsChannelManager = await SlotsChannelManager.deployed()
+        slotsChannelFinalizer = await SlotsChannelFinalizer.deployed()
         slotsHelper = await SlotsHelper.deployed()
 
         let _owner = await slotsChannelManager.owner()
@@ -257,14 +264,19 @@ contract('IndependentSlotsChannelManager', accounts => {
 
     it('allows users to deposit if deposited token balance is sufficient', async () => {
         let tokenBalance = await token.balanceOf(nonOwner)
+        console.log('Token balance', tokenBalance.toFixed())
 
-        await utils.assertFail(
-            slotsChannelManager.deposit.sendTransaction(
-                tokenBalance.toFixed(),
-                {
-                    from: nonOwner
-                }
-            )
+        await token.approve(
+            slotsChannelManager.address,
+            tokenBalance.toFixed(),
+            { from: nonOwner }
+        )
+
+        await slotsChannelManager.deposit.sendTransaction(
+            tokenBalance.toFixed(),
+            {
+                from: nonOwner
+            }
         )
     })
 
@@ -301,10 +313,64 @@ contract('IndependentSlotsChannelManager', accounts => {
     it('allows users to create channels with a sufficient balance', async () => {
         let initialDeposit = '500000000000000000000'
 
-        await utils.assertFail(
-            slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
+        let balance = await slotsChannelManager.balanceOf(nonOwner)
+        console.log('User Balance', balance)
+
+        await slotsChannelManager.createChannel.sendTransaction(
+            initialDeposit,
+            {
                 from: nonOwner
-            })
+            }
+        )
+
+        let channelCount = await slotsChannelManager.channelCount()
+        channelId = channelCount.toNumber() - 1
+    })
+
+    it('disallows transferTokensToChannel call from outside contract', async () => {
+        assert.equal(
+            slotsChannelManager.transferTokensToChannel,
+            undefined,
+            'transferTokensToChannel must be inaccessible from contract instance'
         )
     })
+
+    it('disallows non players from depositing in channels', async () => {
+        let initialUserNumber = 1
+        let finalUserHash = 'abc'
+        await utils.assertFail(
+            slotsChannelManager.depositChannel.sendTransaction(
+                channelId,
+                initialUserNumber,
+                finalUserHash,
+                { from: otherNonOwner }
+            )
+        )
+    })
+
+    it(
+        'disallows players from depositing in channels with invalid data if not ready '
+    )
+
+    it('allows players to deposit in channels with valid data if not ready', async () => {})
+
+    it('disallows authorized addresses from activating a channel when the user is not ready', async () => {})
+
+    it('disallows players from depositing in channels if ready', async () => {})
+
+    it('disallows unauthorized addresses from activating a channel', async () => {})
+
+    it('allows authorized addresses to activate a channel if user is ready', async () => {})
+
+    it('disallows authorized addresses from activating a channel if already activated', async () => {})
+
+    it('disallows non participants from finalizing a channel', async () => {})
+
+    it('disallows participants from finalizing a channel with invalid data', async () => {})
+
+    it('disallows participants from claiming a channel before it closes', async () => {})
+
+    it('allows participants to close a channel with valid data', async () => {})
+
+    it('allows participants to claim a channel after it closes', async () => {})
 })

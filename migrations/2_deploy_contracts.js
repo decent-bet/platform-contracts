@@ -3,7 +3,7 @@ const DecentBetToken = artifacts.require('TestDecentBetToken')
 const House = artifacts.require('House')
 
 const ECVerify = artifacts.require('ECVerify')
-const SlotsChannelFinalizer = artifacts.require('SlotsChannelFinalizer')
+const SlotsChannelFinalizer = artifacts.require('IndependentSlotsChannelFinalizer')
 const SlotsChannelManager = artifacts.require('IndependentSlotsChannelManager')
 const SlotsHelper = artifacts.require('SlotsHelper')
 
