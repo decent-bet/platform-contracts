@@ -1,15 +1,10 @@
 const MultiSigWallet = artifacts.require('MultiSigWallet')
 const DecentBetToken = artifacts.require('TestDecentBetToken')
-const UpgradeAgent = artifacts.require('TestUpgradeAgent')
 const House = artifacts.require('House')
-const HouseLottery = artifacts.require('HouseLottery')
-const BettingProvider = artifacts.require('BettingProvider')
-const BettingProviderHelper = artifacts.require('BettingProviderHelper')
-const SportsOracle = artifacts.require('SportsOracle')
 
 const ECVerify = artifacts.require('ECVerify')
 const SlotsChannelFinalizer = artifacts.require('SlotsChannelFinalizer')
-const SlotsChannelManager = artifacts.require('SlotsChannelManager')
+const SlotsChannelManager = artifacts.require('IndependentSlotsChannelManager')
 const SlotsHelper = artifacts.require('SlotsHelper')
 
 let deploy = async (deployer, network) => {
@@ -22,13 +17,7 @@ let deploy = async (deployer, network) => {
     let signaturesRequired = 1
     let token,
         wallet,
-        upgradeAgent,
         team,
-        house,
-        houseLottery,
-        bettingProvider,
-        bettingProviderHelper,
-        sportsOracle,
         slotsHelper,
         slotsChannelFinalizer,
         slotsChannelManager
@@ -36,26 +25,24 @@ let deploy = async (deployer, network) => {
     console.log('Deploying with network', network)
 
     if (network === 'rinkeby' || network === 'development') {
-        const timestamp = Math.round(new Date().getTime() / 1000)
-
-        wallet = await deployer.deploy(
-            MultiSigWallet,
-            accounts,
-            signaturesRequired
-        )
-
-        upgradeMaster = accounts[0]
-        team = accounts[0]
-        agentOwner = upgradeMaster
-        decentBetMultisig = MultiSigWallet.address
-
-        const ethPrice = 300
-        const basePrice = ethPrice / 0.125
-
-        startTime = timestamp + 2 * 24 * 60 * 60
-        endTime = timestamp + 28 * 24 * 60 * 60
-
         try {
+            const timestamp = Math.round(new Date().getTime() / 1000)
+
+            wallet = await deployer.deploy(
+                MultiSigWallet,
+                accounts,
+                signaturesRequired
+            )
+
+            upgradeMaster = accounts[0]
+            team = accounts[0]
+            decentBetMultisig = MultiSigWallet.address
+
+            const ethPrice = 300
+            const basePrice = ethPrice / 0.125
+
+            startTime = timestamp + 2 * 24 * 60 * 60
+            endTime = timestamp + 28 * 24 * 60 * 60
             // Deploy the DecentBetToken contract
             await deployer.deploy(
                 DecentBetToken,
@@ -67,37 +54,6 @@ let deploy = async (deployer, network) => {
                 endTime
             )
             token = await DecentBetToken.deployed()
-
-            // Deploy the House contract
-            await deployer.deploy(House, token.address)
-            house = await House.deployed()
-
-            // Deploy the Lottery contract
-            await deployer.deploy(HouseLottery)
-            houseLottery = await HouseLottery.deployed()
-
-            // Set the house within the lottery contract
-            await houseLottery.setHouse.sendTransaction(house.address)
-
-            // Deploy the BettingProviderHelper contract
-            await deployer.deploy(BettingProviderHelper)
-            bettingProviderHelper = await BettingProviderHelper.deployed()
-
-            // Deploy the BettingProvider contract
-            await deployer.deploy(
-                BettingProvider,
-                token.address,
-                house.address,
-                bettingProviderHelper.address,
-                {
-                    gas: 6720000
-                }
-            )
-            bettingProvider = await BettingProvider.deployed()
-
-            // Deploy the SportsOracle contract
-            await deployer.deploy(SportsOracle, token.address)
-            sportsOracle = await SportsOracle.deployed()
 
             // Deploy the ECVerify Library
             await deployer.deploy(ECVerify)
@@ -116,7 +72,6 @@ let deploy = async (deployer, network) => {
             // Deploy the SlotsChannelManager contract
             await deployer.deploy(
                 SlotsChannelManager,
-                house.address,
                 token.address,
                 slotsHelper.address,
                 slotsChannelFinalizer.address
@@ -128,31 +83,10 @@ let deploy = async (deployer, network) => {
                 slotsChannelManager.address
             )
 
-            // Add BettingProvider as a house offering
-            await house.addHouseOffering.sendTransaction(
-                bettingProvider.address,
-                {
-                    gas: 3000000
-                }
-            )
-
-            // Add SlotsChannelManager as a house offering
-            await house.addHouseOffering.sendTransaction(
-                slotsChannelManager.address,
-                {
-                    gas: 3000000
-                }
-            )
-
             console.log(
                 'Deployed:',
                 '\nToken: ' + token.address,
-                '\nHouse: ' + house.address,
                 '\nSlotsChannelManager: ' + SlotsChannelManager.address,
-                '\nHouseLottery: ' + houseLottery.address,
-                '\nBettingProviderHelper: ' + bettingProviderHelper.address,
-                '\nBettingProvider: ' + bettingProvider.address,
-                '\nSports Oracle: ' + sportsOracle.address,
                 '\nSlotsChannelFinalizer: ' + slotsChannelFinalizer.address
             )
         } catch (e) {
