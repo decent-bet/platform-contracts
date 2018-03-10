@@ -241,6 +241,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     onlyHouse returns (bool) {
         uint previousSession = currentSession - 1;
         if(depositedTokens[address(this)][previousSession] == 0) return false;
+        depositedTokens[address(this)][previousSession] = 0;
         if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)][previousSession])) return false;
         return true;
     }
