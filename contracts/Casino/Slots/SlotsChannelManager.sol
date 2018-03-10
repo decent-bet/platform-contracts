@@ -224,13 +224,13 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     onlyHouse
     returns (bool) {
         // House deposits are allowed only for this session or the next.
-        if(session != currentSession && session != currentSession + 1) return false;
+        if(session != currentSession && session != currentSession + 1) revert();
 
         // Record the total number of tokens deposited into the house.
         depositedTokens[houseAddress][session] = safeAdd(depositedTokens[houseAddress][session], amount);
 
         // Transfer tokens from house to betting provider.
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
         LogDeposit(houseAddress, amount, session, depositedTokens[houseAddress][session]);
         return true;
@@ -240,9 +240,10 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     function withdrawPreviousSessionTokens()
     onlyHouse returns (bool) {
         uint previousSession = currentSession - 1;
-        if(depositedTokens[address(this)][previousSession] == 0) return false;
+        if(depositedTokens[address(this)][previousSession] == 0) revert();
+        uint contractBalance = depositedTokens[address(this)][previousSession];
         depositedTokens[address(this)][previousSession] = 0;
-        if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)][previousSession])) return false;
+        if(!decentBetToken.transfer(msg.sender, contractBalance)) revert();
         return true;
     }
 
@@ -252,7 +253,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     isDbetsAvailable(amount) returns (bool) {
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
         LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
@@ -262,7 +263,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     isValidPriorSession(session)
     isTokensAvailable(amount, session) returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
-        if(!decentBetToken.transfer(msg.sender, amount)) return false;
+        if(!decentBetToken.transfer(msg.sender, amount)) revert();
         LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }
