@@ -1,6 +1,6 @@
 pragma solidity ^0.4.0;
 
-import './SlotsImplementation.sol';
+import './IndependentSlotsImplementation.sol';
 import './AbstractSlotsHelper.sol';
 import '../../Token/AbstractDecentBetToken.sol';
 import '../../House/HouseOffering.sol';
@@ -13,7 +13,7 @@ import '../../Libraries/Utils.sol';
 
 // A stand-alone state channel contract to handle slot games on the Decent.bet platform without depending on the
 // House contract for funds, balance management etc.
-contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils {
+contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeMath, Utils {
 
     using strings for *;
     using ECVerify for *;
@@ -30,6 +30,9 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
 
     /* Variables */
 
+    // Address of contract owner.
+    address public owner;
+
     // Address of the slots channel finalizer contract - passed through during contract creation
     address public slotsChannelFinalizer;
 
@@ -37,7 +40,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
     uint public channelCount;
 
     // Time for channel to stay active, after which will be closed
-    uint constant public timeToLive = 3 hours;
+    uint constant public timeToLive = 24 hours;
 
     /* Contracts */
     AbstractDecentBetToken decentBetToken;
@@ -45,6 +48,10 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
     AbstractSlotsHelper slotsHelper;
 
     /* Mappings */
+
+    // Authorized addresses to run channels on the contract.
+    // Can be altered by the contract owner.
+    mapping (address => bool) public authorized;
 
     // Channels created.
     mapping (uint => Channel) channels;
@@ -78,9 +85,11 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
 
     event LogWithdraw(address _address, uint amount, uint balance);
 
+    event LogUpdateAuthorized(address _address, bool authorized);
+
     /* Constructor */
 
-    function SlotsChannelManager(address _token, address _slotsHelper,
+    function IndependentSlotsChannelManager(address _token, address _slotsHelper,
         address _slotsChannelFinalizer) /* onlyHouse */ {
         if(_token == 0) throw;
         if(_slotsHelper == 0) throw;
@@ -89,13 +98,12 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
         slotsHelper = AbstractSlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
         if(!slotsHelper.isSlotsHelper()) throw;
-        name = 'Independent Slots Channel Manager';
-        isHouseOffering = true;
+        owner = msg.sender;
     }
 
     /* Modifiers */
     modifier onlyAuthorized() {
-        if (house.authorized(msg.sender) == false) throw;
+        if (authorized[msg.sender] == false) throw;
         _;
     }
 
@@ -106,7 +114,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
     }
 
     // Allows functions to execute only if users have "amount" tokens in their depositedTokens balance.
-    modifier isTokensAvailable(uint amount, uint session) {
+    modifier isTokensAvailable(uint amount) {
         if (depositedTokens[msg.sender] < amount) throw;
         _;
     }
@@ -135,7 +143,23 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
         _;
     }
 
+    // Allows only if the contract owner is calling a function
+    modifier onlyOwner() {
+        if (msg.sender != owner) throw;
+        _;
+    }
+
     /* Functions */
+    function addAuthorized(address _address) onlyOwner {
+        if(authorized[_address]) revert();
+        authorized[_address] = true;
+    }
+
+    function removeAuthorized(address _address) onlyOwner {
+        if(!authorized[_address]) revert();
+        authorized[_address] = false;
+    }
+
     function createChannel(uint initialDeposit) {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
         if(initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
@@ -152,7 +176,6 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
             finalSeedHash: '',
             finalNonce: 0,
             finalTurn: false,
-            session: currentSession,
             exists: true
             });
         players[channelCount][false] = msg.sender;
@@ -199,7 +222,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
         // Transfer tokens from house to betting provider.
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
 
-        LogDeposit(houseAddress, amount, depositedTokens[address(this)]);
+        LogDeposit(address(this), amount, depositedTokens[address(this)]);
         return true;
     }
 
@@ -275,7 +298,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
     returns (bool) {
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
-        if (balanceOf(houseAddress) < channels[id].initialDeposit) throw;
+        if (balanceOf(address(this)) < channels[id].initialDeposit) throw;
         channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
@@ -289,7 +312,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
     // Transfers tokens to a channel.
     function transferTokensToChannel(uint id, bool isHouse) private {
         // Transfer from house address instead of authorized addresses sending txs on behalf of the house
-        address _address = isHouse ? houseAddress : players[id][false];
+        address _address = isHouse ? address(this) : players[id][false];
         channelDeposits[id][isHouse] =
         safeAdd(channelDeposits[id][isHouse], channels[id].initialDeposit);
         depositedTokens[_address] =
@@ -306,12 +329,12 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
 
     // Returns the address for a signed spin
     function getSigAddress(bytes32 msg, uint8 v, bytes32 r, bytes32 s) constant returns (address) {
-        return ecrecover(sha3(msg), v, r, s);
+        return ecrecover(keccak256(msg), v, r, s);
     }
 
     // Allows only the house and player to proceed
     function isParticipant(uint id, address _address) constant returns (bool) {
-        return (house.authorized(_address) || _address == players[id][false]);
+        return (authorized[_address] || _address == players[id][false]);
     }
 
     // Sets the final spin for the channel
@@ -342,7 +365,7 @@ contract IndependentSlotsChannelManager is SlotsImplementation, SafeMath, Utils 
                 channelDeposits[id][isHouse] = 0;
 
                 // Deposit to the house address instead of authorized addresses sending txs on behalf of the house
-                address _address = isHouse ? houseAddress : msg.sender;
+                address _address = isHouse ? address(this) : msg.sender;
 
                 depositedTokens[_address] = safeAdd(depositedTokens[_address], amount);
 
