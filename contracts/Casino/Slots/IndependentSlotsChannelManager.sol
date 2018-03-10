@@ -163,7 +163,8 @@ contract IndependentSlotsChannelManager is IndependentSlotsImplementation, SafeM
 
     function createChannel(uint initialDeposit) {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
-        if(initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
+        if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) revert();
+        if (balanceOf(msg.sender) < initialDeposit) revert();
         channels[channelCount] = Channel({
             ready: false,
             activated: false,

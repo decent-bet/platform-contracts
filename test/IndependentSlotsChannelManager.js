@@ -12,11 +12,13 @@ let slotsHelper
 
 let owner
 let nonOwner
+let otherNonOwner
 
 contract('IndependentSlotsChannelManager', accounts => {
     it('initializes independent slots channel manager contract', async () => {
         owner = accounts[0]
         nonOwner = accounts[1]
+        otherNonOwner = accounts[2]
 
         wallet = await MultiSigWallet.deployed()
         token = await DecentBetToken.deployed()
@@ -167,8 +169,15 @@ contract('IndependentSlotsChannelManager', accounts => {
             { from: owner }
         )
 
-        let allowance = await token.allowance(owner, slotsChannelManager.address)
-        assert.equal(allowance.toFixed(), tokenBalance.toFixed(), 'Invalid allowance')
+        let allowance = await token.allowance(
+            owner,
+            slotsChannelManager.address
+        )
+        assert.equal(
+            allowance.toFixed(),
+            tokenBalance.toFixed(),
+            'Invalid allowance'
+        )
 
         await slotsChannelManager.authorizedDeposit.sendTransaction(
             faucetTokens,
@@ -214,13 +223,88 @@ contract('IndependentSlotsChannelManager', accounts => {
             slotsChannelManager.address
         )
 
-        assert.equal(finalContractDepositedTokenBalance.toFixed(), 0, 'Invalid final contract deposited token balance after withdrawal')
-        assert.equal(finalContractTokenBalance.toFixed(), 0, 'Invalid final contract token balance after withdrawal')
+        assert.equal(
+            finalContractDepositedTokenBalance.toFixed(),
+            0,
+            'Invalid final contract deposited token balance after withdrawal'
+        )
+        assert.equal(
+            finalContractTokenBalance.toFixed(),
+            0,
+            'Invalid final contract token balance after withdrawal'
+        )
 
         assert.equal(
             ownerBalance.plus(tokenBalance).toFixed(),
             finalOwnerBalance.toFixed(),
             'Invalid owner balance after contract withdrawal'
+        )
+    })
+
+    it('disallows users from depositing without sufficient deposited token balance', async () => {
+        await token.faucet({ from: nonOwner })
+        let tokenBalance = await token.balanceOf(nonOwner)
+
+        await utils.assertFail(
+            slotsChannelManager.deposit.sendTransaction(
+                tokenBalance.toFixed() + 1,
+                {
+                    from: nonOwner
+                }
+            )
+        )
+    })
+
+    it('allows users to deposit if deposited token balance is sufficient', async () => {
+        let tokenBalance = await token.balanceOf(nonOwner)
+
+        await utils.assertFail(
+            slotsChannelManager.deposit.sendTransaction(
+                tokenBalance.toFixed(),
+                {
+                    from: nonOwner
+                }
+            )
+        )
+    })
+
+    it('disallows users from creating channels out of hardcoded initial deposit range', async () => {
+        let outOfHigherRange = '1001000000000000000000'
+        let outOfLowerRange = '99000000000000000000'
+
+        await utils.assertFail(
+            slotsChannelManager.createChannel.sendTransaction(
+                outOfHigherRange,
+                {
+                    from: nonOwner
+                }
+            )
+        )
+
+        await utils.assertFail(
+            slotsChannelManager.createChannel.sendTransaction(outOfLowerRange, {
+                from: nonOwner
+            })
+        )
+    })
+
+    it('disallows users from creating channels without a sufficient deposited token balance', async () => {
+        let initialDeposit = '500000000000000000000'
+
+        await utils.assertFail(
+            slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
+                from: otherNonOwner
+            })
+        )
+    })
+
+    it('allows users to create channels with a sufficient balance', async () => {
+        let initialDeposit = '500000000000000000000'
+
+        await utils.assertFail(
+            slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
+                from: nonOwner
+            })
         )
     })
 })
