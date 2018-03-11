@@ -1,6 +1,7 @@
 const BigNumber = require('bignumber.js')
 const SHA256 = require('crypto-js/sha256')
 const AES = require('crypto-js/aes')
+const seedRandom = require('seedrandom')
 
 let utils = require('./utils/utils.js')
 
@@ -27,10 +28,25 @@ let nonInvestor
 
 let nonFounderPrivateKey =
     '0x5c7f17702c636b560743b0dcb1b1d2b18e64de0667010ca4d9cac4f7119d0428'
+let housePrivateKey =
+    '0xf670adee34d38fc203ff707d7e7ef8946a6bb74fffdfc8d1a44c1e63eae86141'
 
 let channelId
+
+// User deposit params
 let initialUserNumber
 let finalUserHash
+
+// House channel params
+let initialHouseSeed
+let initialHouseSeedHash
+let finalSeedHash
+let finalReelHash
+let reelsAndHashes
+
+// Constants
+
+const NUMBER_OF_REELS = 5
 
 let generateRandomNumber = length => {
     return Math.floor(
@@ -38,17 +54,18 @@ let generateRandomNumber = length => {
     )
 }
 
-let getAesKey = (id, cb) => {
-    let idHash = utils.getWeb3().utils.sha3(id)
-    console.log('getAesKey', utils.getWeb3().eth.defaultAccount)
-    let aesKey = utils
-        .getWeb3()
-        .eth.accounts.sign(
-            utils.getWeb3().utils.utf8ToHex(idHash),
-            nonFounderPrivateKey
-        ).signature
-    console.log('Retrieved aes key', aesKey)
-    cb(false, aesKey)
+let getAesKey = (id, privateKey) => {
+    return new Promise((resolve, reject) => {
+        let idHash = utils.getWeb3().utils.sha3(id)
+        let aesKey = utils
+            .getWeb3()
+            .eth.accounts.sign(
+                utils.getWeb3().utils.utf8ToHex(idHash),
+                privateKey
+            ).signature
+        console.log('Retrieved aes key', aesKey)
+        resolve(aesKey)
+    })
 }
 
 let getUserHashes = randomNumber => {
@@ -62,12 +79,11 @@ let getUserHashes = randomNumber => {
     return hashes
 }
 
-let getChannelDepositParams = id => {
+let getChannelDepositParams = (id, key) => {
     return new Promise((resolve, reject) => {
         let randomNumber = generateRandomNumber(18).toString()
-
-        getAesKey(id, (err, res) => {
-            if (!err) {
+        getAesKey(id, key)
+            .then(res => {
                 console.log('randomNumber', randomNumber, 'aesKey', res)
                 let initialUserNumber = AES.encrypt(
                     randomNumber,
@@ -79,8 +95,10 @@ let getChannelDepositParams = id => {
                     initialUserNumber: initialUserNumber,
                     finalUserHash: finalUserHash
                 })
-            } else reject(new Error(res))
-        })
+            })
+            .catch(err => {
+                reject(err)
+            })
     })
 }
 
@@ -319,8 +337,27 @@ contract('SlotsChannelManager', accounts => {
         )
     })
 
+    it('disallows authorized addresses from activating a channel when the user is not ready', async () => {
+        initialHouseSeedHash = '1'
+        finalSeedHash = 'abc'
+        finalReelHash = 'def'
+
+        await utils.assertFail(
+            slotsChannelManager.activateChannel.sendTransaction(
+                channelId,
+                initialHouseSeedHash,
+                finalSeedHash,
+                finalReelHash,
+                { from: nonFounder }
+            )
+        )
+    })
+
     it('allows players to deposit in channels with valid data if not ready', async () => {
-        let channelDepositParams = await getChannelDepositParams(channelId)
+        let channelDepositParams = await getChannelDepositParams(
+            channelId,
+            nonFounderPrivateKey
+        )
         console.log('Channel Deposit Params', channelDepositParams)
 
         initialUserNumber = channelDepositParams.initialUserNumber
@@ -343,13 +380,164 @@ contract('SlotsChannelManager', accounts => {
         )
     })
 
-    it('disallows authorized addresses from activating a channel when the user is not ready', async () => {})
+    it('disallows players from depositing in channels if ready', async () => {
+        await utils.assertFail(
+            slotsChannelManager.depositChannel.sendTransaction(
+                channelId,
+                initialUserNumber,
+                finalUserHash,
+                { from: nonFounder }
+            )
+        )
+    })
 
-    it('disallows players from depositing in channels if ready', async () => {})
+    it('disallows unauthorized addresses from activating a channel', async () => {
+        initialHouseSeedHash = '1'
+        finalSeedHash = 'abc'
+        finalReelHash = 'def'
 
-    it('disallows unauthorized addresses from activating a channel', async () => {})
+        await utils.assertFail(
+            slotsChannelManager.activateChannel.sendTransaction(
+                channelId,
+                initialHouseSeedHash,
+                finalSeedHash,
+                finalReelHash,
+                { from: nonFounder }
+            )
+        )
+    })
 
-    it('allows authorized addresses to activate a channel if user is ready', async () => {})
+    it('allows authorized addresses to activate a channel if user is ready', async () => {
+        let generateReelsAndHashes = (initialHouseSeed, id) => {
+            let blendedSeed = initialHouseSeed + id
+            let reelSeedHashes = generator().reelSeedHashes(blendedSeed)
+            let reels = generator().reels(reelSeedHashes)
+            let reelHashes = generator().reelHashes(reelSeedHashes, reels)
+
+            console.log(
+                'generateReelsAndHashes',
+                blendedSeed,
+                reelSeedHashes[reelSeedHashes.length - 1],
+                reelHashes[reelHashes.length - 1]
+            )
+            return {
+                reelSeedHashes: reelSeedHashes,
+                reels: reels,
+                reelHashes: reelHashes
+            }
+        }
+
+        let generator = () => {
+            return {
+                reelSeedHashes: seed => {
+                    console.log('Reel seed hashes')
+                    let hashes = []
+                    for (let i = 0; i < 1000; i++)
+                        hashes.push(
+                            SHA256(i === 0 ? seed : hashes[i - 1]).toString()
+                        )
+                    return hashes
+                },
+                reels: reelSeedHashes => {
+                    console.log('Reels')
+                    let reels = []
+                    for (let i = 0; i < reelSeedHashes.length; i++) {
+                        let hash = reelSeedHashes[i]
+                        let reel = []
+                        for (let j = 0; j < NUMBER_OF_REELS; j++) {
+                            let rng = seedRandom(hash + j)
+                            reel.push(Math.floor(rng() * 21))
+                        }
+                        reels.push(reel)
+                    }
+                    return reels
+                },
+                reelHashes: (reelSeedHashes, reels) => {
+                    console.log('Reel hashes')
+                    let reelHashes = []
+                    for (let i = 0; i < reelSeedHashes.length; i++)
+                        reelHashes.push(
+                            SHA256(
+                                reelSeedHashes[i] + reels[i].toString()
+                            ).toString()
+                        )
+                    return reelHashes
+                }
+            }
+        }
+
+        try {
+            initialHouseSeed = await getAesKey(finalUserHash, housePrivateKey)
+            reelsAndHashes = generateReelsAndHashes(initialHouseSeed, channelId)
+
+            finalSeedHash =
+                reelsAndHashes.reelSeedHashes[
+                    reelsAndHashes.reelSeedHashes.length - 1
+                ]
+            finalReelHash =
+                reelsAndHashes.reelHashes[reelsAndHashes.reelHashes.length - 1]
+
+            console.log('Reels and hashes', finalSeedHash, finalReelHash)
+            initialHouseSeedHash = SHA256(initialHouseSeed).toString()
+
+            console.log(
+                'Activating channel',
+                channelId,
+                initialHouseSeedHash,
+                finalSeedHash,
+                finalReelHash
+            )
+
+            let currentSession = await slotsChannelManager.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let contractBalancePreActivation = await slotsChannelManager.balanceOf(
+                slotsChannelManager.address,
+                currentSession
+            )
+
+            await slotsChannelManager.activateChannel.sendTransaction(
+                channelId,
+                initialHouseSeedHash,
+                finalSeedHash,
+                finalReelHash,
+                { from: founder }
+            )
+            console.log('Sent activateChannel tx')
+
+            let channelInfo = await slotsChannelManager.getChannelInfo(
+                channelId
+            )
+            let activated = channelInfo[2]
+            let initialDeposit = channelInfo[4]
+
+            let contractBalancePostActivation = await slotsChannelManager.balanceOf(
+                slotsChannelManager.address,
+                currentSession
+            )
+
+            console.log(
+                'Contract balances',
+                contractBalancePreActivation.toFixed(),
+                contractBalancePostActivation.toFixed(),
+                initialDeposit.toFixed()
+            )
+
+            assert.equal(
+                activated,
+                true,
+                'House is not activated after calling activateChannel()'
+            )
+
+            assert.equal(
+                contractBalancePreActivation.minus(initialDeposit).toFixed(),
+                contractBalancePostActivation.toFixed(),
+                'Invalid balance after activating channel'
+            )
+        } catch (e) {
+            throw new Error(e)
+        }
+    })
 
     it('disallows authorized addresses from activating a channel if already activated', async () => {})
 
@@ -362,5 +550,4 @@ contract('SlotsChannelManager', accounts => {
     it('allows participants to close a channel with valid data', async () => {})
 
     it('allows participants to claim a channel after it closes', async () => {})
-
 })

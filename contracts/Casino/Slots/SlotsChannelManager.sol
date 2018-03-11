@@ -318,7 +318,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     returns (bool) {
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
-        if (balanceOf(houseAddress, channels[id].session) < channels[id].initialDeposit) throw;
+        if (balanceOf(address(this), channels[id].session) < channels[id].initialDeposit) throw;
         channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
@@ -332,7 +332,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // Transfers tokens to a channel.
     function transferTokensToChannel(uint id, bool isHouse) private {
         // Transfer from house address instead of authorized addresses sending txs on behalf of the house
-        address _address = isHouse ? houseAddress : players[id][false];
+        address _address = isHouse ? address(this) : players[id][false];
         channelDeposits[id][isHouse] =
         safeAdd(channelDeposits[id][isHouse], channels[id].initialDeposit);
         depositedTokens[_address][channels[id].session] =
@@ -384,7 +384,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
                 channelDeposits[id][isHouse] = 0;
 
                 // Deposit to the house address instead of authorized addresses sending txs on behalf of the house
-                address _address = isHouse ? houseAddress : msg.sender;
+                address _address = isHouse ? address(this) : msg.sender;
 
                 depositedTokens[_address][channels[id].session] =
                 safeAdd(depositedTokens[_address][channels[id].session], amount);
