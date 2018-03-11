@@ -89,7 +89,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     /* Constructor */
 
     function SlotsChannelManager(address _house, address _token, address _slotsHelper,
-                                 address _slotsChannelFinalizer) /* onlyHouse */ {
+        address _slotsChannelFinalizer) /* onlyHouse */ {
         if(_house == 0) throw;
         if(_token == 0) throw;
         if(_slotsHelper == 0) throw;
@@ -168,8 +168,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     /* Functions */
     function createChannel(uint initialDeposit) {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
-        if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
-        if (balanceOf(msg.sender, currentSession) < initialDeposit) throw;
+        if(initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
         channels[channelCount] = Channel({
             ready: false,
             activated: false,
@@ -185,7 +184,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
             finalTurn: false,
             session: currentSession,
             exists: true
-        });
+            });
         players[channelCount][false] = msg.sender;
         LogNewChannel(channelCount, msg.sender, initialDeposit);
         channelCount++;
@@ -194,21 +193,21 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // Helper function to return channel information for the frontend
     function getChannelInfo(uint id) constant returns (address, bool, bool, bool, uint, uint, uint) {
         return (players[id][false],
-                channels[id].ready,
-                channels[id].activated,
-                channels[id].finalized,
-                channels[id].initialDeposit,
-                channels[id].finalNonce,
-                channels[id].endTime);
+        channels[id].ready,
+        channels[id].activated,
+        channels[id].finalized,
+        channels[id].initialDeposit,
+        channels[id].finalNonce,
+        channels[id].endTime);
     }
 
     // Helper function to return hashes used for the frontend/backend
     function getChannelHashes(uint id) constant returns (string, string, string, string, string) {
         return (channels[id].finalUserHash,
-                channels[id].initialUserNumber,
-                channels[id].initialHouseSeedHash,
-                channels[id].finalReelHash,
-                channels[id].finalSeedHash);
+        channels[id].initialUserNumber,
+        channels[id].initialHouseSeedHash,
+        channels[id].finalReelHash,
+        channels[id].finalSeedHash);
     }
 
     // Helper function to return whether a channel has been finalized and it's final nonce
@@ -225,15 +224,15 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     onlyHouse
     returns (bool) {
         // House deposits are allowed only for this session or the next.
-        if(session != currentSession && session != currentSession + 1) revert();
+        if(session != currentSession && session != currentSession + 1) return false;
 
         // Record the total number of tokens deposited into the house.
-        depositedTokens[houseAddress][session] = safeAdd(depositedTokens[houseAddress][session], amount);
+        depositedTokens[address(this)][session] = safeAdd(depositedTokens[address(this)][session], amount);
 
         // Transfer tokens from house to betting provider.
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
 
-        LogDeposit(houseAddress, amount, session, depositedTokens[houseAddress][session]);
+        LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
         return true;
     }
 
@@ -241,10 +240,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     function withdrawPreviousSessionTokens()
     onlyHouse returns (bool) {
         uint previousSession = currentSession - 1;
-        if(depositedTokens[address(this)][previousSession] == 0) revert();
-        uint contractBalance = depositedTokens[address(this)][previousSession];
-        depositedTokens[address(this)][previousSession] = 0;
-        if(!decentBetToken.transfer(msg.sender, contractBalance)) revert();
+        if(depositedTokens[address(this)][previousSession] == 0) return false;
+        if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)][previousSession])) return false;
         return true;
     }
 
@@ -254,7 +251,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     isDbetsAvailable(amount) returns (bool) {
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
         LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
@@ -264,7 +261,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     isValidPriorSession(session)
     isTokensAvailable(amount, session) returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
-        if(!decentBetToken.transfer(msg.sender, amount)) revert();
+        if(!decentBetToken.transfer(msg.sender, amount)) return false;
         LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }
@@ -276,7 +273,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     function setSession(uint session)
         // Replace other functions with onlyAuthorized
-        onlyHouse returns (bool) {
+    onlyHouse returns (bool) {
         currentSession = session;
         return true;
     }
@@ -313,7 +310,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // House sends the final reel and seed hashes to activate the channel along with the initial house seed hash
     // to verify the blended seed after a channel is closed
     function activateChannel(uint id, string _initialHouseSeedHash,
-    string _finalSeedHash, string _finalReelHash) // 373k gas
+        string _finalSeedHash, string _finalReelHash) // 373k gas
     onlyAuthorized
     isNotActivated(id)
     isUserReady(id)
