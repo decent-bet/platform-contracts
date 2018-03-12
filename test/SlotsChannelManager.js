@@ -2,6 +2,8 @@ const BigNumber = require('bignumber.js')
 const SHA256 = require('crypto-js/sha256')
 const AES = require('crypto-js/aes')
 const seedRandom = require('seedrandom')
+const ethUnits = require('ethereum-units')
+const ethUtil = require('ethereumjs-util')
 
 let utils = require('./utils/utils.js')
 
@@ -44,8 +46,14 @@ let finalSeedHash
 let finalReelHash
 let reelsAndHashes
 
-// Constants
+// Channel State
+let houseSpins = []
+let userHashes
+let nonce = 1
+let initialDeposit
+let channelAesKey
 
+// Constants
 const NUMBER_OF_REELS = 5
 
 let generateRandomNumber = length => {
@@ -55,7 +63,7 @@ let generateRandomNumber = length => {
 }
 
 let getAesKey = (id, privateKey) => {
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
         let idHash = utils.getWeb3().utils.sha3(id)
         let aesKey = utils
             .getWeb3()
@@ -85,12 +93,10 @@ let getChannelDepositParams = (id, key) => {
         getAesKey(id, key)
             .then(res => {
                 console.log('randomNumber', randomNumber, 'aesKey', res)
-                let initialUserNumber = AES.encrypt(
-                    randomNumber,
-                    res
-                ).toString()
-                let userHashes = getUserHashes(randomNumber)
-                let finalUserHash = userHashes[userHashes.length - 1]
+                channelAesKey = key
+                initialUserNumber = AES.encrypt(randomNumber, res).toString()
+                userHashes = getUserHashes(randomNumber)
+                finalUserHash = userHashes[userHashes.length - 1]
                 resolve({
                     initialUserNumber: initialUserNumber,
                     finalUserHash: finalUserHash
@@ -100,6 +106,118 @@ let getChannelDepositParams = (id, key) => {
                 reject(err)
             })
     })
+}
+
+let getTightlyPackedSpin = spin => {
+    return (
+        spin.reelHash +
+        (spin.reel !== '' ? spin.reel.toString() : '') +
+        spin.reelSeedHash +
+        spin.prevReelSeedHash +
+        spin.userHash +
+        spin.prevUserHash +
+        spin.nonce +
+        spin.turn +
+        spin.userBalance +
+        spin.houseBalance +
+        spin.betSize
+    )
+}
+
+let signString = (text, address, key) => {
+    return new Promise((resolve, reject) => {
+        /*
+         * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the user's address;
+         */
+        try {
+            let msgHash = ethUtil.sha3(text)
+            let privateKey = ethUtil.toBuffer(key)
+
+            console.log(
+                'Signing',
+                text,
+                ethUtil.bufferToHex(msgHash),
+                'as',
+                address,
+                ethUtil.isValidPrivate(privateKey)
+            )
+
+            const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
+            const sgn = ethUtil.toRpcSig(v, r, s)
+
+            console.log(
+                'v: ' +
+                    v +
+                    ', r: ' +
+                    sgn.slice(0, 66) +
+                    ', s: ' +
+                    '0x' +
+                    sgn.slice(66, 130)
+            )
+
+            let m = ethUtil.toBuffer(msgHash)
+            let pub = ethUtil.ecrecover(m, v, r, s)
+            let adr = '0x' + ethUtil.pubToAddress(pub).toString('hex')
+
+            console.log('Generated sign address', adr, address)
+            console.log('Generated msgHash', msgHash, 'Sign', sgn)
+
+            let nonChecksummedAddress = address.toLowerCase()
+
+            if (adr !== nonChecksummedAddress)
+                throw new Error('Invalid address for signed message')
+
+            resolve({
+                msgHash: msgHash,
+                sig: sgn
+            })
+        } catch (e) {
+            reject(e)
+        }
+    })
+}
+
+let getSpin = async (betSize, address, key) => {
+    const lastHouseSpin = houseSpins[houseSpins.length - 1]
+
+    let reelHash = nonce === 1 ? finalReelHash : lastHouseSpin.reelHash
+    let reel = ''
+    let reelSeedHash = nonce === 1 ? finalSeedHash : lastHouseSpin.reelSeedHash
+    let prevReelSeedHash = nonce === 1 ? '' : lastHouseSpin.prevReelSeedHash
+    let userHash = userHashes[userHashes.length - nonce]
+    let prevUserHash = userHashes[userHashes.length - nonce - 1]
+    let userBalance = nonce === 1 ? initialDeposit : lastHouseSpin.userBalance
+    userBalance = new BigNumber(userBalance).toFixed(0)
+    let houseBalance = nonce === 1 ? initialDeposit : lastHouseSpin.houseBalance
+    houseBalance = new BigNumber(houseBalance).toFixed(0)
+
+    let spin = {
+        reelHash: reelHash,
+        reel: reel,
+        reelSeedHash: reelSeedHash,
+        prevReelSeedHash: prevReelSeedHash,
+        userHash: userHash,
+        prevUserHash: prevUserHash,
+        nonce: nonce,
+        turn: false,
+        userBalance: userBalance,
+        houseBalance: houseBalance,
+        betSize: betSize
+    }
+
+    let sign = await signString(getTightlyPackedSpin(spin), address, key)
+    return new Promise(resolve => {
+        spin.sign = sign.sig
+        resolve(spin)
+    })
+}
+
+let getEtherInWei = () => {
+    return ethUnits.units.ether
+}
+
+let convertToEther = number => {
+    return new BigNumber(number).times(getEtherInWei()).toFixed(0)
 }
 
 contract('SlotsChannelManager', accounts => {
@@ -354,15 +472,9 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('allows players to deposit in channels with valid data if not ready', async () => {
-        let channelDepositParams = await getChannelDepositParams(
-            channelId,
-            nonFounderPrivateKey
-        )
-        console.log('Channel Deposit Params', channelDepositParams)
+        await getChannelDepositParams(channelId, nonFounderPrivateKey)
 
-        initialUserNumber = channelDepositParams.initialUserNumber
-        finalUserHash = channelDepositParams.finalUserHash
-
+        console.log('Channel deposit params', initialUserNumber, finalUserHash)
         slotsChannelManager.depositChannel.sendTransaction(
             channelId,
             initialUserNumber,
@@ -509,7 +621,7 @@ contract('SlotsChannelManager', accounts => {
                 channelId
             )
             let activated = channelInfo[2]
-            let initialDeposit = channelInfo[4]
+            initialDeposit = channelInfo[4].toFixed()
 
             let contractBalancePostActivation = await slotsChannelManager.balanceOf(
                 slotsChannelManager.address,
@@ -520,7 +632,7 @@ contract('SlotsChannelManager', accounts => {
                 'Contract balances',
                 contractBalancePreActivation.toFixed(),
                 contractBalancePostActivation.toFixed(),
-                initialDeposit.toFixed()
+                initialDeposit
             )
 
             assert.equal(
@@ -535,11 +647,33 @@ contract('SlotsChannelManager', accounts => {
                 'Invalid balance after activating channel'
             )
         } catch (e) {
-            throw new Error(e)
+            throw e
         }
     })
 
-    it('disallows authorized addresses from activating a channel if already activated', async () => {})
+    it('disallows authorized addresses from activating a channel if already activated', async () => {
+        await utils.assertFail(
+            slotsChannelManager.activateChannel.sendTransaction(
+                channelId,
+                initialHouseSeedHash,
+                finalSeedHash,
+                finalReelHash,
+                { from: founder }
+            )
+        )
+    })
+
+    it('disallows players to spin with invalid spin data', async () => {
+        // Max number of lines
+        let betSize = 5
+
+        // User spin
+        let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
+        let encryptedSpin = AES.encrypt(JSON.stringify(spin), channelAesKey).toString()
+        console.log('Spin', spin, encryptedSpin)
+    })
+
+    it('allows players to spin with valid spin data', async () => {})
 
     it('disallows non participants from finalizing a channel', async () => {})
 
