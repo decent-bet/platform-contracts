@@ -174,15 +174,6 @@ let signString = (text, address, key) => {
             let msgHash = ethUtil.sha3(text)
             let privateKey = ethUtil.toBuffer(key)
 
-            console.log(
-                'Signing',
-                text,
-                ethUtil.bufferToHex(msgHash),
-                'as',
-                address,
-                ethUtil.isValidPrivate(privateKey)
-            )
-
             const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
             const sgn = ethUtil.toRpcSig(v, r, s)
 
@@ -199,9 +190,6 @@ let signString = (text, address, key) => {
             let m = ethUtil.toBuffer(msgHash)
             let pub = ethUtil.ecrecover(m, v, r, s)
             let adr = '0x' + ethUtil.pubToAddress(pub).toString('hex')
-
-            console.log('Generated sign address', adr, address)
-            console.log('Generated msgHash', msgHash, 'Sign', sgn)
 
             let nonChecksummedAddress = address.toLowerCase()
 
@@ -489,7 +477,11 @@ let processSpin = async (id, spin, encryptedSpin) => {
         if (nonce !== spin.nonce - 1 || spin.nonce > 1000) return false
         else {
             let previousSpins = getPreviousSpins()
-            return (validateBetSize() && verifyBalances(previousSpins) && verifyHashes(previousSpins))
+            return (
+                !validateBetSize() &&
+                verifyBalances(previousSpins) &&
+                verifyHashes(previousSpins)
+            )
         }
     }
 
@@ -635,9 +627,10 @@ let processSpin = async (id, spin, encryptedSpin) => {
 
     let saveSpin = async () => {
         let houseSpin = await getHouseSpin()
-        let houseEncryptedSpin = AES
-            .encrypt(JSON.stringify(houseSpin), aesKey)
-            .toString()
+        let houseEncryptedSpin = AES.encrypt(
+            JSON.stringify(houseSpin),
+            aesKey
+        ).toString()
         spins.push({
             id: id,
             contractAddress: slotsChannelManager.address,
@@ -651,25 +644,23 @@ let processSpin = async (id, spin, encryptedSpin) => {
                 encryptedSpin: houseEncryptedSpin
             }
         })
-
-        console.log('saveSpin', spins)
     }
 
     console.log('Process spin', id)
 
-    if (isChannelFinalized()) return new Error('Channel already finalized')
+    if (isChannelFinalized()) throw new Error('Channel already finalized')
     console.log('Channel not finalized')
 
-    if (isChannelClosed()) return new Error('Channel already closed')
+    if (isChannelClosed()) throw new Error('Channel already closed')
     console.log('Channel not closed')
 
-    if (isChannelBalancesEmpty()) return new Error('Channel balances are empty')
+    if (isChannelBalancesEmpty()) throw new Error('Channel balances are empty')
     console.log('Channel balances not empty')
 
-    if (!await verifySign()) return new Error('Unable to verify sign')
+    if (!await verifySign()) throw new Error('Unable to verify sign')
     console.log('Sign verified')
 
-    if (!await verifySpin()) return new Error('Unable to verify spin')
+    if (!await verifySpin()) throw new Error('Unable to verify spin')
     console.log('Spin verified')
 
     await saveSpin()
@@ -1062,29 +1053,41 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('disallows players to spin with invalid spin data', async () => {
-        // Max number of lines
-        let betSize = 5
+        let validated = true
+        try {
+            // Max number of lines
+            let betSize = '5000000000000000000'
 
-        // User spin
-        let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
-        let encryptedSpin = AES.encrypt(
-            JSON.stringify(spin),
-            channelAesKey
-        ).toString()
-        console.log('Spin', spin, encryptedSpin)
+            // User spin
+            let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
+            spin.reelHash = 'a'
 
-        dbChannel = getNewDbChannel(
-            channelId,
-            slotsChannelManager.address,
-            initialDeposit,
-            initialHouseSeed,
-            finalUserHash,
-            finalReelHash,
-            finalSeedHash,
-            nonFounder
-        )
+            // Replace with invalid data
 
-        await processSpin(channelId, spin, encryptedSpin)
+            let encryptedSpin = AES.encrypt(
+                JSON.stringify(spin),
+                channelAesKey
+            ).toString()
+
+            dbChannel = getNewDbChannel(
+                channelId,
+                slotsChannelManager.address,
+                initialDeposit,
+                initialHouseSeed,
+                finalUserHash,
+                finalReelHash,
+                finalSeedHash,
+                nonFounder
+            )
+
+            await processSpin(channelId, spin, encryptedSpin)
+        } catch (e) {
+            // Valid result
+            console.log('Thrown', e.message)
+            validated = false
+        }
+
+        assert.equal(validated, false, 'Spin should be invalid')
     })
 
     it('allows players to spin with valid spin data', async () => {})
