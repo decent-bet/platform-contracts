@@ -1060,9 +1060,8 @@ contract('SlotsChannelManager', accounts => {
 
             // User spin
             let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
-            spin.reelHash = 'a'
-
             // Replace with invalid data
+            spin.reelHash = 'a'
 
             let encryptedSpin = AES.encrypt(
                 JSON.stringify(spin),
@@ -1090,7 +1089,40 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(validated, false, 'Spin should be invalid')
     })
 
-    it('allows players to spin with valid spin data', async () => {})
+    it('allows players to spin with valid spin data', async () => {
+        let validated = true
+        try {
+            // Max number of lines
+            let betSize = '5000000000000000000'
+
+            // User spin
+            let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
+
+            let encryptedSpin = AES.encrypt(
+                JSON.stringify(spin),
+                channelAesKey
+            ).toString()
+
+            dbChannel = getNewDbChannel(
+                channelId,
+                slotsChannelManager.address,
+                initialDeposit,
+                initialHouseSeed,
+                finalUserHash,
+                finalReelHash,
+                finalSeedHash,
+                nonFounder
+            )
+
+            await processSpin(channelId, spin, encryptedSpin)
+        } catch (e) {
+            // Valid result
+            console.log('Thrown', e.message)
+            validated = false
+        }
+
+        assert.equal(validated, true, 'Spin should be valid')
+    })
 
     it('disallows non participants from finalizing a channel', async () => {})
 
