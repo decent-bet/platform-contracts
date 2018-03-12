@@ -13,5 +13,10 @@
     "truffle": "^4.1.3",
     "truffle-hdwallet-provider": "^0.0.3",
     "web3": "1.0.0-beta.30"
+  },
+  "scripts": {
+    "test": "truffle test",
+    "test-house": "truffle test ./test/House.js",
+    "test-slots": "truffle test ./test/SlotsChannelManager.js"
   }
 }
