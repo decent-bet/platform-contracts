@@ -15,6 +15,7 @@ The Decent.bet platform currently supports the following contracts:
 * [Truffle](https://github.com/trufflesuite/truffle)
 * [Ganache-cli](https://github.com/trufflesuite/ganache-cli)
 
+
 ## Setting up
 
 1. [Install yarn](https://yarnpkg.com/lang/en/docs/install/)
@@ -32,6 +33,22 @@ The Decent.bet platform currently supports the following contracts:
     ```
         yarn install
     ```
+
+### Instructions using shell script
+
+* Run Ganache (new shell window)
+
+    **For development (Use a network ID of 10)**
+    ```
+    ganache-cli --mnemonic "mimic soda meat inmate cup someone labor odor invest scout fat ketchup" -i 10
+    ```
+* Run prepare-contracts (new shell window), be sure to give it chmod +x
+   ```
+   ./prepare-contracts
+   ```
+* Run npm start
+    
+## Instructions
 
 5. Run Ganache-cli with the following configuration
     
