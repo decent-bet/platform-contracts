@@ -26,12 +26,14 @@ let sportsOracle
 
 let founder
 let nonFounder
-let nonInvestor
+let nonParticipant
 
 let nonFounderPrivateKey =
     '0x5c7f17702c636b560743b0dcb1b1d2b18e64de0667010ca4d9cac4f7119d0428'
 let housePrivateKey =
     '0xf670adee34d38fc203ff707d7e7ef8946a6bb74fffdfc8d1a44c1e63eae86141'
+let nonParticipantPrivateKey =
+    '0xaf73426c6308b24bc720056ef3d1471ab7b531b2963de54d6ec6bb80153ec41d'
 
 let channelId
 
@@ -176,16 +178,6 @@ let signString = (text, address, key) => {
 
             const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
             const sgn = ethUtil.toRpcSig(v, r, s)
-
-            console.log(
-                'v: ' +
-                    v +
-                    ', r: ' +
-                    sgn.slice(0, 66) +
-                    ', s: ' +
-                    '0x' +
-                    sgn.slice(66, 130)
-            )
 
             let m = ethUtil.toBuffer(msgHash)
             let pub = ethUtil.ecrecover(m, v, r, s)
@@ -338,7 +330,7 @@ let getLineRewardMultiplier = line => {
         else break
     }
     if (repetitions >= 3) {
-        rewardMultiplier = PAYTABLE[line[0]] * (repetitions - 2)
+        rewardMultiplier = constants.paytable[line[0]] * (repetitions - 2)
     }
     return rewardMultiplier
 }
@@ -436,8 +428,8 @@ let processSpin = async (id, spin, encryptedSpin) => {
         // No house spins available yet, balance cannot be empty
         if (!lastHouseSpin) return false
         let nonce = lastHouseSpin.nonce
-        let spin = lastHouseSpin.spin
-        return nonce > 0 && (spin.userBalance === 0 || spin.houseBalance === 0)
+
+        return nonce > 0 && (lastHouseSpin.userBalance === 0 || lastHouseSpin.houseBalance === 0)
     }
 
     // Verify the sign
@@ -459,14 +451,14 @@ let processSpin = async (id, spin, encryptedSpin) => {
 
         if (nonce <= 1)
             return {
-                playerSpin: null,
-                houseSpin: null,
+                player: null,
+                house: null,
                 nonce: nonce
             }
         else {
             return {
-                playerSpin: userSpins[userSpins.length - nonce],
-                houseSpin: houseSpins[houseSpins.length - nonce]
+                player: userSpins[userSpins.length - (nonce - 1)],
+                house: houseSpins[houseSpins.length - (nonce - 1)]
             }
         }
     }
@@ -474,14 +466,21 @@ let processSpin = async (id, spin, encryptedSpin) => {
     // Verify the spin
     let verifySpin = async () => {
         let nonce = dbChannel.nonce
-        if (nonce !== spin.nonce - 1 || spin.nonce > 1000) return false
+
+        if (nonce !== spin.nonce - 1 || spin.nonce > 1000) throw new Error('Invalid nonce')
         else {
             let previousSpins = getPreviousSpins()
-            return (
-                !validateBetSize() &&
-                verifyBalances(previousSpins) &&
-                verifyHashes(previousSpins)
-            )
+
+            if(!validateBetSize())
+                throw new Error('Invalid betSize')
+
+            if(!verifyBalances(previousSpins))
+                throw new Error('Invalid balances')
+
+            if(!verifyHashes(previousSpins))
+                throw new Error('Invalid hashes')
+
+            return true
         }
     }
 
@@ -489,20 +488,20 @@ let processSpin = async (id, spin, encryptedSpin) => {
         let betSize = new BigNumber(spin.betSize)
         const maxBet = utils.getWeb3().utils.toWei('5', 'ether')
         const minBet = utils.getWeb3().utils.toWei('0.01', 'ether')
-        return betSize.greaterThan(maxBet) || betSize.lessThan(minBet)
+        return betSize.lessThanOrEqualTo(maxBet) || betSize.greaterThanOrEqualTo(minBet)
     }
 
     let verifyBalances = previousSpins => {
         if (spin.nonce > 1) {
-            let prevHouseSpin = previousSpins.house.spin
+            let prevHouseSpin = previousSpins.house
             return (
-                spin.userBalance !== prevHouseSpin.userBalance ||
-                spin.houseBalance !== prevHouseSpin.houseBalance
+                spin.userBalance === prevHouseSpin.userBalance &&
+                spin.houseBalance === prevHouseSpin.houseBalance
             )
         } else {
             return (
-                spin.userBalance !== dbChannel.initialDeposit ||
-                spin.houseBalance !== dbChannel.initialDeposit
+                spin.userBalance === dbChannel.deposit &&
+                spin.houseBalance === dbChannel.deposit
             )
         }
     }
@@ -512,9 +511,9 @@ let processSpin = async (id, spin, encryptedSpin) => {
         let reelSeedHashes = reelsAndHashes.reelSeedHashes
 
         if (spin.nonce > 1) {
-            let prevPlayerSpin = previousSpins.player.spin
+            let prevPlayerSpin = previousSpins.player
             if (spin.userHash !== prevPlayerSpin.prevUserHash) return false
-            else if (sha256(spin.prevUserHash).toString() !== spin.userHash)
+            else if (SHA256(spin.prevUserHash).toString() !== spin.userHash)
                 return false
             else if (
                 reelHashes[reelHashes.length - spin.nonce + 1] !== spin.reelHash
@@ -626,6 +625,7 @@ let processSpin = async (id, spin, encryptedSpin) => {
     }
 
     let saveSpin = async () => {
+        console.log('Save spin')
         let houseSpin = await getHouseSpin()
         let houseEncryptedSpin = AES.encrypt(
             JSON.stringify(houseSpin),
@@ -644,6 +644,11 @@ let processSpin = async (id, spin, encryptedSpin) => {
                 encryptedSpin: houseEncryptedSpin
             }
         })
+
+        userSpins.push(spin)
+        houseSpins.push(houseSpin)
+        nonce++
+        dbChannel.nonce++
     }
 
     console.log('Process spin', id)
@@ -1090,6 +1095,7 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('allows players to spin with valid spin data', async () => {
+        // First spin
         let validated = true
         try {
             // Max number of lines
@@ -1097,12 +1103,12 @@ contract('SlotsChannelManager', accounts => {
 
             // User spin
             let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
-
             let encryptedSpin = AES.encrypt(
                 JSON.stringify(spin),
                 channelAesKey
             ).toString()
 
+            // Initialize a new DB channel with the house
             dbChannel = getNewDbChannel(
                 channelId,
                 slotsChannelManager.address,
@@ -1114,6 +1120,32 @@ contract('SlotsChannelManager', accounts => {
                 nonFounder
             )
 
+            // Process spin as the house
+            await processSpin(channelId, spin, encryptedSpin)
+        } catch (e) {
+            // Valid result
+            console.log('Thrown', e.message)
+            validated = false
+        }
+
+        assert.equal(validated, true, 'Spin should be valid')
+
+        // Second spin
+        validated = true
+        try {
+            // Max number of lines
+            let betSize = '5000000000000000000'
+
+            // User spin
+            let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
+            let encryptedSpin = AES.encrypt(
+                JSON.stringify(spin),
+                channelAesKey
+            ).toString()
+
+            console.log('Spin', spin)
+
+            // Process spin as the house
             await processSpin(channelId, spin, encryptedSpin)
         } catch (e) {
             // Valid result
@@ -1124,7 +1156,10 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(validated, true, 'Spin should be valid')
     })
 
-    it('disallows non participants from finalizing a channel', async () => {})
+    it('disallows non participants from finalizing a channel', async () => {
+
+
+    })
 
     it('disallows participants from finalizing a channel with invalid data', async () => {})
 
