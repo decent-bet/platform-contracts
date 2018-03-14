@@ -1,20 +1,12 @@
 const BigNumber = require('bignumber.js')
 const SHA256 = require('crypto-js/sha256')
 const AES = require('crypto-js/aes')
-const seedRandom = require('seedrandom')
-const ethUnits = require('ethereum-units')
-const ethUtil = require('ethereumjs-util')
 
-let utils = require('./utils/utils.js')
-
-let MultiSigWallet = artifacts.require('MultiSigWallet')
-let DecentBetToken = artifacts.require('TestDecentBetToken')
-let House = artifacts.require('House')
-let HouseLottery = artifacts.require('HouseLottery')
-let BettingProvider = artifacts.require('BettingProvider')
-let BettingProviderHelper = artifacts.require('BettingProviderHelper')
-let SportsOracle = artifacts.require('SportsOracle')
-let SlotsChannelManager = artifacts.require('SlotsChannelManager')
+// Imports
+const utils = require('./utils/utils')
+const contracts = require('./utils/contracts')
+const handler = require('./utils/handler')
+const constants = require('./utils/constants')
 
 let wallet
 let token
@@ -27,13 +19,6 @@ let sportsOracle
 let founder
 let nonFounder
 let nonParticipant
-
-let nonFounderPrivateKey =
-    '0x5c7f17702c636b560743b0dcb1b1d2b18e64de0667010ca4d9cac4f7119d0428'
-let housePrivateKey =
-    '0xf670adee34d38fc203ff707d7e7ef8946a6bb74fffdfc8d1a44c1e63eae86141'
-let nonParticipantPrivateKey =
-    '0xaf73426c6308b24bc720056ef3d1471ab7b531b2963de54d6ec6bb80153ec41d'
 
 let channelId
 
@@ -60,630 +45,18 @@ let channelAesKey
 let dbChannel
 let spins = []
 
-// Constants
-const constants = require('./utils/constants')
-
-let getNewDbChannel = (
-    id,
-    contractAddress,
-    initialDeposit,
-    initialSeed,
-    finalUserHash,
-    finalReelHash,
-    finalSeedHash,
-    playerAddress
-) => {
-    return {
-        id: id,
-        contractAddress: contractAddress,
-        deposit: initialDeposit,
-        nonce: 0,
-        initialSeed: initialSeed,
-        finalUserHash: finalUserHash,
-        finalReelHash: finalReelHash,
-        finalSeedHash: finalSeedHash,
-        player: {
-            address: playerAddress,
-            finalized: {
-                status: false,
-                timestamp: 0
-            }
-        },
-        house: {
-            finalized: {
-                status: false,
-                timestamp: 0
-            }
-        },
-        closed: false
-    }
-}
-
-let generateRandomNumber = length => {
-    return Math.floor(
-        Math.pow(10, length - 1) + Math.random() * 9 * Math.pow(10, length - 1)
-    )
-}
-
-let getAesKey = (id, privateKey) => {
-    return new Promise(resolve => {
-        let idHash = utils.getWeb3().utils.sha3(id)
-        let aesKey = utils
-            .getWeb3()
-            .eth.accounts.sign(
-                utils.getWeb3().utils.utf8ToHex(idHash),
-                privateKey
-            ).signature
-        console.log('Retrieved aes key', aesKey)
-        resolve(aesKey)
-    })
-}
-
-let getUserHashes = randomNumber => {
-    let lastHash
-    let hashes = []
-    for (let i = 0; i < 1000; i++) {
-        let hash = SHA256(i === 0 ? randomNumber : lastHash).toString()
-        hashes.push(hash)
-        lastHash = hash
-    }
-    return hashes
-}
-
-let getChannelDepositParams = (id, key) => {
-    return new Promise((resolve, reject) => {
-        let randomNumber = generateRandomNumber(18).toString()
-        getAesKey(id, key)
-            .then(res => {
-                console.log('randomNumber', randomNumber, 'aesKey', res)
-                channelAesKey = key
-                initialUserNumber = AES.encrypt(randomNumber, res).toString()
-                userHashes = getUserHashes(randomNumber)
-                finalUserHash = userHashes[userHashes.length - 1]
-                resolve({
-                    initialUserNumber: initialUserNumber,
-                    finalUserHash: finalUserHash
-                })
-            })
-            .catch(err => {
-                reject(err)
-            })
-    })
-}
-
-let getTightlyPackedSpin = spin => {
-    return (
-        spin.reelHash +
-        (spin.reel !== '' ? spin.reel.toString() : '') +
-        spin.reelSeedHash +
-        spin.prevReelSeedHash +
-        spin.userHash +
-        spin.prevUserHash +
-        spin.nonce +
-        spin.turn +
-        spin.userBalance +
-        spin.houseBalance +
-        spin.betSize
-    )
-}
-
-let signString = (text, address, key) => {
-    return new Promise((resolve, reject) => {
-        /*
-         * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the user's address;
-         */
-        try {
-            let msgHash = ethUtil.sha3(text)
-            let privateKey = ethUtil.toBuffer(key)
-
-            const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
-            const sgn = ethUtil.toRpcSig(v, r, s)
-
-            let m = ethUtil.toBuffer(msgHash)
-            let pub = ethUtil.ecrecover(m, v, r, s)
-            let adr = '0x' + ethUtil.pubToAddress(pub).toString('hex')
-
-            let nonChecksummedAddress = address.toLowerCase()
-
-            if (adr !== nonChecksummedAddress)
-                throw new Error('Invalid address for signed message')
-
-            resolve({
-                msgHash: msgHash,
-                sig: sgn
-            })
-        } catch (e) {
-            reject(e)
-        }
-    })
-}
-
-let getSpin = async (betSize, address, key) => {
-    const lastHouseSpin = houseSpins[houseSpins.length - 1]
-
-    let reelHash = nonce === 1 ? finalReelHash : lastHouseSpin.reelHash
-    let reel = ''
-    let reelSeedHash = nonce === 1 ? finalSeedHash : lastHouseSpin.reelSeedHash
-    let prevReelSeedHash = nonce === 1 ? '' : lastHouseSpin.prevReelSeedHash
-    let userHash = userHashes[userHashes.length - nonce]
-    let prevUserHash = userHashes[userHashes.length - nonce - 1]
-    let userBalance = nonce === 1 ? initialDeposit : lastHouseSpin.userBalance
-    userBalance = new BigNumber(userBalance).toFixed(0)
-    let houseBalance = nonce === 1 ? initialDeposit : lastHouseSpin.houseBalance
-    houseBalance = new BigNumber(houseBalance).toFixed(0)
-
-    let spin = {
-        reelHash: reelHash,
-        reel: reel,
-        reelSeedHash: reelSeedHash,
-        prevReelSeedHash: prevReelSeedHash,
-        userHash: userHash,
-        prevUserHash: prevUserHash,
-        nonce: nonce,
-        turn: false,
-        userBalance: userBalance,
-        houseBalance: houseBalance,
-        betSize: betSize
-    }
-
-    let sign = await signString(getTightlyPackedSpin(spin), address, key)
-    return new Promise(resolve => {
-        spin.sign = sign.sig
-        resolve(spin)
-    })
-}
-let generateReelsAndHashes = (initialHouseSeed, id) => {
-    let blendedSeed = initialHouseSeed + id
-    let reelSeedHashes = generator().reelSeedHashes(blendedSeed)
-    let reels = generator().reels(reelSeedHashes)
-    let reelHashes = generator().reelHashes(reelSeedHashes, reels)
-
-    console.log(
-        'generateReelsAndHashes',
-        blendedSeed,
-        reelSeedHashes[reelSeedHashes.length - 1],
-        reelHashes[reelHashes.length - 1]
-    )
-    return {
-        reelSeedHashes: reelSeedHashes,
-        reels: reels,
-        reelHashes: reelHashes
-    }
-}
-
-let generator = () => {
-    return {
-        reelSeedHashes: seed => {
-            console.log('Reel seed hashes')
-            let hashes = []
-            for (let i = 0; i < 1000; i++)
-                hashes.push(SHA256(i === 0 ? seed : hashes[i - 1]).toString())
-            return hashes
-        },
-        reels: reelSeedHashes => {
-            console.log('Reels')
-            let reels = []
-            for (let i = 0; i < reelSeedHashes.length; i++) {
-                let hash = reelSeedHashes[i]
-                let reel = []
-                for (let j = 0; j < constants.NUMBER_OF_REELS; j++) {
-                    let rng = seedRandom(hash + j)
-                    reel.push(Math.floor(rng() * 21))
-                }
-                reels.push(reel)
-            }
-            return reels
-        },
-        reelHashes: (reelSeedHashes, reels) => {
-            console.log('Reel hashes')
-            let reelHashes = []
-            for (let i = 0; i < reelSeedHashes.length; i++)
-                reelHashes.push(
-                    SHA256(reelSeedHashes[i] + reels[i].toString()).toString()
-                )
-            return reelHashes
-        }
-    }
-}
-
-let getEtherInWei = () => {
-    return ethUnits.units.ether
-}
-
-let convertToEther = number => {
-    return new BigNumber(number).times(getEtherInWei()).toFixed(0)
-}
-
-/**
- * Calculates payouts for a given reel based on betsize
- * @param reel
- * @param betSize
- * @returns {number}
- */
-let calculateReelPayout = (reel, betSize) => {
-    betSize = utils.getWeb3().utils.fromWei(betSize.toString(), 'ether')
-    let isValid = true
-    for (let i = 0; i < reel.length; i++) {
-        if (reel[i] > 20) {
-            isValid = false
-            break
-        }
-    }
-    if (!isValid) return 0
-    let lines = getLines(reel)
-    let totalReward = 0
-    for (let i = 0; i < betSize; i++)
-        totalReward += getLineRewardMultiplier(lines[i])
-    return totalReward
-}
-
-/**
- * Returns the reward multiplier based on the current line
- * @param line
- * @returns {number}
- */
-let getLineRewardMultiplier = line => {
-    let repetitions = 1
-    let rewardMultiplier = 0
-    for (let i = 1; i <= line.length; i++) {
-        if (line[i] === line[i - 1]) repetitions++
-        else break
-    }
-    if (repetitions >= 3) {
-        rewardMultiplier = constants.paytable[line[0]] * (repetitions - 2)
-    }
-    return rewardMultiplier
-}
-
-/**
- * Returns lines for the submitted reel.
- * @param reel
- * @returns {Array}
- */
-// Returns NUMBER_OF_LINES lines containing constants.NUMBER_OF_REELS symbols each
-let getLines = reel => {
-    let lines = []
-    for (let i = 0; i < constants.NUMBER_OF_LINES; i++) {
-        lines.push(getLine(i, reel))
-    }
-    return lines
-}
-
-/**
- * Calculates the line for line i based on the submitted reel
- * @param lineIndex
- * @param reel
- * @returns {Array}
- */
-// Returns line for an index
-let getLine = (lineIndex, reel) => {
-    let line = []
-    switch (lineIndex) {
-        case 0:
-            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
-                line[i] = getSymbol(i, reel[i])
-            }
-            break
-        case 1:
-            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
-                line[i] = getSymbol(i, reel[i] - 1)
-            }
-            break
-        case 2:
-            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
-                line[i] = getSymbol(i, reel[i] + 1)
-            }
-            break
-        case 3:
-            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
-                if (i === 0 || i === 4) line[i] = getSymbol(i, reel[i] - 1)
-                else if (i === 2) line[i] = getSymbol(i, reel[i] + 1)
-                else line[i] = getSymbol(i, reel[i])
-            }
-            break
-        case 4:
-            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
-                if (i === 0 || i === 4) line[i] = getSymbol(i, reel[i] + 1)
-                else if (i === 2) line[i] = getSymbol(i, reel[i] - 1)
-                else line[i] = getSymbol(i, reel[i])
-            }
-            break
-        default:
-            break
-    }
-    return line
-}
-
-/**
- * Returns the symbol present for a reel at position
- * @param reel
- * @param position
- * @returns {*}
- */
-let getSymbol = (reel, position) => {
-    if (position === 21) position = 0
-    else if (position === -1) position = 20
-    return constants.reels[reel][position]
-}
-
-let processSpin = async (id, spin, encryptedSpin) => {
-    let aesKey = await getAesKey(finalUserHash, housePrivateKey)
-
-    // Check if the channel is active
-    let isChannelFinalized = () => {
-        return (
-            dbChannel.player.finalized.status ||
-            dbChannel.house.finalized.status
-        )
-    }
-
-    let isChannelClosed = () => {
-        return dbChannel.closed
-    }
-
-    // Check if balances are empty
-    let isChannelBalancesEmpty = () => {
-        const lastHouseSpin =
-            houseSpins.length > 0 ? houseSpins[houseSpins.length - 1] : null
-        // No house spins available yet, balance cannot be empty
-        if (!lastHouseSpin) return false
-        let nonce = lastHouseSpin.nonce
-
-        return nonce > 0 && (lastHouseSpin.userBalance === 0 || lastHouseSpin.houseBalance === 0)
-    }
-
-    // Verify the sign
-    let verifySign = async () => {
-        let nonSignatureSpin = JSON.parse(JSON.stringify(spin))
-        delete nonSignatureSpin.sign
-
-        let id = parseInt(dbChannel.id)
-        let msg = getTightlyPackedSpin(nonSignatureSpin)
-        let msgHash = utils.getWeb3().utils.sha3(msg)
-        let sign = spin.sign
-
-        return await slotsChannelManager.checkSig(id, msgHash, sign, spin.turn)
-    }
-
-    // Get previous spins
-    let getPreviousSpins = () => {
-        let nonce = spin.nonce
-
-        if (nonce <= 1)
-            return {
-                player: null,
-                house: null,
-                nonce: nonce
-            }
-        else {
-            return {
-                player: userSpins[userSpins.length - (nonce - 1)],
-                house: houseSpins[houseSpins.length - (nonce - 1)]
-            }
-        }
-    }
-
-    // Verify the spin
-    let verifySpin = async () => {
-        let nonce = dbChannel.nonce
-
-        if (nonce !== spin.nonce - 1 || spin.nonce > 1000) throw new Error('Invalid nonce')
-        else {
-            let previousSpins = getPreviousSpins()
-
-            if(!validateBetSize())
-                throw new Error('Invalid betSize')
-
-            if(!verifyBalances(previousSpins))
-                throw new Error('Invalid balances')
-
-            if(!verifyHashes(previousSpins))
-                throw new Error('Invalid hashes')
-
-            return true
-        }
-    }
-
-    let validateBetSize = () => {
-        let betSize = new BigNumber(spin.betSize)
-        const maxBet = utils.getWeb3().utils.toWei('5', 'ether')
-        const minBet = utils.getWeb3().utils.toWei('0.01', 'ether')
-        return betSize.lessThanOrEqualTo(maxBet) || betSize.greaterThanOrEqualTo(minBet)
-    }
-
-    let verifyBalances = previousSpins => {
-        if (spin.nonce > 1) {
-            let prevHouseSpin = previousSpins.house
-            return (
-                spin.userBalance === prevHouseSpin.userBalance &&
-                spin.houseBalance === prevHouseSpin.houseBalance
-            )
-        } else {
-            return (
-                spin.userBalance === dbChannel.deposit &&
-                spin.houseBalance === dbChannel.deposit
-            )
-        }
-    }
-
-    let verifyHashes = previousSpins => {
-        let reelHashes = reelsAndHashes.reelHashes
-        let reelSeedHashes = reelsAndHashes.reelSeedHashes
-
-        if (spin.nonce > 1) {
-            let prevPlayerSpin = previousSpins.player
-            if (spin.userHash !== prevPlayerSpin.prevUserHash) return false
-            else if (SHA256(spin.prevUserHash).toString() !== spin.userHash)
-                return false
-            else if (
-                reelHashes[reelHashes.length - spin.nonce + 1] !== spin.reelHash
-            )
-                return false
-            else if (
-                reelSeedHashes[reelSeedHashes.length - spin.nonce + 1] !==
-                spin.reelSeedHash
-            )
-                return false
-            else if (
-                reelSeedHashes[reelSeedHashes.length - spin.nonce] !==
-                spin.prevReelSeedHash
-            )
-                return false
-            else return true
-        } else {
-            if (SHA256(spin.prevUserHash).toString() !== spin.userHash)
-                return false
-            else if (
-                reelHashes[reelHashes.length - spin.nonce] !== spin.reelHash
-            )
-                return false
-            else if (
-                reelSeedHashes[reelSeedHashes.length - spin.nonce] !==
-                spin.reelSeedHash
-            )
-                return false
-            else {
-                return true
-            }
-        }
-    }
-
-    let getHouseSpin = async () => {
-        let nonce = spin.nonce
-        let reels = reelsAndHashes.reels
-        let reelHashes = reelsAndHashes.reelHashes
-        let reelSeedHashes = reelsAndHashes.reelSeedHashes
-
-        let reelHash = reelHashes[reelHashes.length - nonce]
-        let reel = reels[reels.length - nonce]
-
-        let payout = utils
-            .getWeb3()
-            .utils.toWei(
-                calculateReelPayout(reel, spin.betSize).toString(),
-                'ether'
-            )
-        let userBalance =
-            payout === 0
-                ? new BigNumber(spin.userBalance).minus(spin.betSize)
-                : new BigNumber(spin.userBalance)
-                      .add(payout)
-                      .minus(spin.betSize)
-        let houseBalance =
-            payout === 0
-                ? new BigNumber(spin.houseBalance).add(spin.betSize)
-                : new BigNumber(spin.houseBalance)
-                      .minus(payout)
-                      .add(spin.betSize)
-
-        // Balances below 0 should be corrected to 0 to ensure no party receives more tokens than
-        // what is available in the created channel.
-        if (userBalance.lessThanOrEqualTo(0)) {
-            houseBalance = houseBalance.add(userBalance)
-            userBalance = new BigNumber(0)
-        } else if (houseBalance.lessThanOrEqualTo(0)) {
-            userBalance = userBalance.add(houseBalance)
-            houseBalance = new BigNumber(0)
-        }
-
-        userBalance = userBalance.toFixed()
-        houseBalance = houseBalance.toFixed()
-
-        let reelSeedHash = reelSeedHashes[reelSeedHashes.length - nonce]
-        let prevReelSeedHash = reelSeedHashes[reelSeedHashes.length - 1 - nonce]
-        let userHash = spin.userHash
-        let prevUserHash = spin.prevUserHash
-        let betSize = spin.betSize
-
-        let houseSpin = {
-            reelHash: reelHash,
-            reel: reel,
-            reelSeedHash: reelSeedHash,
-            prevReelSeedHash: prevReelSeedHash,
-            userHash: userHash,
-            prevUserHash: prevUserHash,
-            nonce: spin.nonce,
-            turn: true,
-            userBalance: userBalance,
-            houseBalance: houseBalance,
-            betSize: betSize
-        }
-
-        let tightlyPackedSpin = getTightlyPackedSpin(houseSpin)
-
-        console.log(
-            'Tightly packed spin'.info,
-            JSON.stringify(tightlyPackedSpin).debug
-        )
-
-        houseSpin.sign = await signString(
-            tightlyPackedSpin,
-            founder,
-            housePrivateKey
-        )
-        return houseSpin
-    }
-
-    let saveSpin = async () => {
-        console.log('Save spin')
-        let houseSpin = await getHouseSpin()
-        let houseEncryptedSpin = AES.encrypt(
-            JSON.stringify(houseSpin),
-            aesKey
-        ).toString()
-        spins.push({
-            id: id,
-            contractAddress: slotsChannelManager.address,
-            nonce: spin.nonce,
-            player: {
-                spin: spin,
-                encryptedSpin: encryptedSpin
-            },
-            house: {
-                spin: houseSpin,
-                encryptedSpin: houseEncryptedSpin
-            }
-        })
-
-        userSpins.push(spin)
-        houseSpins.push(houseSpin)
-        nonce++
-        dbChannel.nonce++
-    }
-
-    console.log('Process spin', id)
-
-    if (isChannelFinalized()) throw new Error('Channel already finalized')
-    console.log('Channel not finalized')
-
-    if (isChannelClosed()) throw new Error('Channel already closed')
-    console.log('Channel not closed')
-
-    if (isChannelBalancesEmpty()) throw new Error('Channel balances are empty')
-    console.log('Channel balances not empty')
-
-    if (!await verifySign()) throw new Error('Unable to verify sign')
-    console.log('Sign verified')
-
-    if (!await verifySpin()) throw new Error('Unable to verify spin')
-    console.log('Spin verified')
-
-    await saveSpin()
-    return true
-}
-
 contract('SlotsChannelManager', accounts => {
     it('initializes house contract', async () => {
         founder = accounts[0]
         nonFounder = accounts[1]
         nonInvestor = accounts[2]
 
-        wallet = await MultiSigWallet.deployed()
-        token = await DecentBetToken.deployed()
-        house = await House.deployed()
-        bettingProvider = await BettingProvider.deployed()
-        sportsOracle = await SportsOracle.deployed()
-        slotsChannelManager = await SlotsChannelManager.deployed()
+        wallet = await contracts.MultiSigWallet.deployed()
+        token = await contracts.DecentBetToken.deployed()
+        house = await contracts.House.deployed()
+        bettingProvider = await contracts.BettingProvider.deployed()
+        sportsOracle = await contracts.SportsOracle.deployed()
+        slotsChannelManager = await contracts.SlotsChannelManager.deployed()
 
         // Check if house founder is valid
         let _founder = await house.founder()
@@ -924,7 +297,15 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('allows players to deposit in channels with valid data if not ready', async () => {
-        await getChannelDepositParams(channelId, nonFounderPrivateKey)
+        let depositParams = await handler.getChannelDepositParams(
+            channelId,
+            constants.privateKeys.nonFounder
+        )
+
+        channelAesKey = depositParams.channelAesKey
+        initialUserNumber = depositParams.initialUserNumber
+        userHashes = depositParams.userHashes
+        finalUserHash = depositParams.finalUserHash
 
         console.log('Channel deposit params', initialUserNumber, finalUserHash)
         slotsChannelManager.depositChannel.sendTransaction(
@@ -973,8 +354,11 @@ contract('SlotsChannelManager', accounts => {
 
     it('allows authorized addresses to activate a channel if user is ready', async () => {
         try {
-            initialHouseSeed = await getAesKey(finalUserHash, housePrivateKey)
-            reelsAndHashes = generateReelsAndHashes(initialHouseSeed, channelId)
+            initialHouseSeed = await handler.getAesKey(
+                finalUserHash,
+                constants.privateKeys.house
+            )
+            reelsAndHashes = handler.generateReelsAndHashes(initialHouseSeed, channelId)
 
             finalSeedHash =
                 reelsAndHashes.reelSeedHashes[
@@ -1064,7 +448,17 @@ contract('SlotsChannelManager', accounts => {
             let betSize = '5000000000000000000'
 
             // User spin
-            let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
+            let spin = await handler.getSpin(
+                houseSpins,
+                nonce,
+                finalReelHash,
+                finalSeedHash,
+                userHashes,
+                initialDeposit,
+                betSize,
+                nonFounder,
+                constants.privateKeys.nonFounder
+            )
             // Replace with invalid data
             spin.reelHash = 'a'
 
@@ -1073,7 +467,7 @@ contract('SlotsChannelManager', accounts => {
                 channelAesKey
             ).toString()
 
-            dbChannel = getNewDbChannel(
+            dbChannel = handler.getNewDbChannel(
                 channelId,
                 slotsChannelManager.address,
                 initialDeposit,
@@ -1084,7 +478,10 @@ contract('SlotsChannelManager', accounts => {
                 nonFounder
             )
 
-            await processSpin(channelId, spin, encryptedSpin)
+            await handler.processSpin(channelId, dbChannel, founder, userSpins, houseSpins, spins,
+                                      finalUserHash, slotsChannelManager, reelsAndHashes,
+                                      spin, encryptedSpin)
+            nonce++
         } catch (e) {
             // Valid result
             console.log('Thrown', e.message)
@@ -1102,14 +499,24 @@ contract('SlotsChannelManager', accounts => {
             let betSize = '5000000000000000000'
 
             // User spin
-            let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
+            let spin = await handler.getSpin(
+                houseSpins,
+                nonce,
+                finalReelHash,
+                finalSeedHash,
+                userHashes,
+                initialDeposit,
+                betSize,
+                nonFounder,
+                constants.privateKeys.nonFounder
+            )
             let encryptedSpin = AES.encrypt(
                 JSON.stringify(spin),
                 channelAesKey
             ).toString()
 
             // Initialize a new DB channel with the house
-            dbChannel = getNewDbChannel(
+            dbChannel = handler.getNewDbChannel(
                 channelId,
                 slotsChannelManager.address,
                 initialDeposit,
@@ -1121,7 +528,10 @@ contract('SlotsChannelManager', accounts => {
             )
 
             // Process spin as the house
-            await processSpin(channelId, spin, encryptedSpin)
+            await handler.processSpin(channelId, dbChannel, founder, userSpins, houseSpins, spins,
+                finalUserHash, slotsChannelManager, reelsAndHashes,
+                spin, encryptedSpin)
+            nonce++
         } catch (e) {
             // Valid result
             console.log('Thrown', e.message)
@@ -1137,7 +547,17 @@ contract('SlotsChannelManager', accounts => {
             let betSize = '5000000000000000000'
 
             // User spin
-            let spin = await getSpin(betSize, nonFounder, nonFounderPrivateKey)
+            let spin = await handler.getSpin(
+                houseSpins,
+                nonce,
+                finalReelHash,
+                finalSeedHash,
+                userHashes,
+                initialDeposit,
+                betSize,
+                nonFounder,
+                constants.privateKeys.nonFounder
+            )
             let encryptedSpin = AES.encrypt(
                 JSON.stringify(spin),
                 channelAesKey
@@ -1146,7 +566,10 @@ contract('SlotsChannelManager', accounts => {
             console.log('Spin', spin)
 
             // Process spin as the house
-            await processSpin(channelId, spin, encryptedSpin)
+            await handler.processSpin(channelId, dbChannel, founder, userSpins, houseSpins, spins,
+                finalUserHash, slotsChannelManager, reelsAndHashes,
+                spin, encryptedSpin)
+            nonce++
         } catch (e) {
             // Valid result
             console.log('Thrown', e.message)
@@ -1156,10 +579,7 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(validated, true, 'Spin should be valid')
     })
 
-    it('disallows non participants from finalizing a channel', async () => {
-
-
-    })
+    it('disallows non participants from finalizing a channel', async () => {})
 
     it('disallows participants from finalizing a channel with invalid data', async () => {})
 

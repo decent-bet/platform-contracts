@@ -1,0 +1,642 @@
+const utils = require('./utils')
+const constants = require('./constants')
+
+const BigNumber = require('bignumber.js')
+const SHA256 = require('crypto-js/sha256')
+const AES = require('crypto-js/aes')
+const seedRandom = require('seedrandom')
+const ethUtil = require('ethereumjs-util')
+
+const getNewDbChannel = (
+    id,
+    contractAddress,
+    initialDeposit,
+    initialSeed,
+    finalUserHash,
+    finalReelHash,
+    finalSeedHash,
+    playerAddress
+) => {
+    return {
+        id: id,
+        contractAddress: contractAddress,
+        deposit: initialDeposit,
+        nonce: 0,
+        initialSeed: initialSeed,
+        finalUserHash: finalUserHash,
+        finalReelHash: finalReelHash,
+        finalSeedHash: finalSeedHash,
+        player: {
+            address: playerAddress,
+            finalized: {
+                status: false,
+                timestamp: 0
+            }
+        },
+        house: {
+            finalized: {
+                status: false,
+                timestamp: 0
+            }
+        },
+        closed: false
+    }
+}
+
+const getAesKey = (id, privateKey) => {
+    return new Promise(resolve => {
+        let idHash = utils.getWeb3().utils.sha3(id)
+        let aesKey = utils
+            .getWeb3()
+            .eth.accounts.sign(
+                utils.getWeb3().utils.utf8ToHex(idHash),
+                privateKey
+            ).signature
+        console.log('Retrieved aes key', aesKey)
+        resolve(aesKey)
+    })
+}
+
+const getChannelDepositParams = (id, key) => {
+    return new Promise((resolve, reject) => {
+        let randomNumber = _generateRandomNumber(18).toString()
+        getAesKey(id, key)
+            .then(res => {
+                let channelAesKey = key
+                let initialUserNumber = AES.encrypt(
+                    randomNumber,
+                    res
+                ).toString()
+                let userHashes = _getUserHashes(randomNumber)
+                let finalUserHash = userHashes[userHashes.length - 1]
+                resolve({
+                    channelAesKey,
+                    initialUserNumber,
+                    userHashes,
+                    finalUserHash
+                })
+            })
+            .catch(err => {
+                reject(err)
+            })
+    })
+}
+
+let _signString = (text, address, key) => {
+    return new Promise((resolve, reject) => {
+        /*
+         * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the user's address;
+         */
+        try {
+            let msgHash = ethUtil.sha3(text)
+            let privateKey = ethUtil.toBuffer(key)
+
+            const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
+            const sgn = ethUtil.toRpcSig(v, r, s)
+
+            let m = ethUtil.toBuffer(msgHash)
+            let pub = ethUtil.ecrecover(m, v, r, s)
+            let adr = '0x' + ethUtil.pubToAddress(pub).toString('hex')
+
+            let nonChecksummedAddress = address.toLowerCase()
+
+            if (adr !== nonChecksummedAddress)
+                throw new Error('Invalid address for signed message')
+
+            resolve({
+                msgHash: msgHash,
+                sig: sgn
+            })
+        } catch (e) {
+            reject(e)
+        }
+    })
+}
+
+const getSpin = async (
+    houseSpins,
+    nonce,
+    finalReelHash,
+    finalSeedHash,
+    userHashes,
+    initialDeposit,
+    betSize,
+    address,
+    key
+) => {
+    const lastHouseSpin = houseSpins[houseSpins.length - 1]
+
+    let reelHash = nonce === 1 ? finalReelHash : lastHouseSpin.reelHash
+    let reel = ''
+    let reelSeedHash = nonce === 1 ? finalSeedHash : lastHouseSpin.reelSeedHash
+    let prevReelSeedHash = nonce === 1 ? '' : lastHouseSpin.prevReelSeedHash
+    let userHash = userHashes[userHashes.length - nonce]
+    let prevUserHash = userHashes[userHashes.length - nonce - 1]
+    let userBalance = nonce === 1 ? initialDeposit : lastHouseSpin.userBalance
+    userBalance = new BigNumber(userBalance).toFixed(0)
+    let houseBalance = nonce === 1 ? initialDeposit : lastHouseSpin.houseBalance
+    houseBalance = new BigNumber(houseBalance).toFixed(0)
+
+    let spin = {
+        reelHash: reelHash,
+        reel: reel,
+        reelSeedHash: reelSeedHash,
+        prevReelSeedHash: prevReelSeedHash,
+        userHash: userHash,
+        prevUserHash: prevUserHash,
+        nonce: nonce,
+        turn: false,
+        userBalance: userBalance,
+        houseBalance: houseBalance,
+        betSize: betSize
+    }
+
+    let sign = await _signString(_getTightlyPackedSpin(spin), address, key)
+    return new Promise(resolve => {
+        spin.sign = sign.sig
+        resolve(spin)
+    })
+}
+
+const generateReelsAndHashes = (initialHouseSeed, id) => {
+    let blendedSeed = initialHouseSeed + id
+    let reelSeedHashes = _generateReelSeedHashes(blendedSeed)
+    let reels = _generateReels(reelSeedHashes)
+    let reelHashes = _generateReelHashes(reelSeedHashes, reels)
+
+    return {
+        reelSeedHashes: reelSeedHashes,
+        reels: reels,
+        reelHashes: reelHashes
+    }
+}
+
+let processSpin = async (
+    id,
+    dbChannel,
+    founder,
+    userSpins,
+    houseSpins,
+    spins,
+    finalUserHash,
+    slotsChannelManager,
+    reelsAndHashes,
+    spin,
+    encryptedSpin
+) => {
+    let aesKey = await getAesKey(finalUserHash, constants.privateKeys.house)
+
+    // Check if the channel is active
+    let isChannelFinalized = () => {
+        return (
+            dbChannel.player.finalized.status ||
+            dbChannel.house.finalized.status
+        )
+    }
+
+    let isChannelClosed = () => {
+        return dbChannel.closed
+    }
+
+    // Check if balances are empty
+    let isChannelBalancesEmpty = () => {
+        const lastHouseSpin =
+            houseSpins.length > 0 ? houseSpins[houseSpins.length - 1] : null
+        // No house spins available yet, balance cannot be empty
+        if (!lastHouseSpin) return false
+        let nonce = lastHouseSpin.nonce
+
+        return (
+            nonce > 0 &&
+            (lastHouseSpin.userBalance === 0 ||
+                lastHouseSpin.houseBalance === 0)
+        )
+    }
+
+    // Verify the sign
+    let verifySign = async () => {
+        let nonSignatureSpin = JSON.parse(JSON.stringify(spin))
+        delete nonSignatureSpin.sign
+
+        let id = parseInt(dbChannel.id)
+        let msg = _getTightlyPackedSpin(nonSignatureSpin)
+        let msgHash = utils.getWeb3().utils.sha3(msg)
+        let sign = spin.sign
+
+        return await slotsChannelManager.checkSig(id, msgHash, sign, spin.turn)
+    }
+
+    // Get previous spins
+    let getPreviousSpins = () => {
+        let nonce = spin.nonce
+
+        if (nonce <= 1)
+            return {
+                player: null,
+                house: null,
+                nonce: nonce
+            }
+        else {
+            return {
+                player: userSpins[userSpins.length - (nonce - 1)],
+                house: houseSpins[houseSpins.length - (nonce - 1)]
+            }
+        }
+    }
+
+    // Verify the spin
+    let verifySpin = async () => {
+        let nonce = dbChannel.nonce
+
+        if (nonce !== spin.nonce - 1 || spin.nonce > 1000)
+            throw new Error('Invalid nonce')
+        else {
+            let previousSpins = getPreviousSpins()
+
+            if (!validateBetSize()) throw new Error('Invalid betSize')
+
+            if (!verifyBalances(previousSpins))
+                throw new Error('Invalid balances')
+
+            if (!verifyHashes(previousSpins)) throw new Error('Invalid hashes')
+
+            return true
+        }
+    }
+
+    let validateBetSize = () => {
+        let betSize = new BigNumber(spin.betSize)
+        const maxBet = utils.getWeb3().utils.toWei('5', 'ether')
+        const minBet = utils.getWeb3().utils.toWei('0.01', 'ether')
+        return (
+            betSize.lessThanOrEqualTo(maxBet) ||
+            betSize.greaterThanOrEqualTo(minBet)
+        )
+    }
+
+    let verifyBalances = previousSpins => {
+        if (spin.nonce > 1) {
+            let prevHouseSpin = previousSpins.house
+            return (
+                spin.userBalance === prevHouseSpin.userBalance &&
+                spin.houseBalance === prevHouseSpin.houseBalance
+            )
+        } else {
+            return (
+                spin.userBalance === dbChannel.deposit &&
+                spin.houseBalance === dbChannel.deposit
+            )
+        }
+    }
+
+    let verifyHashes = previousSpins => {
+        let reelHashes = reelsAndHashes.reelHashes
+        let reelSeedHashes = reelsAndHashes.reelSeedHashes
+
+        if (spin.nonce > 1) {
+            let prevPlayerSpin = previousSpins.player
+            if (spin.userHash !== prevPlayerSpin.prevUserHash) return false
+            else if (SHA256(spin.prevUserHash).toString() !== spin.userHash)
+                return false
+            else if (
+                reelHashes[reelHashes.length - spin.nonce + 1] !== spin.reelHash
+            )
+                return false
+            else if (
+                reelSeedHashes[reelSeedHashes.length - spin.nonce + 1] !==
+                spin.reelSeedHash
+            )
+                return false
+            else if (
+                reelSeedHashes[reelSeedHashes.length - spin.nonce] !==
+                spin.prevReelSeedHash
+            )
+                return false
+            else return true
+        } else {
+            if (SHA256(spin.prevUserHash).toString() !== spin.userHash)
+                return false
+            else if (
+                reelHashes[reelHashes.length - spin.nonce] !== spin.reelHash
+            )
+                return false
+            else if (
+                reelSeedHashes[reelSeedHashes.length - spin.nonce] !==
+                spin.reelSeedHash
+            )
+                return false
+            else {
+                return true
+            }
+        }
+    }
+
+    let getHouseSpin = async () => {
+        let nonce = spin.nonce
+        let reels = reelsAndHashes.reels
+        let reelHashes = reelsAndHashes.reelHashes
+        let reelSeedHashes = reelsAndHashes.reelSeedHashes
+
+        let reelHash = reelHashes[reelHashes.length - nonce]
+        let reel = reels[reels.length - nonce]
+
+        let payout = utils
+            .getWeb3()
+            .utils.toWei(
+                _calculateReelPayout(reel, spin.betSize).toString(),
+                'ether'
+            )
+        let userBalance =
+            payout === 0
+                ? new BigNumber(spin.userBalance).minus(spin.betSize)
+                : new BigNumber(spin.userBalance)
+                      .add(payout)
+                      .minus(spin.betSize)
+        let houseBalance =
+            payout === 0
+                ? new BigNumber(spin.houseBalance).add(spin.betSize)
+                : new BigNumber(spin.houseBalance)
+                      .minus(payout)
+                      .add(spin.betSize)
+
+        // Balances below 0 should be corrected to 0 to ensure no party receives more tokens than
+        // what is available in the created channel.
+        if (userBalance.lessThanOrEqualTo(0)) {
+            houseBalance = houseBalance.add(userBalance)
+            userBalance = new BigNumber(0)
+        } else if (houseBalance.lessThanOrEqualTo(0)) {
+            userBalance = userBalance.add(houseBalance)
+            houseBalance = new BigNumber(0)
+        }
+
+        userBalance = userBalance.toFixed()
+        houseBalance = houseBalance.toFixed()
+
+        let reelSeedHash = reelSeedHashes[reelSeedHashes.length - nonce]
+        let prevReelSeedHash = reelSeedHashes[reelSeedHashes.length - 1 - nonce]
+        let userHash = spin.userHash
+        let prevUserHash = spin.prevUserHash
+        let betSize = spin.betSize
+
+        let houseSpin = {
+            reelHash: reelHash,
+            reel: reel,
+            reelSeedHash: reelSeedHash,
+            prevReelSeedHash: prevReelSeedHash,
+            userHash: userHash,
+            prevUserHash: prevUserHash,
+            nonce: spin.nonce,
+            turn: true,
+            userBalance: userBalance,
+            houseBalance: houseBalance,
+            betSize: betSize
+        }
+
+        let tightlyPackedSpin = _getTightlyPackedSpin(houseSpin)
+
+        console.log(
+            'Tightly packed spin'.info,
+            JSON.stringify(tightlyPackedSpin).debug
+        )
+
+        houseSpin.sign = await _signString(
+            tightlyPackedSpin,
+            founder,
+            constants.privateKeys.house
+        )
+        return houseSpin
+    }
+
+    let saveSpin = async () => {
+        console.log('Save spin')
+        let houseSpin = await getHouseSpin()
+        let houseEncryptedSpin = AES.encrypt(
+            JSON.stringify(houseSpin),
+            aesKey
+        ).toString()
+        spins.push({
+            id: id,
+            contractAddress: slotsChannelManager.address,
+            nonce: spin.nonce,
+            player: {
+                spin: spin,
+                encryptedSpin: encryptedSpin
+            },
+            house: {
+                spin: houseSpin,
+                encryptedSpin: houseEncryptedSpin
+            }
+        })
+
+        userSpins.push(spin)
+        houseSpins.push(houseSpin)
+        dbChannel.nonce++
+    }
+
+    console.log('Process spin', id)
+
+    if (isChannelFinalized()) throw new Error('Channel already finalized')
+    console.log('Channel not finalized')
+
+    if (isChannelClosed()) throw new Error('Channel already closed')
+    console.log('Channel not closed')
+
+    if (isChannelBalancesEmpty()) throw new Error('Channel balances are empty')
+    console.log('Channel balances not empty')
+
+    if (!await verifySign()) throw new Error('Unable to verify sign')
+    console.log('Sign verified')
+
+    if (!await verifySpin()) throw new Error('Unable to verify spin')
+    console.log('Spin verified')
+
+    await saveSpin()
+    return true
+}
+
+const _getTightlyPackedSpin = spin => {
+    return (
+        spin.reelHash +
+        (spin.reel !== '' ? spin.reel.toString() : '') +
+        spin.reelSeedHash +
+        spin.prevReelSeedHash +
+        spin.userHash +
+        spin.prevUserHash +
+        spin.nonce +
+        spin.turn +
+        spin.userBalance +
+        spin.houseBalance +
+        spin.betSize
+    )
+}
+
+/**
+ * Calculates payouts for a given reel based on betsize
+ * @param reel
+ * @param betSize
+ * @returns {number}
+ */
+const _calculateReelPayout = (reel, betSize) => {
+    betSize = utils.getWeb3().utils.fromWei(betSize.toString(), 'ether')
+    let isValid = true
+    for (let i = 0; i < reel.length; i++) {
+        if (reel[i] > 20) {
+            isValid = false
+            break
+        }
+    }
+    if (!isValid) return 0
+    let lines = _getLines(reel)
+    let totalReward = 0
+    for (let i = 0; i < betSize; i++)
+        totalReward += _getLineRewardMultiplier(lines[i])
+    return totalReward
+}
+
+const _generateReelSeedHashes = seed => {
+    console.log('Reel seed hashes')
+    let hashes = []
+    for (let i = 0; i < 1000; i++)
+        hashes.push(SHA256(i === 0 ? seed : hashes[i - 1]).toString())
+    return hashes
+}
+
+const _generateReels = reelSeedHashes => {
+    console.log('Reels')
+    let reels = []
+    for (let i = 0; i < reelSeedHashes.length; i++) {
+        let hash = reelSeedHashes[i]
+        let reel = []
+        for (let j = 0; j < constants.NUMBER_OF_REELS; j++) {
+            let rng = seedRandom(hash + j)
+            reel.push(Math.floor(rng() * 21))
+        }
+        reels.push(reel)
+    }
+    return reels
+}
+
+const _generateReelHashes = (reelSeedHashes, reels) => {
+    console.log('Reel hashes')
+    let reelHashes = []
+    for (let i = 0; i < reelSeedHashes.length; i++)
+        reelHashes.push(
+            SHA256(reelSeedHashes[i] + reels[i].toString()).toString()
+        )
+    return reelHashes
+}
+
+const _generateRandomNumber = length => {
+    return Math.floor(
+        Math.pow(10, length - 1) + Math.random() * 9 * Math.pow(10, length - 1)
+    )
+}
+
+const _getUserHashes = randomNumber => {
+    let lastHash
+    let hashes = []
+    for (let i = 0; i < 1000; i++) {
+        let hash = SHA256(i === 0 ? randomNumber : lastHash).toString()
+        hashes.push(hash)
+        lastHash = hash
+    }
+    return hashes
+}
+
+/**
+ * Returns the reward multiplier based on the current line
+ * @param line
+ * @returns {number}
+ */
+const _getLineRewardMultiplier = line => {
+    let repetitions = 1
+    let rewardMultiplier = 0
+    for (let i = 1; i <= line.length; i++) {
+        if (line[i] === line[i - 1]) repetitions++
+        else break
+    }
+    if (repetitions >= 3) {
+        rewardMultiplier = constants.paytable[line[0]] * (repetitions - 2)
+    }
+    return rewardMultiplier
+}
+
+/**
+ * Returns lines for the submitted reel.
+ * @param reel
+ * @returns {Array}
+ */
+// Returns NUMBER_OF_LINES lines containing constants.NUMBER_OF_REELS symbols each
+const _getLines = reel => {
+    let lines = []
+    for (let i = 0; i < constants.NUMBER_OF_LINES; i++) {
+        lines.push(_getLine(i, reel))
+    }
+    return lines
+}
+
+/**
+ * Calculates the line for line i based on the submitted reel
+ * @param lineIndex
+ * @param reel
+ * @returns {Array}
+ */
+// Returns line for an index
+const _getLine = (lineIndex, reel) => {
+    let line = []
+    switch (lineIndex) {
+        case 0:
+            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
+                line[i] = _getSymbol(i, reel[i])
+            }
+            break
+        case 1:
+            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
+                line[i] = _getSymbol(i, reel[i] - 1)
+            }
+            break
+        case 2:
+            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
+                line[i] = _getSymbol(i, reel[i] + 1)
+            }
+            break
+        case 3:
+            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
+                if (i === 0 || i === 4) line[i] = _getSymbol(i, reel[i] - 1)
+                else if (i === 2) line[i] = _getSymbol(i, reel[i] + 1)
+                else line[i] = _getSymbol(i, reel[i])
+            }
+            break
+        case 4:
+            for (let i = 0; i < constants.NUMBER_OF_REELS; i++) {
+                if (i === 0 || i === 4) line[i] = _getSymbol(i, reel[i] + 1)
+                else if (i === 2) line[i] = _getSymbol(i, reel[i] - 1)
+                else line[i] = _getSymbol(i, reel[i])
+            }
+            break
+        default:
+            break
+    }
+    return line
+}
+
+/**
+ * Returns the symbol present for a reel at position
+ * @param reel
+ * @param position
+ * @returns {*}
+ */
+const _getSymbol = (reel, position) => {
+    if (position === 21) position = 0
+    else if (position === -1) position = 20
+    return constants.reels[reel][position]
+}
+
+module.exports = {
+    getNewDbChannel,
+    getAesKey,
+    getChannelDepositParams,
+    getSpin,
+    generateReelsAndHashes,
+    processSpin
+}
