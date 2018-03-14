@@ -358,7 +358,10 @@ contract('SlotsChannelManager', accounts => {
                 finalUserHash,
                 constants.privateKeys.house
             )
-            reelsAndHashes = handler.generateReelsAndHashes(initialHouseSeed, channelId)
+            reelsAndHashes = handler.generateReelsAndHashes(
+                initialHouseSeed,
+                channelId
+            )
 
             finalSeedHash =
                 reelsAndHashes.reelSeedHashes[
@@ -443,52 +446,66 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows players to spin with invalid spin data', async () => {
         let validated = true
-        try {
-            // Max number of lines
-            let betSize = '5000000000000000000'
+        // Max number of lines
+        let betSize = '5000000000000000000'
 
-            // User spin
-            let spin = await handler.getSpin(
-                houseSpins,
-                nonce,
-                finalReelHash,
-                finalSeedHash,
-                userHashes,
-                initialDeposit,
-                betSize,
-                nonFounder,
-                constants.privateKeys.nonFounder
-            )
-            // Replace with invalid data
-            spin.reelHash = 'a'
+        dbChannel = handler.getNewDbChannel(
+            channelId,
+            slotsChannelManager.address,
+            initialDeposit,
+            initialHouseSeed,
+            finalUserHash,
+            finalReelHash,
+            finalSeedHash,
+            nonFounder
+        )
+
+        // User spin
+        let spin = await handler.getSpin(
+            houseSpins,
+            nonce,
+            finalReelHash,
+            finalSeedHash,
+            userHashes,
+            initialDeposit,
+            betSize,
+            nonFounder,
+            constants.privateKeys.nonFounder
+        )
+
+        Object.keys(spin).forEach(async prop => {
+            console.log('Validate w/ invalid prop', prop)
+            let _spin = JSON.parse(JSON.stringify(spin))
+            _spin[prop] = 'a'
 
             let encryptedSpin = AES.encrypt(
-                JSON.stringify(spin),
+                JSON.stringify(_spin),
                 channelAesKey
             ).toString()
 
-            dbChannel = handler.getNewDbChannel(
-                channelId,
-                slotsChannelManager.address,
-                initialDeposit,
-                initialHouseSeed,
-                finalUserHash,
-                finalReelHash,
-                finalSeedHash,
-                nonFounder
-            )
+            validated = true
+            try {
+                await handler.processSpin(
+                    channelId,
+                    dbChannel,
+                    founder,
+                    userSpins,
+                    houseSpins,
+                    spins,
+                    finalUserHash,
+                    slotsChannelManager,
+                    reelsAndHashes,
+                    _spin,
+                    encryptedSpin
+                )
+            } catch (e) {
+                // Valid result
+                console.log('Thrown', e.message)
+                validated = false
+            }
 
-            await handler.processSpin(channelId, dbChannel, founder, userSpins, houseSpins, spins,
-                                      finalUserHash, slotsChannelManager, reelsAndHashes,
-                                      spin, encryptedSpin)
-            nonce++
-        } catch (e) {
-            // Valid result
-            console.log('Thrown', e.message)
-            validated = false
-        }
-
-        assert.equal(validated, false, 'Spin should be invalid')
+            assert.equal(validated, false, 'Spin should be invalid')
+        })
     })
 
     it('allows players to spin with valid spin data', async () => {
@@ -528,9 +545,19 @@ contract('SlotsChannelManager', accounts => {
             )
 
             // Process spin as the house
-            await handler.processSpin(channelId, dbChannel, founder, userSpins, houseSpins, spins,
-                finalUserHash, slotsChannelManager, reelsAndHashes,
-                spin, encryptedSpin)
+            await handler.processSpin(
+                channelId,
+                dbChannel,
+                founder,
+                userSpins,
+                houseSpins,
+                spins,
+                finalUserHash,
+                slotsChannelManager,
+                reelsAndHashes,
+                spin,
+                encryptedSpin
+            )
             nonce++
         } catch (e) {
             // Valid result
@@ -566,9 +593,19 @@ contract('SlotsChannelManager', accounts => {
             console.log('Spin', spin)
 
             // Process spin as the house
-            await handler.processSpin(channelId, dbChannel, founder, userSpins, houseSpins, spins,
-                finalUserHash, slotsChannelManager, reelsAndHashes,
-                spin, encryptedSpin)
+            await handler.processSpin(
+                channelId,
+                dbChannel,
+                founder,
+                userSpins,
+                houseSpins,
+                spins,
+                finalUserHash,
+                slotsChannelManager,
+                reelsAndHashes,
+                spin,
+                encryptedSpin
+            )
             nonce++
         } catch (e) {
             // Valid result
