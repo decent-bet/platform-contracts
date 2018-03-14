@@ -7,6 +7,18 @@ const AES = require('crypto-js/aes')
 const seedRandom = require('seedrandom')
 const ethUtil = require('ethereumjs-util')
 
+/**
+ * Returns a new mock db channel
+ * @param id
+ * @param contractAddress
+ * @param initialDeposit
+ * @param initialSeed
+ * @param finalUserHash
+ * @param finalReelHash
+ * @param finalSeedHash
+ * @param playerAddress
+ * @returns {{id: *, contractAddress: *, deposit: *, nonce: number, initialSeed: *, finalUserHash: *, finalReelHash: *, finalSeedHash: *, player: {address: *, finalized: {status: boolean, timestamp: number}}, house: {finalized: {status: boolean, timestamp: number}}, closed: boolean}}
+ */
 const getNewDbChannel = (
     id,
     contractAddress,
@@ -43,6 +55,12 @@ const getNewDbChannel = (
     }
 }
 
+/**
+ * Generates an AES key based on the slots channel protocol spec
+ * @param id
+ * @param privateKey
+ * @returns {Promise<any>}
+ */
 const getAesKey = (id, privateKey) => {
     return new Promise(resolve => {
         let idHash = utils.getWeb3().utils.sha3(id)
@@ -57,6 +75,12 @@ const getAesKey = (id, privateKey) => {
     })
 }
 
+/**
+ * Returns channel deposit parameters
+ * @param id
+ * @param key
+ * @returns {Promise<any>}
+ */
 const getChannelDepositParams = (id, key) => {
     return new Promise((resolve, reject) => {
         let randomNumber = _generateRandomNumber(18).toString()
@@ -82,6 +106,14 @@ const getChannelDepositParams = (id, key) => {
     })
 }
 
+/**
+ * Signs a string using a private key
+ * @param text
+ * @param address
+ * @param key
+ * @returns {Promise<any>}
+ * @private
+ */
 let _signString = (text, address, key) => {
     return new Promise((resolve, reject) => {
         /*
@@ -113,6 +145,19 @@ let _signString = (text, address, key) => {
     })
 }
 
+/**
+ * Returns a spin based on the current nonce and last house spin
+ * @param houseSpins
+ * @param nonce
+ * @param finalReelHash
+ * @param finalSeedHash
+ * @param userHashes
+ * @param initialDeposit
+ * @param betSize
+ * @param address
+ * @param key
+ * @returns {Promise<any>}
+ */
 const getSpin = async (
     houseSpins,
     nonce,
@@ -158,6 +203,12 @@ const getSpin = async (
     })
 }
 
+/**
+ * Generates reels and hashes based on the initial house seed and channel id
+ * @param initialHouseSeed
+ * @param id
+ * @returns {{reelSeedHashes, reels, reelHashes}}
+ */
 const generateReelsAndHashes = (initialHouseSeed, id) => {
     let blendedSeed = initialHouseSeed + id
     let reelSeedHashes = _generateReelSeedHashes(blendedSeed)
@@ -171,6 +222,21 @@ const generateReelsAndHashes = (initialHouseSeed, id) => {
     }
 }
 
+/**
+ * Processes a spin - verifies, validates and returns house spins
+ * @param id
+ * @param dbChannel
+ * @param founder
+ * @param userSpins
+ * @param houseSpins
+ * @param spins
+ * @param finalUserHash
+ * @param slotsChannelManager
+ * @param reelsAndHashes
+ * @param spin
+ * @param encryptedSpin
+ * @returns {Promise<boolean>}
+ */
 let processSpin = async (
     id,
     dbChannel,
@@ -186,7 +252,10 @@ let processSpin = async (
 ) => {
     let aesKey = await getAesKey(finalUserHash, constants.privateKeys.house)
 
-    // Check if the channel is active
+    /**
+     * Returns whether the channel has been finalized
+     * @returns {boolean}
+     */
     let isChannelFinalized = () => {
         return (
             dbChannel.player.finalized.status ||
@@ -194,11 +263,18 @@ let processSpin = async (
         )
     }
 
+    /**
+     * Returns whether the channel has been closed
+     * @returns {boolean}
+     */
     let isChannelClosed = () => {
         return dbChannel.closed
     }
 
-    // Check if balances are empty
+    /**
+     * Checks if the channel's balances are empty
+     * @returns {boolean}
+     */
     let isChannelBalancesEmpty = () => {
         const lastHouseSpin =
             houseSpins.length > 0 ? houseSpins[houseSpins.length - 1] : null
@@ -213,7 +289,10 @@ let processSpin = async (
         )
     }
 
-    // Verify the sign
+    /**
+     * Verifies the sign provided with the spin
+     * @returns {Promise<*>}
+     */
     let verifySign = async () => {
         let nonSignatureSpin = JSON.parse(JSON.stringify(spin))
         delete nonSignatureSpin.sign
@@ -226,7 +305,10 @@ let processSpin = async (
         return await slotsChannelManager.checkSig(id, msgHash, sign, spin.turn)
     }
 
-    // Get previous spins
+    /**
+     * Returns the last player and house spin
+     * @returns {*}
+     */
     let getPreviousSpins = () => {
         let nonce = spin.nonce
 
@@ -244,7 +326,10 @@ let processSpin = async (
         }
     }
 
-    // Verify the spin
+    /**
+     * Validates and verifies spin data
+     * @returns {Promise<boolean>}
+     */
     let verifySpin = async () => {
         let nonce = dbChannel.nonce
 
@@ -264,6 +349,10 @@ let processSpin = async (
         }
     }
 
+    /**
+     * Validate whether the betSize is between the minimum and maximum betSize
+     * @returns {*}
+     */
     let validateBetSize = () => {
         let betSize = new BigNumber(spin.betSize)
         const maxBet = utils.getWeb3().utils.toWei('5', 'ether')
@@ -274,6 +363,11 @@ let processSpin = async (
         )
     }
 
+    /**
+     * Verifies balances based on the previous spins
+     * @param previousSpins
+     * @returns {boolean}
+     */
     let verifyBalances = previousSpins => {
         if (spin.nonce > 1) {
             let prevHouseSpin = previousSpins.house
@@ -289,6 +383,11 @@ let processSpin = async (
         }
     }
 
+    /**
+     * Verifies hashes based on the previous spins
+     * @param previousSpins
+     * @returns {boolean}
+     */
     let verifyHashes = previousSpins => {
         let reelHashes = reelsAndHashes.reelHashes
         let reelSeedHashes = reelsAndHashes.reelSeedHashes
@@ -331,6 +430,10 @@ let processSpin = async (
         }
     }
 
+    /**
+     * Returns a house spin based on the player spin
+     * @returns {Promise<>}
+     */
     let getHouseSpin = async () => {
         let nonce = spin.nonce
         let reels = reelsAndHashes.reels
@@ -407,6 +510,10 @@ let processSpin = async (
         return houseSpin
     }
 
+    /**
+     * Updates the last house and player spin states
+     * @returns {Promise<void>}
+     */
     let saveSpin = async () => {
         console.log('Save spin')
         let houseSpin = await getHouseSpin()
@@ -454,6 +561,12 @@ let processSpin = async (
     return true
 }
 
+/**
+ * Tightly packs a spin object
+ * @param spin
+ * @returns {string}
+ * @private
+ */
 const _getTightlyPackedSpin = spin => {
     return (
         spin.reelHash +
@@ -493,6 +606,12 @@ const _calculateReelPayout = (reel, betSize) => {
     return totalReward
 }
 
+/**
+ * Generates reel seed hashes based on an input seed
+ * @param seed
+ * @returns {Array}
+ * @private
+ */
 const _generateReelSeedHashes = seed => {
     console.log('Reel seed hashes')
     let hashes = []
@@ -501,6 +620,12 @@ const _generateReelSeedHashes = seed => {
     return hashes
 }
 
+/**
+ * Generates reels based on input reel seed hashes
+ * @param reelSeedHashes
+ * @returns {Array}
+ * @private
+ */
 const _generateReels = reelSeedHashes => {
     console.log('Reels')
     let reels = []
@@ -516,6 +641,13 @@ const _generateReels = reelSeedHashes => {
     return reels
 }
 
+/**
+ * Generates reel hashes based on input reelSeedHashes and reels
+ * @param reelSeedHashes
+ * @param reels
+ * @returns {Array}
+ * @private
+ */
 const _generateReelHashes = (reelSeedHashes, reels) => {
     console.log('Reel hashes')
     let reelHashes = []
@@ -526,12 +658,24 @@ const _generateReelHashes = (reelSeedHashes, reels) => {
     return reelHashes
 }
 
+/**
+ * Generates random numbers based on an input length
+ * @param length
+ * @returns {number}
+ * @private
+ */
 const _generateRandomNumber = length => {
     return Math.floor(
         Math.pow(10, length - 1) + Math.random() * 9 * Math.pow(10, length - 1)
     )
 }
 
+/**
+ * Returns user hashes based on an input random number
+ * @param randomNumber
+ * @returns {Array}
+ * @private
+ */
 const _getUserHashes = randomNumber => {
     let lastHash
     let hashes = []
