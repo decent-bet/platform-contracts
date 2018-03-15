@@ -702,9 +702,15 @@ contract('SlotsChannelManager', accounts => {
         )
     })
 
-    it('disallows participants from claiming a channel before it closes', async () => {})
+    it('disallows participants from claiming a channel before it closes', async () => {
+        await utils.assertFail(
+            slotsChannelManager.claim.sendTransaction(channelId, {
+                from: nonFounder
+            })
+        )
+    })
 
-    it('allows participants to close a channel with valid data', async () => {
+    it('allows participants to finalize a channel with valid data', async () => {
         // Max number of lines
         let betSize = '5000000000000000000'
 
@@ -748,5 +754,191 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(finalized, true, 'Channel was not finalized')
     })
 
-    it('allows participants to claim a channel after it closes', async () => {})
+    it('disallows non participants from claiming a channel after it closes', async () => {
+        // Channel end time is 24 hours. Forward the time to 24 hours after a channel has been finalized
+        let time = await slotsChannelManager.getTime()
+        time = time.add(24 * 60 * 60 + 1).toFixed()
+
+        await slotsChannelManager.setTime(time, { from: founder })
+
+        await utils.assertFail(
+            slotsChannelManager.claim.sendTransaction(channelId, {
+                from: nonParticipant
+            })
+        )
+    })
+
+    it('allows user to claim a channel after it closes', async () => {
+        let userChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            false
+        )
+
+        let houseChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            true
+        )
+
+        let currentSession = await slotsChannelManager.currentSession()
+        currentSession = currentSession.toNumber()
+
+        let userBalancePreClaim = await slotsChannelManager.balanceOf(
+            nonFounder,
+            currentSession
+        )
+
+        let houseBalancePreClaim = await slotsChannelManager.balanceOf(
+            slotsChannelManager.address,
+            currentSession
+        )
+
+        console.log(
+            'User channel balance',
+            userChannelBalance.toFixed(),
+            '\nUser balance pre-claim',
+            userBalancePreClaim.toFixed()
+        )
+
+        console.log(
+            'House channel balance',
+            houseChannelBalance.toFixed(),
+            '\nHouse balance pre-claim',
+            houseBalancePreClaim.toFixed()
+        )
+
+        await slotsChannelManager.claim.sendTransaction(channelId, {
+            from: nonFounder
+        })
+
+        let userBalancePostClaim = await slotsChannelManager.balanceOf(
+            nonFounder,
+            currentSession
+        )
+
+        console.log('User balance post claim', userBalancePostClaim.toFixed())
+
+        assert.equal(
+            userBalancePostClaim.toFixed(),
+            userBalancePreClaim.add(userChannelBalance).toFixed(),
+            'Invalid user balance post claim'
+        )
+
+        userChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            false
+        )
+        userChannelBalance = userChannelBalance.toNumber()
+
+        assert.equal(
+            userChannelBalance,
+            0,
+            'Invalid user channel balance post claim'
+        )
+
+        let houseBalancePostClaim = await slotsChannelManager.balanceOf(
+            slotsChannelManager.address,
+            currentSession
+        )
+
+        console.log('House balance post claim', houseBalancePostClaim.toFixed())
+
+        assert.equal(
+            houseBalancePostClaim.toFixed(),
+            houseBalancePreClaim.toFixed(),
+            'Invalid house balance post claim'
+        )
+    })
+
+    it('allows house to claim a channel after it closes', async () => {
+        let userChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            false
+        )
+
+        let houseChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            true
+        )
+
+        let currentSession = await slotsChannelManager.currentSession()
+        currentSession = currentSession.toNumber()
+
+        let userBalancePreClaim = await slotsChannelManager.balanceOf(
+            nonFounder,
+            currentSession
+        )
+
+        let houseBalancePreClaim = await slotsChannelManager.balanceOf(
+            slotsChannelManager.address,
+            currentSession
+        )
+
+        console.log(
+            'User channel balance',
+            userChannelBalance.toFixed(),
+            '\nUser balance pre-claim',
+            userBalancePreClaim.toFixed()
+        )
+
+        console.log(
+            'House channel balance',
+            houseChannelBalance.toFixed(),
+            '\nHouse balance pre-claim',
+            houseBalancePreClaim.toFixed()
+        )
+
+        await slotsChannelManager.claim.sendTransaction(channelId, {
+            from: founder
+        })
+
+        let userBalancePostClaim = await slotsChannelManager.balanceOf(
+            nonFounder,
+            currentSession
+        )
+
+        console.log('User balance post claim', userBalancePostClaim.toFixed())
+
+        assert.equal(
+            userBalancePostClaim.toFixed(),
+            userBalancePreClaim.toFixed(),
+            'Invalid user balance '
+        )
+
+        userChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            false
+        )
+        userChannelBalance = userChannelBalance.toNumber()
+
+        assert.equal(
+            userChannelBalance,
+            0,
+            'Invalid user channel balance'
+        )
+
+        let houseBalancePostClaim = await slotsChannelManager.balanceOf(
+            slotsChannelManager.address,
+            currentSession
+        )
+
+        console.log('House balance post claim', houseBalancePostClaim.toFixed())
+
+        assert.equal(
+            houseBalancePostClaim.toFixed(),
+            houseBalancePreClaim.add(houseChannelBalance).toFixed(),
+            'Invalid house balance post claim'
+        )
+
+        houseChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            true
+        )
+        houseChannelBalance = houseChannelBalance.toNumber()
+
+        assert.equal(
+            houseChannelBalance,
+            0,
+            'Invalid user channel balance post claim'
+        )
+    })
 })

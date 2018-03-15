@@ -562,7 +562,7 @@ let processSpin = async (
     return true
 }
 
-const getSpinParts = (spin) => {
+const getSpinParts = spin => {
     let sign = spin.sign
 
     let sigParams = ethUtil.fromRpcSig(sign)
@@ -576,9 +576,30 @@ const getSpinParts = (spin) => {
     console.log('getSpinParts reverse sig: ', ethUtil.toRpcSig(v, r, s))
 
     return {
-        parts: spin.reelHash + '/' + (spin.reel !== '' ? spin.reel.toString() : '') + '/' + spin.reelSeedHash +
-        '/' + spin.prevReelSeedHash + '/' + spin.userHash + '/' + spin.prevUserHash + '/' + spin.nonce +
-        '/' + spin.turn + '/' + spin.userBalance + '/' + spin.houseBalance + '/' + spin.betSize + '/' + v,
+        parts:
+            spin.reelHash +
+            '/' +
+            (spin.reel !== '' ? spin.reel.toString() : '') +
+            '/' +
+            spin.reelSeedHash +
+            '/' +
+            spin.prevReelSeedHash +
+            '/' +
+            spin.userHash +
+            '/' +
+            spin.prevUserHash +
+            '/' +
+            spin.nonce +
+            '/' +
+            spin.turn +
+            '/' +
+            spin.userBalance +
+            '/' +
+            spin.houseBalance +
+            '/' +
+            spin.betSize +
+            '/' +
+            v,
         r: r,
         s: s
     }
