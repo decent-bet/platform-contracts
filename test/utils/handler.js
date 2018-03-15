@@ -507,6 +507,7 @@ let processSpin = async (
             founder,
             constants.privateKeys.house
         )
+        houseSpin.sign = houseSpin.sign.sig
         return houseSpin
     }
 
@@ -559,6 +560,28 @@ let processSpin = async (
 
     await saveSpin()
     return true
+}
+
+const getSpinParts = (spin) => {
+    let sign = spin.sign
+
+    let sigParams = ethUtil.fromRpcSig(sign)
+
+    let r = ethUtil.bufferToHex(sigParams.r)
+    let s = ethUtil.bufferToHex(sigParams.s)
+    let v = ethUtil.bufferToInt(sigParams.v)
+
+    console.log('getSpinParts sig: ', v, r, s)
+
+    console.log('getSpinParts reverse sig: ', ethUtil.toRpcSig(v, r, s))
+
+    return {
+        parts: spin.reelHash + '/' + (spin.reel !== '' ? spin.reel.toString() : '') + '/' + spin.reelSeedHash +
+        '/' + spin.prevReelSeedHash + '/' + spin.userHash + '/' + spin.prevUserHash + '/' + spin.nonce +
+        '/' + spin.turn + '/' + spin.userBalance + '/' + spin.houseBalance + '/' + spin.betSize + '/' + v,
+        r: r,
+        s: s
+    }
 }
 
 /**
@@ -782,5 +805,6 @@ module.exports = {
     getChannelDepositParams,
     getSpin,
     generateReelsAndHashes,
-    processSpin
+    processSpin,
+    getSpinParts
 }

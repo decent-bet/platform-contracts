@@ -170,18 +170,18 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
         uint totalSpinReward = getTotalSpinReward(prior);
 
-        if (!isAccurateBalances(curr, prior, totalSpinReward)) return false;
+        if (!isAccurateBalances(curr, prior, totalSpinReward)) revert();
 
         // 26k gas
-        if(!checkSigPrivate(id, curr)) return false;
+        if(!checkSigPrivate(id, curr)) revert();
 
-        if(!checkSigPrivate(id, prior)) return false;
+        if(!checkSigPrivate(id, prior)) revert();
 
         // Checks if spin hashes are pre-images of previous hashes or are hashes in previous spins
-        if (!checkSpinHashes(curr, prior)) return false;
+        if (!checkSpinHashes(curr, prior)) revert();
 
         // 5.6k gas
-        if(!checkPair(curr, prior)) return false;
+        if(!checkPair(curr, prior)) revert();
 
         // Finalized
         if (shouldFinalizeChannel(id, curr.nonce))

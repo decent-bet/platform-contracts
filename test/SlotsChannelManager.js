@@ -13,6 +13,7 @@ let token
 let house
 
 let slotsChannelManager
+let slotsChannelFinalizer
 let bettingProvider
 let sportsOracle
 
@@ -49,7 +50,7 @@ contract('SlotsChannelManager', accounts => {
     it('initializes house contract', async () => {
         founder = accounts[0]
         nonFounder = accounts[1]
-        nonInvestor = accounts[2]
+        nonParticipant = accounts[2]
 
         wallet = await contracts.MultiSigWallet.deployed()
         token = await contracts.DecentBetToken.deployed()
@@ -57,6 +58,7 @@ contract('SlotsChannelManager', accounts => {
         bettingProvider = await contracts.BettingProvider.deployed()
         sportsOracle = await contracts.SportsOracle.deployed()
         slotsChannelManager = await contracts.SlotsChannelManager.deployed()
+        slotsChannelFinalizer = await contracts.SlotsChannelFinalizer.deployed()
 
         // Check if house founder is valid
         let _founder = await house.founder()
@@ -227,7 +229,7 @@ contract('SlotsChannelManager', accounts => {
 
         await utils.assertFail(
             slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
-                from: nonInvestor
+                from: nonParticipant
             })
         )
     })
@@ -262,7 +264,7 @@ contract('SlotsChannelManager', accounts => {
                 channelId,
                 initialUserNumber,
                 finalUserHash,
-                { from: nonInvestor }
+                { from: nonParticipant }
             )
         )
     })
@@ -616,13 +618,135 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(validated, true, 'Spin should be valid')
     })
 
-    it('disallows non participants from finalizing a channel', async () => {})
+    it('disallows non participants from finalizing a channel', async () => {
+        // Max number of lines
+        let betSize = '5000000000000000000'
 
-    it('disallows participants from finalizing a channel with invalid data', async () => {})
+        // User spin
+        let userSpin = await handler.getSpin(
+            houseSpins,
+            nonce,
+            finalReelHash,
+            finalSeedHash,
+            userHashes,
+            initialDeposit,
+            betSize,
+            nonParticipant,
+            constants.privateKeys.nonParticipant
+        )
+
+        let lastHouseSpin = houseSpins[houseSpins.length - 1]
+
+        console.log(userSpin.sign, lastHouseSpin.sign)
+
+        userSpin = handler.getSpinParts(userSpin)
+        let houseSpin = handler.getSpinParts(lastHouseSpin)
+
+        await utils.assertFail(
+            slotsChannelFinalizer.finalize.sendTransaction(
+                channelId,
+                userSpin.parts,
+                houseSpin.parts,
+                userSpin.r,
+                userSpin.s,
+                houseSpin.r,
+                houseSpin.s,
+                {
+                    from: nonParticipant,
+                    gas: 6700000
+                }
+            )
+        )
+    })
+
+    it('disallows participants from finalizing a channel with invalid data', async () => {
+        // Max number of lines
+        let betSize = '5000000000000000000'
+
+        // User spin
+        let userSpin = await handler.getSpin(
+            houseSpins,
+            nonce,
+            finalReelHash,
+            finalSeedHash,
+            userHashes,
+            initialDeposit,
+            betSize,
+            nonFounder,
+            constants.privateKeys.nonFounder
+        )
+
+        // Update userSpin to use invalid data
+        userSpin.reelHash = 'a'
+        let lastHouseSpin = houseSpins[houseSpins.length - 1]
+
+        console.log(userSpin.sign, lastHouseSpin.sign)
+
+        userSpin = handler.getSpinParts(userSpin)
+        let houseSpin = handler.getSpinParts(lastHouseSpin)
+
+        await utils.assertFail(
+            slotsChannelFinalizer.finalize.sendTransaction(
+                channelId,
+                userSpin.parts,
+                houseSpin.parts,
+                userSpin.r,
+                userSpin.s,
+                houseSpin.r,
+                houseSpin.s,
+                {
+                    from: nonFounder,
+                    gas: 6700000
+                }
+            )
+        )
+    })
 
     it('disallows participants from claiming a channel before it closes', async () => {})
 
-    it('allows participants to close a channel with valid data', async () => {})
+    it('allows participants to close a channel with valid data', async () => {
+        // Max number of lines
+        let betSize = '5000000000000000000'
+
+        // User spin
+        let userSpin = await handler.getSpin(
+            houseSpins,
+            nonce,
+            finalReelHash,
+            finalSeedHash,
+            userHashes,
+            initialDeposit,
+            betSize,
+            nonFounder,
+            constants.privateKeys.nonFounder
+        )
+
+        let lastHouseSpin = houseSpins[houseSpins.length - 1]
+
+        console.log(userSpin.sign, lastHouseSpin.sign)
+
+        userSpin = handler.getSpinParts(userSpin)
+        let houseSpin = handler.getSpinParts(lastHouseSpin)
+
+        await slotsChannelFinalizer.finalize.sendTransaction(
+            channelId,
+            userSpin.parts,
+            houseSpin.parts,
+            userSpin.r,
+            userSpin.s,
+            houseSpin.r,
+            houseSpin.s,
+            {
+                from: nonFounder,
+                gas: 6700000
+            }
+        )
+
+        let channelInfo = await slotsChannelManager.getChannelInfo(channelId)
+        let finalized = channelInfo[3]
+
+        assert.equal(finalized, true, 'Channel was not finalized')
+    })
 
     it('allows participants to claim a channel after it closes', async () => {})
 })
