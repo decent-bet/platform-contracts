@@ -124,5 +124,8 @@ module.exports = {
     },
     setWeb3: function(web3) {
         myWeb3 = web3
+    },
+    getWeb3: function() {
+        return web3
     }
 }

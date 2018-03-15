@@ -10,10 +10,11 @@ import '../../Libraries/ECVerify.sol';
 import '../../Libraries/SafeMath.sol';
 import '../../Libraries/strings.sol';
 import '../../Libraries/Utils.sol';
+import '../../Libraries/TimeProvider.sol';
 
 
 // A State channel contract to handle slot games on the Decent.bet platform
-contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Utils {
+contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering, SafeMath, Utils {
 
     using strings for *;
     using ECVerify for *;
@@ -102,6 +103,10 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         if(!slotsHelper.isSlotsHelper()) throw;
         name = 'Slots Channel Manager';
         isHouseOffering = true;
+
+        // If on local testRPC/testnet and need mock times
+        isMock = true;
+        setTimeController(msg.sender);
     }
 
     /* Modifiers */
@@ -168,7 +173,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     /* Functions */
     function createChannel(uint initialDeposit) {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
-        if(initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
+        if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
+        if (balanceOf(msg.sender, currentSession) < initialDeposit) throw;
         channels[channelCount] = Channel({
             ready: false,
             activated: false,
@@ -271,6 +277,11 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         return depositedTokens[_address][session];
     }
 
+    // Query balance of channel tokens for either party
+    function channelBalanceOf(uint id, bool isHouse) constant returns (uint) {
+        return finalBalances[id][isHouse];
+    }
+
     function setSession(uint session)
         // Replace other functions with onlyAuthorized
     onlyHouse returns (bool) {
@@ -317,7 +328,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     returns (bool) {
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
-        if (balanceOf(houseAddress, channels[id].session) < channels[id].initialDeposit) throw;
+        if (balanceOf(address(this), channels[id].session) < channels[id].initialDeposit) throw;
         channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
@@ -331,7 +342,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // Transfers tokens to a channel.
     function transferTokensToChannel(uint id, bool isHouse) private {
         // Transfer from house address instead of authorized addresses sending txs on behalf of the house
-        address _address = isHouse ? houseAddress : players[id][false];
+        address _address = isHouse ? address(this) : players[id][false];
         channelDeposits[id][isHouse] =
         safeAdd(channelDeposits[id][isHouse], channels[id].initialDeposit);
         depositedTokens[_address][channels[id].session] =
@@ -364,7 +375,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         finalBalances[id][true] = houseBalance;
         channels[id].finalNonce = nonce;
         channels[id].finalTurn = turn;
-        channels[id].endTime = block.timestamp + 1 minutes;
+        channels[id].endTime = getTime() + 24 hours;
         // Set at 1 minute only for Testnet
         if (!channels[id].finalized) channels[id].finalized = true;
         LogChannelFinalized(id, turn);
@@ -383,19 +394,20 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
                 channelDeposits[id][isHouse] = 0;
 
                 // Deposit to the house address instead of authorized addresses sending txs on behalf of the house
-                address _address = isHouse ? houseAddress : msg.sender;
+                address _address = isHouse ? address(this) : msg.sender;
 
                 depositedTokens[_address][channels[id].session] =
                 safeAdd(depositedTokens[_address][channels[id].session], amount);
 
-                LogClaimChannelTokens(id, isHouse, block.timestamp);
+                LogClaimChannelTokens(id, isHouse, getTime());
             }
-        }
+        } else
+            revert();
     }
 
     // Utility function to check whether the channel has closed
     function isChannelClosed(uint id) constant returns (bool) {
-        return channels[id].finalized && block.timestamp > channels[id].endTime;
+        return channels[id].finalized && getTime() > channels[id].endTime;
     }
 
 }
