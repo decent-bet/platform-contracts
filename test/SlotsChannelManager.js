@@ -310,7 +310,7 @@ contract('SlotsChannelManager', accounts => {
         finalUserHash = depositParams.finalUserHash
 
         console.log('Channel deposit params', initialUserNumber, finalUserHash)
-        slotsChannelManager.depositChannel.sendTransaction(
+        await slotsChannelManager.depositChannel.sendTransaction(
             channelId,
             initialUserNumber,
             finalUserHash,
