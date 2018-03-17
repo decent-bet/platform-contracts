@@ -91,16 +91,16 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     function SlotsChannelManager(address _house, address _token, address _slotsHelper,
         address _slotsChannelFinalizer) /* onlyHouse */ {
-        if(_house == 0) throw;
-        if(_token == 0) throw;
-        if(_slotsHelper == 0) throw;
-        if(_slotsChannelFinalizer == 0) throw;
+        if(_house == 0) revert();
+        if(_token == 0) revert();
+        if(_slotsHelper == 0) revert();
+        if(_slotsChannelFinalizer == 0) revert();
         houseAddress = _house;
         decentBetToken = AbstractDecentBetToken(_token);
         house = AbstractHouse(_house);
         slotsHelper = AbstractSlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
-        if(!slotsHelper.isSlotsHelper()) throw;
+        if(!slotsHelper.isSlotsHelper()) revert();
         name = 'Slots Channel Manager';
         isHouseOffering = true;
 
@@ -112,69 +112,69 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     /* Modifiers */
 
     modifier onlyHouse() {
-        if (msg.sender != houseAddress) throw;
+        if (msg.sender != houseAddress) revert();
         _;
     }
 
     modifier onlyAuthorized() {
-        if (house.authorized(msg.sender) == false) throw;
+        if (house.authorized(msg.sender) == false) revert();
         _;
     }
 
     // Allows functions to execute only if users have "amount" dbets in their token contract balance.
     modifier isDbetsAvailable(uint amount) {
-        if(decentBetToken.balanceOf(msg.sender) < amount) throw;
+        if(decentBetToken.balanceOf(msg.sender) < amount) revert();
         _;
     }
 
     // Allows functions to execute only if the session is prior or equal to current house session
     // and if session is not 0.
     modifier isValidPriorSession(uint session) {
-        if(session > currentSession || session == 0) throw;
+        if(session > currentSession || session == 0) revert();
         _;
     }
 
     // Allows functions to execute only if users have "amount" tokens in their depositedTokens balance.
     modifier isTokensAvailable(uint amount, uint session) {
-        if (depositedTokens[msg.sender][session] < amount) throw;
+        if (depositedTokens[msg.sender][session] < amount) revert();
         _;
     }
 
     // Allows only the house to proceed
     modifier isHouse(uint id) {
-        if (msg.sender != players[id][true]) throw;
+        if (msg.sender != players[id][true]) revert();
         _;
     }
 
     // Allows only the player to proceed
     modifier isPlayer(uint id) {
-        if (msg.sender != players[id][false]) throw;
+        if (msg.sender != players[id][false]) revert();
         _;
     }
 
     // Allows only if the user is ready
     modifier isUserReady(uint id) {
-        if (channels[id].ready != true) throw;
+        if (channels[id].ready != true) revert();
         _;
     }
 
     // Allows only if the user is not ready
     modifier isUserNotReady(uint id) {
-        if (channels[id].ready == true) throw;
+        if (channels[id].ready == true) revert();
         _;
     }
 
     // Allows only if channel has not been activated
     modifier isNotActivated(uint id) {
-        if (channels[id].activated == true) throw;
+        if (channels[id].activated == true) revert();
         _;
     }
 
     /* Functions */
     function createChannel(uint initialDeposit) {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
-        if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) throw;
-        if (balanceOf(msg.sender, currentSession) < initialDeposit) throw;
+        if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) revert();
+        if (balanceOf(msg.sender, currentSession) < initialDeposit) revert();
         channels[channelCount] = Channel({
             ready: false,
             activated: false,
@@ -230,13 +230,13 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     onlyHouse
     returns (bool) {
         // House deposits are allowed only for this session or the next.
-        if(session != currentSession && session != currentSession + 1) return false;
+        if(session != currentSession && session != currentSession + 1) revert();
 
         // Record the total number of tokens deposited into the house.
         depositedTokens[address(this)][session] = safeAdd(depositedTokens[address(this)][session], amount);
 
         // Transfer tokens from house to betting provider.
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
         LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
         return true;
@@ -246,8 +246,10 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     function withdrawPreviousSessionTokens()
     onlyHouse returns (bool) {
         uint previousSession = currentSession - 1;
-        if(depositedTokens[address(this)][previousSession] == 0) return false;
-        if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)][previousSession])) return false;
+        if(depositedTokens[address(this)][previousSession] == 0) revert();
+        uint previousSessionTokens = depositedTokens[address(this)][previousSession];
+        depositedTokens[address(this)][previousSession] = 0;
+        if(!decentBetToken.transfer(msg.sender, previousSessionTokens)) revert();
         return true;
     }
 
@@ -257,7 +259,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     isDbetsAvailable(amount) returns (bool) {
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
         LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
@@ -267,7 +269,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     isValidPriorSession(session)
     isTokensAvailable(amount, session) returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
-        if(!decentBetToken.transfer(msg.sender, amount)) return false;
+        if(!decentBetToken.transfer(msg.sender, amount)) revert();
         LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }
@@ -295,9 +297,9 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     isPlayer(id)
     isUserNotReady(id)
     returns (bool) {
-        if (strLen(_finalUserHash) != 64) throw;
-        if (strLen(_initialUserNumber) != 64) throw;
-        if (balanceOf(msg.sender, channels[id].session) < channels[id].initialDeposit) throw;
+        if (strLen(_finalUserHash) != 64) revert();
+        if (strLen(_initialUserNumber) != 64) revert();
+        if (balanceOf(msg.sender, channels[id].session) < channels[id].initialDeposit) revert();
         channels[id].initialUserNumber = _initialUserNumber;
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
@@ -328,7 +330,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     returns (bool) {
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
-        if (balanceOf(address(this), channels[id].session) < channels[id].initialDeposit) throw;
+        if (balanceOf(address(this), channels[id].session) < channels[id].initialDeposit) revert();
         channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
@@ -369,7 +371,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Sets the final spin for the channel
     function setFinal(uint id, uint userBalance, uint houseBalance, uint nonce, bool turn) external {
-        if(msg.sender != address(slotsChannelFinalizer)) throw;
+        if(msg.sender != address(slotsChannelFinalizer)) revert();
 
         finalBalances[id][false] = userBalance;
         finalBalances[id][true] = houseBalance;
