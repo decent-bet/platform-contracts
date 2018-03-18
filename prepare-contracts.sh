@@ -1,5 +1,6 @@
 #!/bin/bash -eux
 
+rm -rf build
 truffle migrate
 
 copyContracts () {
