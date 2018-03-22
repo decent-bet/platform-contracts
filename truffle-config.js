@@ -12,12 +12,12 @@ const network = process.env.NETWORK
 
 const networkUrl =
     network === NETWORK_DEVELOPMENT
-        ? 'http://localhost:8545'
+        ? 'http://ganache-cli:8545'
         : network === NETWORK_RINKEBY
             ? 'https://rinkeby.infura.io/' + infuraKey
             : network === NETWORK_MAINNET
                 ? 'https://mainnet.infura.io/' + infuraKey
-                : 'http://localhost:8545'
+                : 'http://ganache-cli:8545'
 
 console.log('Network url', networkUrl, network)
 
@@ -34,7 +34,7 @@ module.exports = {
     migrations_directory: './migrations',
     networks: {
         development: {
-            host: 'localhost',
+            host: 'ganache-cli',
             port: 8545,
             network_id: '*', // Match any network id,
             from: provider.address,
