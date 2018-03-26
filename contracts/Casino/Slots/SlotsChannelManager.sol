@@ -2,7 +2,7 @@ pragma solidity ^0.4.0;
 
 import './SlotsImplementation.sol';
 import './AbstractSlotsHelper.sol';
-import '../../Token/AbstractDecentBetToken.sol';
+import '../../Token/ERC20.sol';
 import '../../House/AbstractHouse.sol';
 import '../../House/HouseOffering.sol';
 
@@ -47,7 +47,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     uint constant public timeToLive = 3 hours;
 
     /* Contracts */
-    AbstractDecentBetToken decentBetToken;
+    ERC20 decentBetToken;
 
     AbstractHouse house;
 
@@ -96,7 +96,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         if(_slotsHelper == 0) revert();
         if(_slotsChannelFinalizer == 0) revert();
         houseAddress = _house;
-        decentBetToken = AbstractDecentBetToken(_token);
+        decentBetToken = ERC20(_token);
         house = AbstractHouse(_house);
         slotsHelper = AbstractSlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
@@ -124,6 +124,12 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Allows functions to execute only if users have "amount" dbets in their token contract balance.
     modifier isDbetsAvailable(uint amount) {
         if(decentBetToken.balanceOf(msg.sender) < amount) revert();
+        _;
+    }
+
+    // Allow functions to execute only if the current session is active
+    modifier isSessionActive() {
+        if(!house.isSessionActive(currentSession)) revert();
         _;
     }
 
@@ -171,7 +177,8 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     }
 
     /* Functions */
-    function createChannel(uint initialDeposit) {
+    function createChannel(uint initialDeposit)
+        isSessionActive {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
         if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) revert();
         if (balanceOf(msg.sender, currentSession) < initialDeposit) revert();

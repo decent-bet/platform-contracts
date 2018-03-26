@@ -1,7 +1,7 @@
 pragma solidity ^0.4.8;
 
 import '../Libraries/SafeMath.sol';
-import '../Token/AbstractDecentBetToken.sol';
+import '../Token/ERC20.sol';
 import './AbstractHouseLottery.sol';
 import '../Betting/AbstractSportsOracle.sol';
 import './HouseOffering.sol';
@@ -104,7 +104,7 @@ contract House is SafeMath, TimeProvider {
     uint public MIN_CREDIT_PURCHASE = 1000 ether;
 
     // External Contracts
-    AbstractDecentBetToken public decentBetToken;
+    ERC20 public decentBetToken;
 
     AbstractHouseLottery public houseLottery;
 
@@ -136,7 +136,7 @@ contract House is SafeMath, TimeProvider {
         founder = msg.sender;
         authorizedAddresses.push(founder);
         authorized[founder] = true;
-        decentBetToken = AbstractDecentBetToken(decentBetTokenAddress);
+        decentBetToken = ERC20(decentBetTokenAddress);
 
         // If on local testRPC/testnet and need mock times
         isMock = true;
@@ -192,9 +192,8 @@ contract House is SafeMath, TimeProvider {
         _;
     }
 
-    // Allows functions to execute if they happen during an "active" period for a session i.e,
-    // Not during a credit buying/token allocation period
-    modifier isSessionActivePeriod() {
+    // Allows functions to execute if they do not happen during a credit buying period for a session
+    modifier isNotCreditBuyingPeriod() {
         if(currentSession == 0) revert();
         if(getTime() < sessions[currentSession].startTime ||
         getTime() > (sessions[currentSession].endTime - 2 weeks)) revert();
@@ -460,7 +459,7 @@ contract House is SafeMath, TimeProvider {
     }
 
     function claimRolledOverCredits()
-    isSessionActivePeriod
+    isNotCreditBuyingPeriod
     areRolledOverCreditsAvailable {
         uint previousSession = currentSession - 1;
         uint rolledOverFromPreviousSession = houseFunds[currentSession].userCredits[msg.sender]
@@ -708,6 +707,11 @@ contract House is SafeMath, TimeProvider {
 
     function getSessionTime(uint session) constant returns (uint, uint) {
         return (sessions[session].startTime, sessions[session].endTime);
+    }
+
+    function isSessionActive(uint session) constant returns (bool) {
+        return getTime() >= sessions[session].startTime &&
+               getTime() <= sessions[session].endTime;
     }
 
     function doesOfferingExist(address _offering) constant returns (bool) {
