@@ -325,6 +325,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         channelDeposits[id][false] = 0;
         depositedTokens[msg.sender][channels[id].session] =
         safeAdd(depositedTokens[msg.sender][channels[id].session], channels[id].initialDeposit);
+        channels[id].ready = false;
     }
 
     // House sends the final reel and seed hashes to activate the channel along with the initial house seed hash
