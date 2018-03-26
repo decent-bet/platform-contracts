@@ -1,7 +1,7 @@
 pragma solidity ^0.4.8;
 
 
-import '../Token/AbstractDecentBetToken.sol';
+import '../Token/ERC20.sol';
 import '../House/AbstractHouse.sol';
 import './AbstractBettingProviderHelper.sol';
 import './AbstractSportsOracle.sol';
@@ -14,7 +14,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     // Contracts
     AbstractBettingProviderHelper bettingProviderHelper;
 
-    AbstractDecentBetToken decentBetToken;
+    ERC20 decentBetToken;
 
     AbstractSportsOracle sportsOracle;
 
@@ -258,7 +258,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         name = 'Betting Provider';
         isHouseOffering = true;
         houseAddress = _houseAddress;
-        decentBetToken = AbstractDecentBetToken(decentBetTokenAddress);
+        decentBetToken = ERC20(decentBetTokenAddress);
         house = AbstractHouse(houseAddress);
         bettingProviderHelper =
         AbstractBettingProviderHelper(bettingProviderHelperAddress);

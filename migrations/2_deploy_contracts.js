@@ -12,6 +12,8 @@ const SlotsChannelFinalizer = artifacts.require('SlotsChannelFinalizer')
 const SlotsChannelManager = artifacts.require('SlotsChannelManager')
 const SlotsHelper = artifacts.require('SlotsHelper')
 
+const utils = require('../test/utils/utils')
+
 let deploy = async (deployer, network) => {
     let decentBetMultisig
     let upgradeMaster, agentOwner
@@ -21,7 +23,6 @@ let deploy = async (deployer, network) => {
 
     let signaturesRequired = 1
     let token,
-        wallet,
         upgradeAgent,
         team,
         house,
@@ -33,16 +34,25 @@ let deploy = async (deployer, network) => {
         slotsChannelFinalizer,
         slotsChannelManager
 
+    let contractInfo = {}
+
+    const getContractInstanceAndInfo = async (contract) => {
+        let instance = await contract.deployed()
+        contractInfo[contract.contractName] = await utils.getGasUsage(contract, deployer.network_id)
+        return instance
+    }
+
     console.log('Deploying with network', network)
 
     if (network === 'rinkeby' || network === 'development') {
         const timestamp = Math.round(new Date().getTime() / 1000)
 
-        wallet = await deployer.deploy(
+        await deployer.deploy(
             MultiSigWallet,
             accounts,
             signaturesRequired
         )
+        await getContractInstanceAndInfo(MultiSigWallet)
 
         upgradeMaster = accounts[0]
         team = accounts[0]
@@ -66,22 +76,22 @@ let deploy = async (deployer, network) => {
                 startTime,
                 endTime
             )
-            token = await DecentBetToken.deployed()
+            token = await getContractInstanceAndInfo(DecentBetToken)
 
             // Deploy the House contract
             await deployer.deploy(House, token.address)
-            house = await House.deployed()
+            house = await getContractInstanceAndInfo(House)
 
             // Deploy the Lottery contract
             await deployer.deploy(HouseLottery)
-            houseLottery = await HouseLottery.deployed()
+            houseLottery = await getContractInstanceAndInfo(HouseLottery)
 
             // Set the house within the lottery contract
             await houseLottery.setHouse.sendTransaction(house.address)
 
             // Deploy the BettingProviderHelper contract
             await deployer.deploy(BettingProviderHelper)
-            bettingProviderHelper = await BettingProviderHelper.deployed()
+            bettingProviderHelper = await getContractInstanceAndInfo(BettingProviderHelper)
 
             // Deploy the BettingProvider contract
             await deployer.deploy(
@@ -93,11 +103,11 @@ let deploy = async (deployer, network) => {
                     gas: 6720000
                 }
             )
-            bettingProvider = await BettingProvider.deployed()
+            bettingProvider = await getContractInstanceAndInfo(BettingProvider)
 
             // Deploy the SportsOracle contract
             await deployer.deploy(SportsOracle, token.address)
-            sportsOracle = await SportsOracle.deployed()
+            sportsOracle = await getContractInstanceAndInfo(SportsOracle)
 
             // Deploy the ECVerify Library
             await deployer.deploy(ECVerify)
@@ -107,11 +117,11 @@ let deploy = async (deployer, network) => {
 
             // Deploy the SlotsHelper contract
             await deployer.deploy(SlotsHelper)
-            slotsHelper = await SlotsHelper.deployed()
+            slotsHelper = await getContractInstanceAndInfo(SlotsHelper)
 
             // Deploy the SlotsChannelFinalizer contract
             await deployer.deploy(SlotsChannelFinalizer, slotsHelper.address)
-            slotsChannelFinalizer = await SlotsChannelFinalizer.deployed()
+            slotsChannelFinalizer = await getContractInstanceAndInfo(SlotsChannelFinalizer)
 
             // Deploy the SlotsChannelManager contract
             await deployer.deploy(
@@ -121,7 +131,7 @@ let deploy = async (deployer, network) => {
                 slotsHelper.address,
                 slotsChannelFinalizer.address
             )
-            slotsChannelManager = await SlotsChannelManager.deployed()
+            slotsChannelManager = await getContractInstanceAndInfo(SlotsChannelManager)
 
             // Set SlotsChannelManager within the SlotsChannelFinalizer contract
             await slotsChannelFinalizer.setSlotsChannelManager.sendTransaction(
@@ -153,7 +163,9 @@ let deploy = async (deployer, network) => {
                 '\nBettingProviderHelper: ' + bettingProviderHelper.address,
                 '\nBettingProvider: ' + bettingProvider.address,
                 '\nSports Oracle: ' + sportsOracle.address,
-                '\nSlotsChannelFinalizer: ' + slotsChannelFinalizer.address
+                '\nSlotsChannelFinalizer: ' + slotsChannelFinalizer.address,
+                '\n\nContract info:\n',
+                contractInfo
             )
         } catch (e) {
             console.log('Error deploying contracts', e.message)

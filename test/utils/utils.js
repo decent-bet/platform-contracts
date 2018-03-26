@@ -24,6 +24,9 @@ module.exports = {
     startBlockMainNet: 3445888,
     endBlockMainNet: 3618688,
     multisigWalletAddressMainNet: '0x0',
+    getWeb3: function() {
+        return myWeb3
+    },
     afterFee: function(amount, serviceFeeInThousandths) {
         return amount / 1000 * (1000 - serviceFeeInThousandths)
     },
@@ -85,13 +88,15 @@ module.exports = {
         }
         return selector + argString
     },
-    getGasUsage: function(transactionPromise, extraData) {
+    getGasUsage: function(contract, networkId) {
         return new Promise(function(resolve, reject) {
-            transactionPromise
-                .then(function(txId) {
+            myWeb3.eth.getTransactionReceipt(contract.networks[networkId].transactionHash)
+                .then(function(receipt) {
                     resolve({
-                        gasUsed: myWeb3.eth.getTransactionReceipt(txId).gasUsed,
-                        extraData: extraData
+                        transactionHash: receipt.transactionHash,
+                        blockNumber: receipt.blockNumber,
+                        gasUsed: receipt.gasUsed,
+                        cumulativeGasUsed: receipt.cumulativeGasUsed
                     })
                 })
                 .catch(function(reason) {
