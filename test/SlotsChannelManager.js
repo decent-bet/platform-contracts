@@ -11,6 +11,7 @@ const constants = require('./utils/constants')
 let wallet
 let token
 let house
+let houseLottery
 
 let slotsChannelManager
 let slotsChannelFinalizer
@@ -55,6 +56,7 @@ contract('SlotsChannelManager', accounts => {
         wallet = await contracts.MultiSigWallet.deployed()
         token = await contracts.DecentBetToken.deployed()
         house = await contracts.House.deployed()
+        houseLottery = await contracts.HouseLottery.deployed()
         bettingProvider = await contracts.BettingProvider.deployed()
         sportsOracle = await contracts.SportsOracle.deployed()
         slotsChannelManager = await contracts.SlotsChannelManager.deployed()
@@ -90,6 +92,7 @@ contract('SlotsChannelManager', accounts => {
         await token.approve(house.address, houseCreditsAmount, {
             from: founder
         })
+
         await house.purchaseCredits(houseCreditsAmount, { from: founder })
 
         // Deposit allocated tokens in the final week of session zero

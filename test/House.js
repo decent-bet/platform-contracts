@@ -5,6 +5,7 @@ let utils = require('./utils/utils.js')
 let MultiSigWallet = artifacts.require('MultiSigWallet')
 let DecentBetToken = artifacts.require('TestDecentBetToken')
 let House = artifacts.require('House')
+let HouseFundsController = artifacts.require('HouseFundsController')
 let HouseLottery = artifacts.require('HouseLottery')
 let BettingProvider = artifacts.require('BettingProvider')
 let BettingProviderHelper = artifacts.require('BettingProviderHelper')
@@ -13,6 +14,7 @@ let SlotsChannelManager = artifacts.require('SlotsChannelManager')
 let wallet
 let token
 let house
+let houseFundsController
 let houseLottery
 let bettingProviderHelper
 
@@ -33,6 +35,8 @@ contract('House', accounts => {
         wallet = await MultiSigWallet.deployed()
         token = await DecentBetToken.deployed()
         house = await House.deployed()
+        houseFundsController = await HouseFundsController.deployed()
+
         let _founder = await house.founder()
         assert.equal(founder, _founder, 'Invalid founder')
 
@@ -193,20 +197,35 @@ contract('House', accounts => {
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
             let nextSession = currentSession + 1
-            await token.approve(house.address, creditsToPurchase, {
-                from: nonFounder
-            })
-            await house.purchaseCredits(creditsToPurchase, { from: nonFounder })
-            let userCredits = await house.getUserCreditsForSession(
-                nextSession,
-                nonFounder
-            )
-            let sessionCredits = userCredits[0].toFixed()
-            assert.equal(
-                sessionCredits,
-                creditsToPurchase,
-                'Invalid house credits for user'
-            )
+            let totalPurchasedCredits = new BigNumber(0)
+
+            for(let i = 0; i < 6; i++) {
+                await token.approve(house.address, creditsToPurchase, {
+                    from: nonFounder
+                })
+                await house.purchaseCredits(creditsToPurchase, { from: nonFounder })
+                totalPurchasedCredits = totalPurchasedCredits.add(creditsToPurchase)
+
+                let lotteryTickets = await houseLottery.getUserTicketCount(nextSession, nonFounder)
+                lotteryTickets = lotteryTickets.toFixed()
+
+                // Maximum of 5 lottery tickets
+                let expectedLotteryTickets = i === 5 ? 5 : totalPurchasedCredits.dividedBy(creditsToPurchase).toFixed()
+                assert.equal(lotteryTickets, expectedLotteryTickets,
+                    'Invalid lottery tickets for user: ' + lotteryTickets + ', ' + totalPurchasedCredits.toFixed())
+
+                let userCredits = await houseFundsController.getUserCreditsForSession(
+                    nextSession,
+                    nonFounder
+                )
+                let sessionCredits = userCredits[0].toFixed()
+                let expectedSessionCredits = totalPurchasedCredits.toFixed()
+                assert.equal(
+                    sessionCredits,
+                    expectedSessionCredits,
+                    'Invalid house credits for user'
+                )
+            }
         })
 
         it("disallows users from liquidating house credits when it isn't a profit distribution period", async () => {
@@ -218,7 +237,7 @@ contract('House', accounts => {
         it("disallows users from rolling over credits when it isn't a profit distribution period", async () => {
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
-            let userCredits = await house.getUserCreditsForSession(
+            let userCredits = await houseFundsController.getUserCreditsForSession(
                 currentSession,
                 nonFounder
             )
@@ -587,7 +606,7 @@ contract('House', accounts => {
                 from: nonFounder
             })
             await house.purchaseCredits(creditsToPurchase, { from: nonFounder })
-            let userCredits = await house.getUserCreditsForSession(
+            let userCredits = await houseFundsController.getUserCreditsForSession(
                 nextSession,
                 nonFounder
             )
@@ -606,14 +625,14 @@ contract('House', accounts => {
 
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
-            let userCredits = await house.getUserCreditsForSession(
+            let userCredits = await houseFundsController.getUserCreditsForSession(
                 currentSession,
                 nonFounder
             )
             let rolledOverCredits = userCredits[2].toFixed()
 
             let nextSession = currentSession + 1
-            userCredits = await house.getUserCreditsForSession(
+            userCredits = await houseFundsController.getUserCreditsForSession(
                 nextSession,
                 nonFounder
             )
@@ -1064,7 +1083,7 @@ contract('House', accounts => {
             currentSession = currentSession.toNumber()
             let previousSession = currentSession - 1
 
-            let userCreditsForPrevSession = await house.getUserCreditsForSession(
+            let userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
                 previousSession,
                 nonFounder
             )
@@ -1072,7 +1091,7 @@ contract('House', accounts => {
 
             await house.liquidateCredits(previousSession, { from: nonFounder })
 
-            userCreditsForPrevSession = await house.getUserCreditsForSession(
+            userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
                 previousSession,
                 nonFounder
             )
@@ -1100,11 +1119,11 @@ contract('House', accounts => {
             currentSession = currentSession.toNumber()
             let previousSession = currentSession - 1
 
-            let userCreditsForCurrentSession = await house.getUserCreditsForSession(
+            let userCreditsForCurrentSession = await houseFundsController.getUserCreditsForSession(
                 currentSession,
                 nonFounder
             )
-            let userCreditsForPrevSession = await house.getUserCreditsForSession(
+            let userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
                 previousSession,
                 nonFounder
             )
@@ -1114,7 +1133,7 @@ contract('House', accounts => {
 
             await house.claimRolledOverCredits({ from: nonFounder })
 
-            userCreditsForCurrentSession = await house.getUserCreditsForSession(
+            userCreditsForCurrentSession = await houseFundsController.getUserCreditsForSession(
                 currentSession,
                 nonFounder
             )

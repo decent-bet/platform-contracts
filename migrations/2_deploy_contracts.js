@@ -2,6 +2,7 @@ const MultiSigWallet = artifacts.require('MultiSigWallet')
 const DecentBetToken = artifacts.require('TestDecentBetToken')
 const UpgradeAgent = artifacts.require('TestUpgradeAgent')
 const House = artifacts.require('House')
+const HouseFundsController = artifacts.require('HouseFundsController')
 const HouseLottery = artifacts.require('HouseLottery')
 const BettingProvider = artifacts.require('BettingProvider')
 const BettingProviderHelper = artifacts.require('BettingProviderHelper')
@@ -26,6 +27,7 @@ let deploy = async (deployer, network) => {
         upgradeAgent,
         team,
         house,
+        houseFundsController,
         houseLottery,
         bettingProvider,
         bettingProviderHelper,
@@ -82,12 +84,20 @@ let deploy = async (deployer, network) => {
             await deployer.deploy(House, token.address)
             house = await getContractInstanceAndInfo(House)
 
+            await deployer.deploy(HouseFundsController, house.address)
+            houseFundsController = await getContractInstanceAndInfo(HouseFundsController)
+
+            await house.setHouseFundsControllerAddress(houseFundsController.address)
+
             // Deploy the Lottery contract
             await deployer.deploy(HouseLottery)
             houseLottery = await getContractInstanceAndInfo(HouseLottery)
 
             // Set the house within the lottery contract
             await houseLottery.setHouse.sendTransaction(house.address)
+
+            // Set the house lottery address within the house contract
+            await house.setHouseLotteryAddress.sendTransaction(houseLottery.address)
 
             // Deploy the BettingProviderHelper contract
             await deployer.deploy(BettingProviderHelper)
@@ -158,8 +168,9 @@ let deploy = async (deployer, network) => {
                 'Deployed:',
                 '\nToken: ' + token.address,
                 '\nHouse: ' + house.address,
-                '\nSlotsChannelManager: ' + SlotsChannelManager.address,
+                '\nHouseFundsController: ' + houseFundsController.address,
                 '\nHouseLottery: ' + houseLottery.address,
+                '\nSlotsChannelManager: ' + SlotsChannelManager.address,
                 '\nBettingProviderHelper: ' + bettingProviderHelper.address,
                 '\nBettingProvider: ' + bettingProvider.address,
                 '\nSports Oracle: ' + sportsOracle.address,
