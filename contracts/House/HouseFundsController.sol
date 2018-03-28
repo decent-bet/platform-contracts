@@ -184,12 +184,10 @@ contract HouseFundsController is SafeMath {
         uint rolledOverFromPreviousSession = houseFunds[currentSession].userCredits[_address]
         .rolledOverFromPreviousSession;
 
-        // Multiply by credits : tokens ratio from previous session to get adjusted credits for new session
-        uint prevTotalPurchasedUserCredits = houseFunds[previousSession].totalPurchasedUserCredits;
-        uint prevTotalWithdrawn = houseFunds[previousSession].totalWithdrawn;
-
-        uint adjustedCredits = safeDiv(safeMul(rolledOverFromPreviousSession, prevTotalWithdrawn),
-            prevTotalPurchasedUserCredits);
+        // Payout variables
+        uint payoutPerCredit = getPayoutPerCredit(previousSession);
+        // (Payout per credit * amount of credits)
+        uint adjustedCredits = safeDiv(safeMul(payoutPerCredit, rolledOverFromPreviousSession), 1 ether);
         uint userSessionCredits = houseFunds[currentSession].userCredits[_address].amount;
 
         houseFunds[currentSession].userCredits[_address].claimedFromPreviousSession = adjustedCredits;

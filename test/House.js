@@ -1162,6 +1162,7 @@ contract('House', accounts => {
         )
 
         it('allows users to claim rolled over credits after session one', async () => {
+            const ethInWei = '1000000000000000000'
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
             let previousSession = currentSession - 1
@@ -1175,8 +1176,9 @@ contract('House', accounts => {
                 nonFounder
             )
 
-            let rolledOverFromPrev = userCreditsForPrevSession[2].toFixed()
-            let amountInCurrBeforeClaimingRollOver = userCreditsForCurrentSession[0].toFixed()
+            let payoutPerCredit = await houseFundsController.getPayoutPerCredit(previousSession)
+            let rolledOverFromPrev = userCreditsForPrevSession[2]
+            let amountInCurrBeforeClaimingRollOver = userCreditsForCurrentSession[0]
 
             await house.claimRolledOverCredits({ from: nonFounder })
 
@@ -1185,18 +1187,18 @@ contract('House', accounts => {
                 nonFounder
             )
 
-            let claimedFromPrev = userCreditsForCurrentSession[3].toFixed()
-            let amountInCurrAfterClaimingRollOver = userCreditsForCurrentSession[0].toFixed()
+            let claimedFromPrev = userCreditsForCurrentSession[3]
+            let amountInCurrAfterClaimingRollOver = userCreditsForCurrentSession[0]
 
             assert.equal(
-                rolledOverFromPrev,
-                claimedFromPrev,
+                rolledOverFromPrev.times(payoutPerCredit).dividedBy(ethInWei).toFixed(),
+                claimedFromPrev.toFixed(),
                 'Rolled over and claimed are not equal'
             )
             assert.equal(
-                amountInCurrAfterClaimingRollOver,
-                new BigNumber(amountInCurrBeforeClaimingRollOver)
-                    .plus(rolledOverFromPrev)
+                amountInCurrAfterClaimingRollOver.toFixed(),
+                amountInCurrBeforeClaimingRollOver
+                    .plus(rolledOverFromPrev.times(payoutPerCredit).dividedBy(ethInWei))
                     .toFixed(),
                 'Amount before and after claiming rolled over credits do not match'
             )

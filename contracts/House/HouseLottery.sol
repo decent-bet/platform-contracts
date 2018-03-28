@@ -64,7 +64,7 @@ contract HouseLottery is SafeMath, usingOraclize {
     function HouseLottery() {
         owner = msg.sender;
         // TODO: Replace with oraclize address.
-        OAR = OraclizeAddrResolverI(0x6f485c8bf6fc43ea212e93bbf8ce046c7f1cb475);
+        OAR = OraclizeAddrResolverI(0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475);
     }
 
     // Abstract lottery function
