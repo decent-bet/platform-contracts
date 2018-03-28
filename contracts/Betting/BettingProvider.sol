@@ -284,6 +284,12 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         _;
     }
 
+    // Allows functions to be executed only if the house is in an emergency paused state
+    modifier isHouseEmergency() {
+        if(!house.emergencyPaused()) revert();
+        _;
+    }
+
     // Allows functions to execute only if users have "amount" dbets in their token contract balance.
     modifier isDbetsAvailable(uint amount) {
         if(decentBetToken.balanceOf(msg.sender) < amount) revert();
@@ -394,6 +400,17 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         uint previousSessionTokens = depositedTokens[address(this)][previousSession];
         depositedTokens[address(this)][previousSession] = 0;
         if(!decentBetToken.transfer(msg.sender, previousSessionTokens)) revert();
+        return true;
+    }
+
+    // Allows house to withdraw current session tokens if the house is in an emergency pause state.
+    function emergencyWithdrawCurrentSessionTokens()
+    onlyHouse
+    isHouseEmergency returns (bool) {
+        if(depositedTokens[address(this)][currentSession] == 0) revert();
+        uint currentSessionTokens = depositedTokens[address(this)][currentSession];
+        depositedTokens[address(this)][currentSession] = 0;
+        if(!decentBetToken.transfer(msg.sender, currentSessionTokens)) revert();
         return true;
     }
 

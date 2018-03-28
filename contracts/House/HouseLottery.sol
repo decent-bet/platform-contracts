@@ -64,7 +64,7 @@ contract HouseLottery is SafeMath, usingOraclize {
     function HouseLottery() {
         owner = msg.sender;
         // TODO: Replace with oraclize address.
-        OAR = OraclizeAddrResolverI(0x1ab9be4a13b0039eac53ca515584849d001af069);
+        OAR = OraclizeAddrResolverI(0x6f485c8bf6fc43ea212e93bbf8ce046c7f1cb475);
     }
 
     // Abstract lottery function
@@ -126,14 +126,15 @@ contract HouseLottery is SafeMath, usingOraclize {
         callback("callback received");
         if (msg.sender != oraclize_cbAddress()) revert();
         uint number = parseOraclizeResult(_result);
-        uint randomNumber = randomInRange(number, lotteries[currentSession].ticketCount);
-        lotteries[currentSession].winningTicket = randomNumber;
-        lotteries[currentSession].finalized = true;
-        LogWinner(currentSession,
+        uint previousSession = currentSession - 1;
+        uint randomNumber = randomInRange(number, lotteries[previousSession].ticketCount);
+        lotteries[previousSession].winningTicket = randomNumber;
+        lotteries[previousSession].finalized = true;
+        LogWinner(previousSession,
                   number,
                   randomNumber,
-                  lotteries[currentSession].ticketCount,
-                  lotteryTicketHolders[currentSession][randomNumber]);
+                  lotteries[previousSession].ticketCount,
+                  lotteryTicketHolders[previousSession][randomNumber]);
     }
 
     function parseOraclizeResult(string _result) returns (uint) {
@@ -164,6 +165,7 @@ contract HouseLottery is SafeMath, usingOraclize {
     function randomInRange(uint number, uint tickets) returns (uint) {
         uint range = 8999999;
         uint numberInRange = safeDiv(safeMul(safeSub(number, 1000000), safeAdd(tickets, 1)), range);
+        // ((2995848 - 1000000) * (5 + 1)/8999999)
         if (numberInRange > tickets)
             numberInRange = tickets;
         return numberInRange;

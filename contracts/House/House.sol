@@ -67,7 +67,7 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
 
     AbstractHouseLottery public houseLottery;
 
-    AbstractHouseFundsController public houseFundsController;
+    AbstractHouseFundsController houseFundsController;
 
     // Mappings
     // House offerings available for house.
@@ -136,6 +136,15 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
         _;
     }
 
+    // Allows functions to execute if they happen during an "active" period for a session i.e,
+    // Not during a credit buying/token allocation period
+    modifier isSessionActivePeriod() {
+        if(currentSession == 0) revert();
+        if(getTime() < sessions[currentSession].startTime ||
+        getTime() > (sessions[currentSession].endTime - 2 weeks)) revert();
+        _;
+    }
+
     // Events
     event LogPurchasedCredits(address creditHolder, uint session, uint amount, uint balance);
 
@@ -157,6 +166,8 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
     event LogOfferingAllocation(uint session, address offering, uint percentage);
 
     event LogOfferingDeposit(uint session, address offering, uint percentage, uint amount);
+
+    event LogEmergencyWithdraw(address creditHolder, uint session, uint amount, uint payout);
 
     // Sets the house funds controller address.
     function setHouseFundsControllerAddress(address houseFundsControllerAddress) onlyFounder {
@@ -198,25 +209,23 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
     function addHouseOffering(address houseOfferingAddress)
     onlyFounder {
         // Empty address, invalid input
-        if(houseOfferingAddress == 0) revert();
+        if(houseOfferingAddress == 0x0) revert();
         // Not a house offering
         if(!HouseOffering(houseOfferingAddress).isHouseOffering())
             revert();
-        // Offering was already added
-        if(offerings[houseOfferingAddress].exists) revert();
 
         offeringAddresses.push(houseOfferingAddress);
         offerings[houseOfferingAddress] = Offering({
             houseOffering: HouseOffering(houseOfferingAddress),
             exists: true
-            });
+        });
         addOfferingToNextSession(houseOfferingAddress);
         LogNewHouseOffering(houseOfferingAddress, offerings[houseOfferingAddress].houseOffering.name());
     }
 
     // Adds a house offering to the next session
     function addOfferingToNextSession(address houseOfferingAddress)
-    isValidHouseOffering(houseOfferingAddress)
+    isValidHouseOffering(houseOfferingAddress) internal
     onlyFounder {
         uint nextSession = currentSession + 1;
         sessions[nextSession].offerings.push(houseOfferingAddress);
@@ -232,13 +241,13 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
             if(sessions[nextSession].offerings[i] == houseOfferingAddress)
                 delete sessions[nextSession].offerings[i];
         }
+        offerings[houseOfferingAddress].exists = false;
     }
-
-    // TODO: Add function to remove offering from offering mapping.
 
     // Transfers DBETs from users to house contract address and generates credits in return.
     // House contract must be approved to transfer amount from msg.sender to house.
     function purchaseCredits(uint amount)
+    isNotEmergencyPaused
     isHouseFundsControllerSet
     {
         uint userCredits = houseFundsController.purchaseCredits(msg.sender, amount);
@@ -254,9 +263,9 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
 
     // Allows users to return credits and receive tokens along with profit in return.
     function liquidateCredits(uint session)
-    isHouseFundsControllerSet {
-        if(!isProfitDistributionPeriod(session)) revert();
-
+    isNotEmergencyPaused
+    isHouseFundsControllerSet
+    isProfitDistributionPeriod(session) {
         uint payout;
         uint amount;
 
@@ -280,6 +289,8 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
     // Allows users holding credits in the current session to roll over their credits to the
     // next session.
     function rollOverCredits(uint amount)
+    isNotEmergencyPaused
+    isCreditBuyingPeriod
     isHouseFundsControllerSet {
         if(!houseFundsController.rollOverCredits(msg.sender, amount)) revert();
 
@@ -287,9 +298,9 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
     }
 
     function claimRolledOverCredits()
+    isNotEmergencyPaused
+    isSessionActivePeriod
     isHouseFundsControllerSet {
-        if(isCreditBuyingPeriod()) revert();
-
         uint adjustedCredits;
         uint rolledOverFromPreviousSession;
         uint creditsForCurrentSession;
@@ -367,15 +378,19 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
         // Check if a balance is available with offering
         if(decentBetToken.balanceOf(msg.sender) < amount) revert();
 
+        if(decentBetToken.allowance(msg.sender, address(this)) < amount) revert();
+
         houseFundsController
             .addToSessionProfitsFromUnregisteredHouseOffering(unregisteredOffering, session, amount);
+
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
     }
 
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     isValidHouseOffering(houseOffering)
+    isCreditBuyingPeriod
     onlyAuthorized {
-        if(!isCreditBuyingPeriod()) revert();
 
         uint nextSession = currentSession + 1;
 
@@ -426,19 +441,21 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
 
     // Get house lottery to retrieve random ticket winner using oraclize as RNG.
     function pickLotteryWinner(uint session)
-    onlyAuthorized payable {
-        if(!isProfitDistributionPeriod(session)) revert();
+    onlyAuthorized
+    isProfitDistributionPeriod(session) payable returns (bool) {
         // Should only work if the winning number has not been finalized.
         if(houseLottery.isLotteryFinalized(session)) revert();
         // TODO: Send with ether value to fund oraclize
         if(!houseLottery.pickWinner(currentSession)) revert();
         LogPickLotteryWinner(currentSession);
+
+        return true;
     }
 
     // Allows a winner to withdraw lottery winnings.
     function claimLotteryWinnings(uint session)
-    isHouseFundsControllerSet {
-        if(!isProfitDistributionPeriod(session)) revert();
+    isHouseFundsControllerSet
+    isProfitDistributionPeriod(session) constant returns (uint, uint){
         // Should only work after the winning number has been finalized.
         if(!houseLottery.isLotteryFinalized(session)) revert();
         // Should not work if the winnings have already been claimed.
@@ -446,15 +463,19 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
         // Only holder of the winning ticket can withdraw.
         if(houseLottery.getLotteryWinner(session) != msg.sender) revert();
 
-        uint payoutPerCredit = houseFundsController.getPayoutPerCredit(session);
-        uint totalSessionPurchasedUserCredits;
-        (,totalSessionPurchasedUserCredits,,,,,) = houseFundsController.houseFunds(session);
-        uint lotteryPayout = safeDiv(safeMul(totalSessionPurchasedUserCredits, 5), 100);
-        lotteryPayout = safeDiv(safeMul(payoutPerCredit, lotteryPayout), 1 ether);
+        uint totalProfit;
+        (,,,,,,totalProfit) = houseFundsController.houseFunds(session);
 
-        if(!houseLottery.updateLotteryPayout(session, lotteryPayout)) revert();
+        if(totalProfit == 0) revert();
 
-        if(!decentBetToken.transfer(msg.sender, lotteryPayout)) revert();
+        uint lotteryPayout = safeDiv(safeMul(totalProfit, 5), 100);
+
+        // TODO: Fit this in without running into gas limits
+//        if(!houseLottery.updateLotteryPayout(session, lotteryPayout)) revert();
+//
+//        if(!decentBetToken.transfer(msg.sender, lotteryPayout)) revert();
+
+        return (totalProfit, lotteryPayout);
     }
 
     // Starts the next session.
@@ -490,6 +511,36 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
         }
     }
 
+    // Emergency features
+
+    // Emergency withdraws current session tokens from a house offering.
+    function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering)
+    isValidHouseOffering(houseOffering)
+    isHouseFundsControllerSet
+    isEmergencyPaused
+    onlyAuthorized {
+        // If offering has already been withdrawn, revert.
+        if(sessions[currentSession].withdrawnOfferings[houseOffering]) revert();
+
+        uint sessionTokens = offerings[houseOffering].houseOffering.balanceOf(houseOffering, currentSession);
+
+        sessions[currentSession].withdrawnOfferings[houseOffering] = true;
+        sessions[currentSession].withdrawCount += 1;
+
+        // All offerings have been withdrawn.
+        bool allOfferingsWithdrawn =
+        sessions[currentSession].withdrawCount == sessions[currentSession].offerings.length;
+
+        houseFundsController.emergencyWithdrawCurrentSessionTokensFromHouseOffering(
+            houseOffering,
+            sessionTokens,
+            allOfferingsWithdrawn
+        );
+
+        // Withdraw from previous session
+        if(!offerings[houseOffering].houseOffering.emergencyWithdrawCurrentSessionTokens()) revert();
+    }
+
     function getSessionTime(uint session) constant returns (uint, uint) {
         return (sessions[session].startTime, sessions[session].endTime);
     }
@@ -514,20 +565,21 @@ contract House is SafeMath, TimeProvider, EmergencyOptions {
 
     // Allows functions to execute only if it's currently a credit-buying period i.e
     // 1 week before the end of the current session.
-    function isCreditBuyingPeriod() returns (bool) {
-        if (currentSession == 0 && sessionZeroStartTime == 0) return false;
+    modifier isCreditBuyingPeriod() {
+        if (currentSession == 0 && sessionZeroStartTime == 0) revert();
         if (currentSession != 0 &&
         ((getTime() < (sessions[currentSession].endTime - 2 weeks)) ||
-        (getTime() > (sessions[currentSession].endTime - 1 weeks)))) return false;
-        return true;
+        (getTime() > (sessions[currentSession].endTime - 1 weeks)))) revert();
+        _;
     }
 
     // Allows functions to execute only if the profit distribution period is going on i.e
-    // after the end of the previous session.
-    function isProfitDistributionPeriod(uint session) returns (bool){
-        if (session == 0) return false;
-        if (getTime() < sessions[session].endTime + 4 days) return false;
-        return true;
+    // after the end of the previous session and after all offering credits have been withdrawn.
+    modifier isProfitDistributionPeriod(uint session) {
+        if (session == 0) revert();
+        if (getTime() < (sessions[session].endTime + 4 days)) revert();
+        if (sessions[session].withdrawCount != sessions[session].offerings.length) revert();
+        _;
     }
 
     // Do not accept ETH sent to this contract.

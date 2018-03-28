@@ -3,11 +3,22 @@ pragma solidity ^0.4.8;
 // Adds emergency features to parent contracts
 contract EmergencyOptions {
 
-    address emergencyController;
-    bool emergencyPaused;
+    address public emergencyController;
+    bool public emergencyPaused;
+    bool public emergencyWithdrawalsEnabled;
 
     modifier isEmergencyPaused() {
         if(!emergencyPaused) revert();
+        _;
+    }
+
+    modifier isNotEmergencyPaused() {
+        if(emergencyPaused) revert();
+        _;
+    }
+
+    modifier isEmergencyWithdrawalsEnabled() {
+        if(!emergencyWithdrawalsEnabled) revert();
         _;
     }
 
@@ -30,6 +41,18 @@ contract EmergencyOptions {
 
     function emergencyUnPause() onlyEmergencyController {
         emergencyPaused = false;
+        emergencyWithdrawalsEnabled = false;
+    }
+
+    function enableEmergencyWithdrawals()
+    isEmergencyPaused
+    onlyEmergencyController {
+        emergencyWithdrawalsEnabled = true;
+    }
+
+    function disableEmergencyWithdrawals()
+    onlyEmergencyController {
+        emergencyWithdrawalsEnabled = false;
     }
 
 }

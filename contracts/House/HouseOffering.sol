@@ -15,4 +15,7 @@ contract HouseOffering {
     function balanceOf(address _address, uint session) constant returns (uint);
     function setSession(uint session) returns (bool);
 
+    // Emergency functions
+    function emergencyWithdrawCurrentSessionTokens() returns (bool);
+
 }

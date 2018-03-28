@@ -37,6 +37,8 @@ contract('House', accounts => {
         house = await House.deployed()
         houseFundsController = await HouseFundsController.deployed()
 
+        await token.ownerFaucet()
+
         let _founder = await house.founder()
         assert.equal(founder, _founder, 'Invalid founder')
 
@@ -852,9 +854,9 @@ contract('House', accounts => {
         )
 
         it('allows founders to add offerings to next session', async () => {
-            await house.addOfferingToNextSession(bettingProvider.address)
-            await house.addOfferingToNextSession(newBettingProvider.address)
-            await house.addOfferingToNextSession(slotsChannelManager.address)
+            await house.addHouseOffering(bettingProvider.address)
+            await house.addHouseOffering(newBettingProvider.address)
+            await house.addHouseOffering(slotsChannelManager.address)
 
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
@@ -889,6 +891,33 @@ contract('House', accounts => {
                 slotsChannelManager.address,
                 'Invalid slots channel manager address'
             )
+        })
+
+        it('disallows unauthorized addresses from adding profits from unregistered house offerings', async () => {
+
+        })
+
+        it('allows authorized addresses to add profits from unregistered house offerings', async () => {
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let amount = '10000000000000000000000' // 10k DBETs
+
+            await token.approve(house.address, amount)
+
+            let houseFundsPreAddProfit = await houseFundsController.houseFunds(currentSession)
+            let houseProfitPreAddProfit = houseFundsPreAddProfit[6]
+
+            let tokenBalance = await token.balanceOf(founder)
+            console.log('Token balance', tokenBalance)
+
+            await house.addToSessionProfitsFromUnregisteredHouseOffering('0x0', currentSession, amount)
+
+            let houseFundsPostAddProfit = await houseFundsController.houseFunds(currentSession)
+            let houseProfitPostAddProfit = houseFundsPostAddProfit[6]
+
+            assert.equal(houseProfitPreAddProfit.add(amount).toFixed(), houseProfitPostAddProfit.toFixed(),
+                'Invalid profit in houseFunds after adding unregistered offering profits')
         })
 
         it('allows authorized addresses to begin session two', async () => {
@@ -1089,7 +1118,25 @@ contract('House', accounts => {
             )
             let prevSessionCredits = userCreditsForPrevSession[0].toFixed()
 
+            let payoutPerCredit = await houseFundsController.getPayoutPerCredit(previousSession)
+            console.log('Payout per credit', payoutPerCredit.toFixed())
+
+            let houseTokenBalance = await token.balanceOf(house.address)
+            console.log('House token balance', houseTokenBalance.toFixed())
+
+            let userTokenBalance = await token.balanceOf(nonFounder)
+            console.log('User token balance', userTokenBalance.toFixed())
+
+            console.log('Prev session credits', prevSessionCredits)
+
             await house.liquidateCredits(previousSession, { from: nonFounder })
+
+            // TODO: Verify balances after liquidation
+            houseTokenBalance = await token.balanceOf(house.address)
+            console.log('House token balance', houseTokenBalance.toFixed())
+
+            userTokenBalance = await token.balanceOf(nonFounder)
+            console.log('User token balance', userTokenBalance.toFixed())
 
             userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
                 previousSession,
@@ -1155,28 +1202,110 @@ contract('House', accounts => {
             )
         })
 
-        // it('disallows non-authorized addresses from picking lottery winners', async () => {
-        //
-        // })
-        //
-        // it('allows authorized addresses to pick lottery winners', async () => {
-        //
-        // })
-        //
-        // it('disallows non-authorized addresses from updating lottery winning ticket', async () => {
-        //
-        // })
-        //
-        // it('allows authorized addresses to update lottery winning ticket', async () => {
-        //
-        // })
-        //
-        // it('disallows non-winners from withdrawing lottery winnings', async () => {
-        //
-        // })
-        //
-        // it('allows winners to withdraw lottery winnings', async () => {
-        //
-        // })
+        it('disallows non-authorized addresses from picking lottery winners', async () => {
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let previousSession = currentSession - 1
+
+            await utils.assertFail(
+                house.pickLotteryWinner(previousSession,
+                    { from: nonFounder }
+                )
+            )
+        })
+
+        it('allows authorized addresses to pick lottery winners', async () => {
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let previousSession = currentSession - 1
+            console.log('Picking lottery winner for session', previousSession)
+
+            let receipt = await house.pickLotteryWinner(previousSession,
+                {
+                    from: founder,
+                    value: '100000000000000000' // 0.1 ETH
+                }
+            )
+
+            let loggedEvent = receipt.logs[0].event
+            assert.equal(loggedEvent, 'LogPickLotteryWinner', 'Lottery winner not picked')
+        })
+
+        it('disallows non-winners from withdrawing lottery winnings', async () => {
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let previousSession = currentSession - 1
+
+            let waitForLogWinnerEvent = async () => {
+                return new Promise((resolve, reject) => {
+                    let logWinnerEvent = houseLottery.LogWinner({fromBlock: 0, toBlock: 'latest'})
+
+                    logWinnerEvent.watch((err, result) => {
+                        err ? reject(err) : resolve(result)
+                    })
+                })
+            }
+
+            try {
+                await waitForLogWinnerEvent()
+                await utils.assertFail(
+                    house.claimLotteryWinnings(previousSession,
+                        { from: nonInvestor }
+                    )
+                )
+            } catch (e) {
+                // In case promise gets rejected
+                asserrt.fail(0, 1, e.message)
+            }
+        })
+
+        it('allows winners to withdraw lottery winnings', async () => {
+            // TODO: Get this case to work correctly
+            const ethInWei = '1000000000000000000'
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let previousSession = currentSession - 1
+
+            let lotteryStats = await houseLottery.lotteries(previousSession)
+            let winningTicket = lotteryStats[1].toNumber()
+
+            let winner = await houseLottery.lotteryTicketHolders(previousSession, winningTicket)
+
+            let winnerTokenBalancePreClaim = await token.balanceOf(nonFounder)
+            winnerTokenBalancePreClaim = winnerTokenBalancePreClaim.dividedBy(ethInWei).toFixed()
+
+            let houseTokenBalancePreClaim = await token.balanceOf(house.address)
+            houseTokenBalancePreClaim = houseTokenBalancePreClaim.dividedBy(ethInWei).toFixed()
+
+            let houseFunds = await houseFundsController.houseFunds(previousSession)
+            console.log('House funds', houseFunds[6].toFixed())
+
+            console.log(winnerTokenBalancePreClaim, houseTokenBalancePreClaim, winner, winningTicket)
+
+            let lotteryClaims = await house.claimLotteryWinnings.call(previousSession,
+                { from: nonFounder }
+            )
+
+            lotteryClaims = lotteryClaims.map((claim) => {
+                return claim.dividedBy(ethInWei).toFixed()
+            })
+            console.log('Claimed winnings', lotteryClaims)
+
+            let winnerTokenBalancePostClaim = await token.balanceOf(nonFounder)
+            winnerTokenBalancePostClaim = winnerTokenBalancePostClaim.dividedBy(ethInWei).toFixed()
+
+            let houseTokenBalancePostClaim = await token.balanceOf(house.address)
+            houseTokenBalancePostClaim = houseTokenBalancePostClaim.dividedBy(ethInWei).toFixed()
+
+            lotteryStats = await houseLottery.lotteries(previousSession)
+            let payout = lotteryStats[2]
+            payout = payout.toFixed()
+
+            console.log(winnerTokenBalancePostClaim, houseTokenBalancePostClaim, payout, winner)
+        })
     })
 })
