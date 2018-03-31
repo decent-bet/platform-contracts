@@ -4,8 +4,8 @@ const UpgradeAgent = artifacts.require('TestUpgradeAgent')
 const House = artifacts.require('House')
 const HouseAuthorizedController = artifacts.require('HouseAuthorizedController')
 const HouseFundsController = artifacts.require('HouseFundsController')
+const HouseLotteryController = artifacts.require('HouseLotteryController')
 const HouseSessionsController = artifacts.require('HouseSessionsController')
-const HouseLottery = artifacts.require('HouseLottery')
 const BettingProvider = artifacts.require('BettingProvider')
 const BettingProviderHelper = artifacts.require('BettingProviderHelper')
 const SportsOracle = artifacts.require('SportsOracle')
@@ -31,8 +31,8 @@ let deploy = async (deployer, network) => {
         house,
         houseAuthorizedController,
         houseFundsController,
+        houseLotteryController,
         houseSessionsController,
-        houseLottery,
         bettingProvider,
         bettingProviderHelper,
         sportsOracle,
@@ -101,14 +101,14 @@ let deploy = async (deployer, network) => {
             await house.setHouseSessionsControllerAddress(houseSessionsController.address)
 
             // Deploy the Lottery contract
-            await deployer.deploy(HouseLottery)
-            houseLottery = await getContractInstanceAndInfo(HouseLottery)
+            await deployer.deploy(HouseLotteryController)
+            houseLotteryController = await getContractInstanceAndInfo(HouseLotteryController)
 
             // Set the house within the lottery contract
-            await houseLottery.setHouse.sendTransaction(house.address)
+            await houseLotteryController.setHouse.sendTransaction(house.address)
 
             // Set the house lottery address within the house contract
-            await house.setHouseLotteryAddress.sendTransaction(houseLottery.address)
+            await house.setHouseLotteryControllerAddress.sendTransaction(houseLotteryController.address)
 
             // Deploy the BettingProviderHelper contract
             await deployer.deploy(BettingProviderHelper)
@@ -183,7 +183,7 @@ let deploy = async (deployer, network) => {
                 '\nHouseFundsController: ' + houseFundsController.address,
                 '\nHouseAuthorizedController: ' + houseAuthorizedController.address,
                 '\nHouseSessionsController: ' + houseSessionsController.address,
-                '\nHouseLottery: ' + houseLottery.address,
+                '\nHouseLottery: ' + houseLotteryController.address,
                 '\nSlotsChannelManager: ' + SlotsChannelManager.address,
                 '\nBettingProviderHelper: ' + bettingProviderHelper.address,
                 '\nBettingProvider: ' + bettingProvider.address,

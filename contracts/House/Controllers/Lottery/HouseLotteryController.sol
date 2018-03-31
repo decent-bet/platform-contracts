@@ -1,13 +1,13 @@
 pragma solidity ^0.4.0;
 
 
-import './AbstractHouse.sol';
-import './HouseOffering.sol';
-import '../Libraries/SafeMath.sol';
-import '../Token/ERC20.sol';
-import '../Libraries/oraclizeAPI.sol';
+import '../../AbstractHouse.sol';
+import '../../HouseOffering.sol';
+import '../../../Libraries/SafeMath.sol';
+import '../../../Token/ERC20.sol';
+import '../../../Libraries/oraclizeAPI.sol';
 
-contract HouseLottery is SafeMath, usingOraclize {
+contract HouseLotteryController is SafeMath, usingOraclize {
 
     // Structs
     struct Lottery {
@@ -62,7 +62,7 @@ contract HouseLottery is SafeMath, usingOraclize {
 
     event oraclizePricingError(uint price);
 
-    function HouseLottery() {
+    function HouseLotteryController() {
         owner = msg.sender;
         // TODO: Replace with oraclize address.
         OAR = OraclizeAddrResolverI(0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475);

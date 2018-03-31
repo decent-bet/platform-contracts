@@ -7,9 +7,9 @@ import '../Libraries/TimeProvider.sol';
 
 import './HouseOffering.sol';
 
-import './AbstractHouseLottery.sol';
-import './Controllers/Funds/AbstractHouseFundsController.sol';
 import './Controllers/Authorized/AbstractHouseAuthorizedController.sol';
+import './Controllers/Funds/AbstractHouseFundsController.sol';
+import './Controllers/Lottery/AbstractHouseLotteryController.sol';
 import './Controllers/Sessions/AbstractHouseSessionsController.sol';
 
 // Decent.bet House Contract.
@@ -28,7 +28,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     // External Contracts
     ERC20 public decentBetToken;
-    AbstractHouseLottery public houseLottery;
+    AbstractHouseLotteryController public houseLotteryController;
     AbstractHouseAuthorizedController houseAuthorizedController;
     AbstractHouseFundsController houseFundsController;
     AbstractHouseSessionsController houseSessionsController;
@@ -164,11 +164,11 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     }
 
     // Sets the lottery address.
-    function setHouseLotteryAddress(address houseLotteryAddress)
+    function setHouseLotteryControllerAddress(address _address)
     onlyFounder {
-        if(houseLotteryAddress == 0x0) revert();
-        if(!AbstractHouseLottery(houseLotteryAddress).isHouseLottery()) revert();
-        houseLottery = AbstractHouseLottery(houseLotteryAddress);
+        if(_address == 0x0) revert();
+        if(!AbstractHouseLotteryController(_address).isHouseLottery()) revert();
+        houseLotteryController = AbstractHouseLotteryController(_address);
     }
 
     // Transfers DBETs from users to house contract address and generates credits in return.
@@ -180,7 +180,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         uint userCredits = houseFundsController.purchaseCredits(msg.sender, amount);
         uint nextSession = currentSession + 1;
 
-        if(!houseLottery.allotLotteryTickets(nextSession, msg.sender, amount)) revert();
+        if(!houseLotteryController.allotLotteryTickets(nextSession, msg.sender, amount)) revert();
 
         // Transfer tokens to house contract address.
         if (!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
@@ -252,7 +252,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
             LogOfferingDeposit(currentSession, houseOffering, allocation, tokenAmount);
         }
 
-        if (!houseLottery.allotLotteryTickets(currentSession, msg.sender, adjustedCredits)) revert();
+        if (!houseLotteryController.allotLotteryTickets(currentSession, msg.sender, adjustedCredits)) revert();
 
         LogClaimRolledOverCredits(msg.sender, currentSession, rolledOverFromPreviousSession, adjustedCredits,
             creditsForCurrentSession);
@@ -340,7 +340,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     function pickLotteryWinner(uint session)
     onlyAuthorized
     isProfitDistributionPeriod(session) payable returns (bool) {
-        if(!houseLottery.pickWinner(currentSession)) revert();
+        if(!houseLotteryController.pickWinner(currentSession)) revert();
         LogPickLotteryWinner(currentSession);
         return true;
     }
@@ -356,7 +356,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
         uint lotteryPayout = safeDiv(safeMul(totalProfit, 5), 100);
 
-        if(!houseLottery.updateLotteryPayout(session, msg.sender, lotteryPayout)) revert();
+        if(!houseLotteryController.updateLotteryPayout(session, msg.sender, lotteryPayout)) revert();
 
         if(!decentBetToken.transfer(msg.sender, lotteryPayout)) revert();
 

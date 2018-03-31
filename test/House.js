@@ -9,7 +9,7 @@ let house
 let houseAuthorizedController
 let houseFundsController
 let houseSessionsController
-let houseLottery
+let houseLotteryController
 let bettingProviderHelper
 
 let slotsChannelManager
@@ -68,24 +68,24 @@ contract('House', accounts => {
         })
 
         it('disallows non-founders from setting lottery contract address', async () => {
-            houseLottery = await contracts.HouseLottery.deployed()
+            houseLotteryController = await contracts.HouseLotteryController.deployed()
             await utils.assertFail(
-                house.setHouseLotteryAddress.sendTransaction(
-                    houseLottery.address,
+                house.setHouseLotteryControllerAddress.sendTransaction(
+                    houseLotteryController.address,
                     { from: nonFounder }
                 )
             )
         })
 
         it('sets lottery contract address as a founder', async () => {
-            console.log('House lottery', houseLottery.address)
-            await house.setHouseLotteryAddress.sendTransaction(
-                houseLottery.address,
+            console.log('House lottery', houseLotteryController.address)
+            await house.setHouseLotteryControllerAddress.sendTransaction(
+                houseLotteryController.address,
                 { from: founder }
             )
-            let lotteryAddress = await house.houseLottery()
+            let lotteryAddress = await house.houseLotteryController()
             assert.equal(
-                houseLottery.address,
+                houseLotteryController.address,
                 lotteryAddress,
                 'Founder could not set lottery contract address'
             )
@@ -207,7 +207,7 @@ contract('House', accounts => {
                 await house.purchaseCredits(creditsToPurchase, { from: nonFounder })
                 totalPurchasedCredits = totalPurchasedCredits.add(creditsToPurchase)
 
-                let lotteryTickets = await houseLottery.getUserTicketCount(nextSession, nonFounder)
+                let lotteryTickets = await houseLotteryController.getUserTicketCount(nextSession, nonFounder)
                 lotteryTickets = lotteryTickets.toFixed()
 
                 // Maximum of 5 lottery tickets
@@ -1259,7 +1259,7 @@ contract('House', accounts => {
 
             let waitForLogWinnerEvent = async () => {
                 return new Promise((resolve, reject) => {
-                    let logWinnerEvent = houseLottery.LogWinner({fromBlock: 0, toBlock: 'latest'})
+                    let logWinnerEvent = houseLotteryController.LogWinner({fromBlock: 0, toBlock: 'latest'})
 
                     logWinnerEvent.watch((err, result) => {
                         err ? reject(err) : resolve(result)
@@ -1296,7 +1296,7 @@ contract('House', accounts => {
             let winnerTokenBalancePostClaim = await token.balanceOf(nonFounder)
             let houseTokenBalancePostClaim = await token.balanceOf(house.address)
 
-            let lotteryStats = await houseLottery.lotteries(previousSession)
+            let lotteryStats = await houseLotteryController.lotteries(previousSession)
             let payout = lotteryStats[2]
 
             assert.equal(houseTokenBalancePostClaim.toFixed(), new BigNumber(houseTokenBalancePreClaim).minus(payout).toFixed(),

@@ -1,6 +1,6 @@
 pragma solidity ^0.4.0;
 
-contract AbstractHouseLottery {
+contract AbstractHouseLotteryController {
 
     function pickWinner(uint session) payable returns (bool);
 

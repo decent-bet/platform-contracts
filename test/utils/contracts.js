@@ -3,8 +3,8 @@ let DecentBetToken = artifacts.require('TestDecentBetToken')
 let House = artifacts.require('House')
 let HouseAuthorizedController = artifacts.require('HouseAuthorizedController')
 let HouseFundsController = artifacts.require('HouseFundsController')
+let HouseLotteryController = artifacts.require('HouseLotteryController')
 let HouseSessionsController = artifacts.require('HouseSessionsController')
-let HouseLottery = artifacts.require('HouseLottery')
 let BettingProvider = artifacts.require('BettingProvider')
 let BettingProviderHelper = artifacts.require('BettingProviderHelper')
 let SportsOracle = artifacts.require('SportsOracle')
@@ -17,8 +17,8 @@ module.exports = {
     House,
     HouseAuthorizedController,
     HouseFundsController,
+    HouseLotteryController,
     HouseSessionsController,
-    HouseLottery,
     BettingProvider,
     BettingProviderHelper,
     SportsOracle,

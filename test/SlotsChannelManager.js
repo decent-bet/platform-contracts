@@ -14,7 +14,6 @@ let house
 let houseAuthorizedController
 let houseFundsController
 let houseSessionsController
-let houseLottery
 
 let slotsChannelManager
 let slotsChannelFinalizer
@@ -62,7 +61,6 @@ contract('SlotsChannelManager', accounts => {
         houseAuthorizedController = await contracts.HouseAuthorizedController.deployed()
         houseFundsController = await contracts.HouseFundsController.deployed()
         houseSessionsController = await contracts.HouseSessionsController.deployed()
-        houseLottery = await contracts.HouseLottery.deployed()
         bettingProvider = await contracts.BettingProvider.deployed()
         sportsOracle = await contracts.SportsOracle.deployed()
         slotsChannelManager = await contracts.SlotsChannelManager.deployed()
