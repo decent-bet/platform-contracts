@@ -167,7 +167,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     function setHouseLotteryControllerAddress(address _address)
     onlyFounder {
         if(_address == 0x0) revert();
-        if(!AbstractHouseLotteryController(_address).isHouseLottery()) revert();
+        if(!AbstractHouseLotteryController(_address).isHouseLotteryController()) revert();
         houseLotteryController = AbstractHouseLotteryController(_address);
     }
 

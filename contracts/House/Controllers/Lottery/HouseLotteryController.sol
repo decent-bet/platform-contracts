@@ -27,7 +27,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     address public owner;
     address public house;
     uint public currentSession;
-    bool public isHouseLottery = true;
+    bool public isHouseLotteryController = true;
 
     // Mappings
     // Winners for each session
