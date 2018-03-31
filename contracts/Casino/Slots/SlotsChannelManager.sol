@@ -4,6 +4,8 @@ import './SlotsImplementation.sol';
 import './AbstractSlotsHelper.sol';
 import '../../Token/ERC20.sol';
 import '../../House/AbstractHouse.sol';
+import '../../House/Controllers/Authorized/AbstractHouseAuthorizedController.sol';
+import '../../House/Controllers/Sessions/AbstractHouseSessionsController.sol';
 import '../../House/HouseOffering.sol';
 
 import '../../Libraries/ECVerify.sol';
@@ -51,6 +53,10 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     AbstractHouse house;
 
+    AbstractHouseAuthorizedController houseAuthorizedController;
+
+    AbstractHouseSessionsController houseSessionsController;
+
     AbstractSlotsHelper slotsHelper;
 
     /* Mappings */
@@ -89,15 +95,28 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     /* Constructor */
 
-    function SlotsChannelManager(address _house, address _token, address _slotsHelper,
-        address _slotsChannelFinalizer) /* onlyHouse */ {
+    function SlotsChannelManager(address _house, address _token,
+        address _slotsHelper, address _slotsChannelFinalizer) /* onlyHouse */ {
         if(_house == 0) revert();
         if(_token == 0) revert();
         if(_slotsHelper == 0) revert();
         if(_slotsChannelFinalizer == 0) revert();
+
         houseAddress = _house;
         decentBetToken = ERC20(_token);
         house = AbstractHouse(_house);
+
+        address houseAuthorizedControllerAddress;
+        address houseSessionsControllerAddress;
+
+        (houseAuthorizedControllerAddress,, houseSessionsControllerAddress) = house.getHouseControllers();
+
+        if(houseAuthorizedControllerAddress == 0) revert();
+        if(houseSessionsControllerAddress == 0) revert();
+
+        houseAuthorizedController = AbstractHouseAuthorizedController(houseAuthorizedControllerAddress);
+        houseSessionsController   = AbstractHouseSessionsController(houseSessionsControllerAddress);
+
         slotsHelper = AbstractSlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
         if(!slotsHelper.isSlotsHelper()) revert();
@@ -117,7 +136,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     }
 
     modifier onlyAuthorized() {
-        if (house.authorized(msg.sender) == false) revert();
+        if (!houseAuthorizedController.authorized(msg.sender)) revert();
         _;
     }
 
@@ -141,7 +160,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Allow functions to execute only if the current session is active
     modifier isSessionActive() {
-        if(!house.isSessionActive(currentSession)) revert();
+        if(!houseSessionsController.isSessionActive(currentSession)) revert();
         _;
     }
 
@@ -172,26 +191,26 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Allows only if the user is ready
     modifier isUserReady(uint id) {
-        if (channels[id].ready != true) revert();
+        if (!channels[id].ready) revert();
         _;
     }
 
     // Allows only if the user is not ready
     modifier isUserNotReady(uint id) {
-        if (channels[id].ready == true) revert();
+        if (channels[id].ready) revert();
         _;
     }
 
     // Allows only if channel has not been activated
     modifier isNotActivated(uint id) {
-        if (channels[id].activated == true) revert();
+        if (channels[id].activated) revert();
         _;
     }
 
     /* Functions */
     function createChannel(uint initialDeposit)
-        isNotHouseEmergency
-        isSessionActive {
+    isNotHouseEmergency
+    isSessionActive {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
         if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) revert();
         if (balanceOf(msg.sender, currentSession) < initialDeposit) revert();
@@ -320,7 +339,6 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     function activateChannel(uint id, string _initialHouseSeedHash,
         string _finalSeedHash, string _finalReelHash) // 373k gas
     onlyAuthorized
-    isNotHouseEmergency
     isNotActivated(id)
     isUserReady(id)
     returns (bool) {
@@ -410,7 +428,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Allows only the house and player to proceed
     function isParticipant(uint id, address _address) constant returns (bool) {
-        return (house.authorized(_address) || _address == players[id][false]);
+        return (houseAuthorizedController.authorized(_address) || _address == players[id][false]);
     }
 
     // Helper function to return channel information for the frontend

@@ -11,6 +11,9 @@ const constants = require('./utils/constants')
 let wallet
 let token
 let house
+let houseAuthorizedController
+let houseFundsController
+let houseSessionsController
 let houseLottery
 
 let slotsChannelManager
@@ -56,6 +59,9 @@ contract('SlotsChannelManager', accounts => {
         wallet = await contracts.MultiSigWallet.deployed()
         token = await contracts.DecentBetToken.deployed()
         house = await contracts.House.deployed()
+        houseAuthorizedController = await contracts.HouseAuthorizedController.deployed()
+        houseFundsController = await contracts.HouseFundsController.deployed()
+        houseSessionsController = await contracts.HouseSessionsController.deployed()
         houseLottery = await contracts.HouseLottery.deployed()
         bettingProvider = await contracts.BettingProvider.deployed()
         sportsOracle = await contracts.SportsOracle.deployed()
@@ -120,7 +126,7 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(currentSession, 1, 'Invalid current session number')
 
         // Check if first offering is BettingProvider
-        let firstOffering = await house.offeringAddresses(0)
+        let firstOffering = await houseSessionsController.offeringAddresses(0)
         assert.equal(
             bettingProvider.address,
             firstOffering,
@@ -128,7 +134,7 @@ contract('SlotsChannelManager', accounts => {
         )
 
         // Check if second offering is SlotsChannelManager
-        let secondOffering = await house.offeringAddresses(1)
+        let secondOffering = await houseSessionsController.offeringAddresses(1)
         assert.equal(
             slotsChannelManager.address,
             secondOffering,
@@ -393,6 +399,9 @@ contract('SlotsChannelManager', accounts => {
                 slotsChannelManager.address,
                 currentSession
             )
+
+            let isAuthorized = await houseAuthorizedController.authorized(founder)
+            console.log('Activate channel - isAuthorized', isAuthorized)
 
             await slotsChannelManager.activateChannel.sendTransaction(
                 channelId,

@@ -27,6 +27,7 @@ contract HouseLottery is SafeMath, usingOraclize {
     address public owner;
     address public house;
     uint public currentSession;
+    bool public isHouseLottery = true;
 
     // Mappings
     // Winners for each session
@@ -67,11 +68,6 @@ contract HouseLottery is SafeMath, usingOraclize {
         OAR = OraclizeAddrResolverI(0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475);
     }
 
-    // Abstract lottery function
-    function isHouseLottery() returns (bool) {
-        return true;
-    }
-
     function setHouse(address _house) onlyOwner {
         house = _house;
     }
@@ -100,6 +96,9 @@ contract HouseLottery is SafeMath, usingOraclize {
     onlyHouse external returns (bool) {
         // Throw if session passed from the house is less than currentSession set in the lottery contract
         if (session == 0 || session <= currentSession) throw;
+
+        // Should only work if the winning number has not been finalized.
+        if(isLotteryFinalized(session)) revert();
 
         // This is where currentSession is initialized in the contract.
         // It will only be set when the house would like to pick a winner for a session
@@ -154,7 +153,14 @@ contract HouseLottery is SafeMath, usingOraclize {
         return number;
     }
 
-    function updateLotteryPayout(uint session, uint payout) onlyHouse external returns (bool) {
+    function updateLotteryPayout(uint session, address sender, uint payout) onlyHouse external returns (bool) {
+        // Should only work after the winning number has been finalized.
+        if(!isLotteryFinalized(session)) revert();
+        // Should not work if the winnings have already been claimed.
+        if(isLotteryClaimed(session)) revert();
+        // Only holder of the winning ticket can withdraw.
+        if(getLotteryWinner(session) != sender) revert();
+
         lotteries[session].payout = payout;
         lotteries[session].claimed = true;
         return true;

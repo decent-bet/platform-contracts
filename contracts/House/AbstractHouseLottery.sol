@@ -6,7 +6,7 @@ contract AbstractHouseLottery {
 
     function allotLotteryTickets(uint session, address _address, uint tokenAmount) returns (bool);
 
-    function updateLotteryPayout(uint session, uint payout) returns (bool);
+    function updateLotteryPayout(uint session, address _address, uint payout) returns (bool);
 
     function getWinningLotteryTicket(uint session) returns (uint);
 

@@ -3,6 +3,7 @@ pragma solidity ^0.4.8;
 
 import '../Token/ERC20.sol';
 import '../House/AbstractHouse.sol';
+import '../House/Controllers/Authorized/AbstractHouseAuthorizedController.sol';
 import './AbstractBettingProviderHelper.sol';
 import './AbstractSportsOracle.sol';
 import '../Libraries/SafeMath.sol';
@@ -19,6 +20,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     AbstractSportsOracle sportsOracle;
 
     AbstractHouse house;
+    AbstractHouseAuthorizedController houseAuthorizedController;
 
     // Structs
     struct GameOdds {
@@ -251,17 +253,18 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
     // Constructor.
     function BettingProvider(address decentBetTokenAddress,
-        address _houseAddress, address bettingProviderHelperAddress) {
+        address _houseAddress, address _houseAuthorizedControllerAddress, address bettingProviderHelperAddress) {
         if (decentBetTokenAddress == 0) revert();
         if (_houseAddress == 0) revert();
+        if (_houseAuthorizedControllerAddress == 0) revert();
         if (bettingProviderHelperAddress == 0) revert();
         name = 'Betting Provider';
         isHouseOffering = true;
         houseAddress = _houseAddress;
         decentBetToken = ERC20(decentBetTokenAddress);
         house = AbstractHouse(houseAddress);
-        bettingProviderHelper =
-        AbstractBettingProviderHelper(bettingProviderHelperAddress);
+        houseAuthorizedController = AbstractHouseAuthorizedController(_houseAuthorizedControllerAddress);
+        bettingProviderHelper = AbstractBettingProviderHelper(bettingProviderHelperAddress);
 
         // If on local testRPC/testnet and need mock times
         isMock = true;
@@ -280,7 +283,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     }
 
     modifier onlyAuthorized() {
-        if (house.authorized(msg.sender) == false) revert();
+        if (houseAuthorizedController.authorized(msg.sender) == false) revert();
         _;
     }
 
