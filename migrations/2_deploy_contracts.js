@@ -62,7 +62,6 @@ let deploy = async (deployer, network) => {
 
         upgradeMaster = accounts[0]
         team = accounts[0]
-        agentOwner = upgradeMaster
         decentBetMultisig = MultiSigWallet.address
 
         const ethPrice = 300

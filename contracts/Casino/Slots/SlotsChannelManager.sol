@@ -45,9 +45,6 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Current house session.
     uint public currentSession;
 
-    // Time for channel to stay active, after which will be closed
-    uint constant public timeToLive = 3 hours;
-
     /* Contracts */
     ERC20 decentBetToken;
 
