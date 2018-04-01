@@ -395,7 +395,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering)
     isHouseControllersSet
     isEmergencyPaused
-    onlyAuthorized {
+    onlyFounder {
         // If offering has already been withdrawn, revert.
         if(houseSessionsController.isOfferingWithdrawn(currentSession, houseOffering)) revert();
 

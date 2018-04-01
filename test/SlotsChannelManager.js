@@ -398,7 +398,9 @@ contract('SlotsChannelManager', accounts => {
                 currentSession
             )
 
-            let isAuthorized = await houseAuthorizedController.authorized(founder)
+            let isAuthorized = await houseAuthorizedController.authorized(
+                founder
+            )
             console.log('Activate channel - isAuthorized', isAuthorized)
 
             await slotsChannelManager.activateChannel.sendTransaction(
@@ -920,11 +922,7 @@ contract('SlotsChannelManager', accounts => {
         )
         userChannelBalance = userChannelBalance.toNumber()
 
-        assert.equal(
-            userChannelBalance,
-            0,
-            'Invalid user channel balance'
-        )
+        assert.equal(userChannelBalance, 0, 'Invalid user channel balance')
 
         let houseBalancePostClaim = await slotsChannelManager.balanceOf(
             slotsChannelManager.address,

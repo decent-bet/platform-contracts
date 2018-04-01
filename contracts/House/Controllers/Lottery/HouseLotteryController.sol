@@ -170,8 +170,8 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     // Participants = Number of participants in this session
     function randomInRange(uint number, uint tickets) returns (uint) {
         uint range = 8999999;
-        uint numberInRange = safeDiv(safeMul(safeSub(number, 1000000), safeAdd(tickets, 1)), range);
-        // ((2995848 - 1000000) * (5 + 1)/8999999)
+        uint numberInRange = safeDiv(safeMul(safeSub(number, 1000000), tickets), range);
+        // ((2995848 - 1000000) * (5)/8999999)
         if (numberInRange > tickets)
             numberInRange = tickets;
         return numberInRange;

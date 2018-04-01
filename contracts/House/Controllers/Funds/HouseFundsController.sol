@@ -31,7 +31,7 @@ contract HouseFundsController is SafeMath {
         address[] users;
         // Total DBETs payed out by the house for this session.
         uint totalHousePayouts;
-        // Total DBETs withdrawn by the house for this session.
+        // Total DBETs withdrawn from offerings by the house for this session.
         uint totalWithdrawn;
         // Total DBETs added to profits by the house for unregistered offerings from this session.
         uint totalUnregisteredOfferingProfits;
@@ -278,8 +278,8 @@ contract HouseFundsController is SafeMath {
             safeAdd(houseFunds[currentSession].totalWithdrawn, currentSessionTokens);
 
         if(allOfferingsWithdrawn)
-            houseFunds[currentSession].profit = (int)(houseFunds[currentSession].profit +
-            (int)(houseFunds[currentSession].totalWithdrawn - houseFunds[currentSession].totalFunds));
+            houseFunds[currentSession].profit +=
+            (int)(houseFunds[currentSession].totalWithdrawn - houseFunds[currentSession].totalFunds);
 
         return true;
     }
@@ -309,7 +309,7 @@ contract HouseFundsController is SafeMath {
         houseFunds[session].totalHousePayouts =
             safeAdd(houseFunds[session].totalHousePayouts, payout);
 
-        return (payout, houseFunds[session].userCredits[_address].amount);
+        return (payout, amount);
     }
 
     // Utility functions for front-end purposes.

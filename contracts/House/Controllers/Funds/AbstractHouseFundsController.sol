@@ -29,10 +29,10 @@ contract AbstractHouseFundsController {
     // Adds session profits from unregistered house offerings.
     function addToSessionProfitsFromUnregisteredHouseOffering(address offering, uint session, uint amount) returns (bool added) {}
     // Withdraws previous session tokens from a house offering.
-    function withdrawPreviousSessionTokensFromHouseOffering(address, uint, bool) returns (bool) {}
+    function withdrawPreviousSessionTokensFromHouseOffering(address, uint, bool) returns (bool withdrawn) {}
     // Withdraws current session tokens from an offering if the contract is in an emergency paused state.
-    function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address, uint, bool) returns (bool) {}
+    function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address, uint, bool) returns (bool withdrawn) {}
     // Allows users to emergency withdraw if emergency withdrawals are enabled and contract is in a paused state.
-    function emergencyWithdraw(address _address) returns (uint, uint) {}
+    function emergencyWithdraw(address _address) returns (uint payout, uint amount) {}
 
 }
