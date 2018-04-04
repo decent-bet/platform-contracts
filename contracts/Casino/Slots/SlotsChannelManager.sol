@@ -76,7 +76,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     mapping (address => mapping (uint => uint)) public depositedTokens;
 
     /* Events */
-    event LogNewChannel(uint id, address indexed user, uint initialDeposit);
+    event LogNewChannel(uint id, address indexed user, uint initialDeposit, uint timestamp);
 
     event LogChannelFinalized(uint indexed id, bool isHouse);
 
@@ -228,7 +228,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
             exists: true
             });
         players[channelCount][false] = msg.sender;
-        LogNewChannel(channelCount, msg.sender, initialDeposit);
+        LogNewChannel(channelCount, msg.sender, initialDeposit, getTime());
         channelCount++;
     }
 
