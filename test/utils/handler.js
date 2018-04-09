@@ -70,7 +70,6 @@ const getAesKey = (id, privateKey) => {
                 utils.getWeb3().utils.utf8ToHex(idHash),
                 privateKey
             ).signature
-        console.log('Retrieved aes key', aesKey)
         resolve(aesKey)
     })
 }
@@ -320,8 +319,8 @@ let processSpin = async (
             }
         else {
             return {
-                player: userSpins[userSpins.length - (nonce - 1)],
-                house: houseSpins[houseSpins.length - (nonce - 1)]
+                player: userSpins[userSpins.length - 1],
+                house: houseSpins[houseSpins.length - 1]
             }
         }
     }
@@ -334,7 +333,7 @@ let processSpin = async (
         let nonce = dbChannel.nonce
 
         if (nonce !== spin.nonce - 1 || spin.nonce > 1000)
-            throw new Error('Invalid nonce')
+            throw new Error('Invalid nonce' + ',' + nonce + ',' + spin.nonce)
         else {
             let previousSpins = getPreviousSpins()
 
@@ -358,8 +357,8 @@ let processSpin = async (
         const maxBet = utils.getWeb3().utils.toWei('5', 'ether')
         const minBet = utils.getWeb3().utils.toWei('0.01', 'ether')
         return (
-            betSize.lessThanOrEqualTo(maxBet) ||
-            betSize.greaterThanOrEqualTo(minBet)
+            betSize.isLessThanOrEqualTo(maxBet) ||
+            betSize.isGreaterThanOrEqualTo(minBet)
         )
     }
 
@@ -449,26 +448,28 @@ let processSpin = async (
                 _calculateReelPayout(reel, spin.betSize).toString(),
                 'ether'
             )
+
         let userBalance =
             payout === 0
                 ? new BigNumber(spin.userBalance).minus(spin.betSize)
                 : new BigNumber(spin.userBalance)
-                      .add(payout)
+                      .plus(payout)
                       .minus(spin.betSize)
+
         let houseBalance =
             payout === 0
-                ? new BigNumber(spin.houseBalance).add(spin.betSize)
+                ? new BigNumber(spin.houseBalance).plus(spin.betSize)
                 : new BigNumber(spin.houseBalance)
                       .minus(payout)
-                      .add(spin.betSize)
+                      .plus(spin.betSize)
 
         // Balances below 0 should be corrected to 0 to ensure no party receives more tokens than
         // what is available in the created channel.
-        if (userBalance.lessThanOrEqualTo(0)) {
-            houseBalance = houseBalance.add(userBalance)
+        if (userBalance.isLessThanOrEqualTo(0)) {
+            houseBalance = houseBalance.plus(userBalance)
             userBalance = new BigNumber(0)
-        } else if (houseBalance.lessThanOrEqualTo(0)) {
-            userBalance = userBalance.add(houseBalance)
+        } else if (houseBalance.isLessThanOrEqualTo(0)) {
+            userBalance = userBalance.plus(houseBalance)
             houseBalance = new BigNumber(0)
         }
 
@@ -497,11 +498,6 @@ let processSpin = async (
 
         let tightlyPackedSpin = _getTightlyPackedSpin(houseSpin)
 
-        console.log(
-            'Tightly packed spin'.info,
-            JSON.stringify(tightlyPackedSpin).debug
-        )
-
         houseSpin.sign = await _signString(
             tightlyPackedSpin,
             founder,
@@ -516,7 +512,6 @@ let processSpin = async (
      * @returns {Promise<void>}
      */
     let saveSpin = async () => {
-        console.log('Save spin')
         let houseSpin = await getHouseSpin()
         let houseEncryptedSpin = AES.encrypt(
             JSON.stringify(houseSpin),
@@ -541,24 +536,18 @@ let processSpin = async (
         dbChannel.nonce++
     }
 
-    console.log('Process spin', id)
-
     if (isChannelFinalized()) throw new Error('Channel already finalized')
-    console.log('Channel not finalized')
 
     if (isChannelClosed()) throw new Error('Channel already closed')
-    console.log('Channel not closed')
 
     if (isChannelBalancesEmpty()) throw new Error('Channel balances are empty')
-    console.log('Channel balances not empty')
 
     if (!await verifySign()) throw new Error('Unable to verify sign')
-    console.log('Sign verified')
 
     if (!await verifySpin()) throw new Error('Unable to verify spin')
-    console.log('Spin verified')
 
     await saveSpin()
+
     return true
 }
 
@@ -570,10 +559,6 @@ const getSpinParts = spin => {
     let r = ethUtil.bufferToHex(sigParams.r)
     let s = ethUtil.bufferToHex(sigParams.s)
     let v = ethUtil.bufferToInt(sigParams.v)
-
-    console.log('getSpinParts sig: ', v, r, s)
-
-    console.log('getSpinParts reverse sig: ', ethUtil.toRpcSig(v, r, s))
 
     return {
         parts:
@@ -657,7 +642,6 @@ const _calculateReelPayout = (reel, betSize) => {
  * @private
  */
 const _generateReelSeedHashes = seed => {
-    console.log('Reel seed hashes')
     let hashes = []
     for (let i = 0; i < 1000; i++)
         hashes.push(SHA256(i === 0 ? seed : hashes[i - 1]).toString())
@@ -671,7 +655,6 @@ const _generateReelSeedHashes = seed => {
  * @private
  */
 const _generateReels = reelSeedHashes => {
-    console.log('Reels')
     let reels = []
     for (let i = 0; i < reelSeedHashes.length; i++) {
         let hash = reelSeedHashes[i]
@@ -693,7 +676,6 @@ const _generateReels = reelSeedHashes => {
  * @private
  */
 const _generateReelHashes = (reelSeedHashes, reels) => {
-    console.log('Reel hashes')
     let reelHashes = []
     for (let i = 0; i < reelSeedHashes.length; i++)
         reelHashes.push(

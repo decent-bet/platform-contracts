@@ -2,6 +2,7 @@
 // thanks!
 let Web3 = require('web3')
 let web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
+const BigNumber = require('bignumber.js')
 
 let assert = require('chai').assert
 const MAX_GAS_COST_PER_TX = 1e5 /* gas used per tx */ * 2e10
@@ -90,7 +91,10 @@ module.exports = {
     },
     getGasUsage: function(contract, networkId) {
         return new Promise(function(resolve, reject) {
-            myWeb3.eth.getTransactionReceipt(contract.networks[networkId].transactionHash)
+            myWeb3.eth
+                .getTransactionReceipt(
+                    contract.networks[networkId].transactionHash
+                )
                 .then(function(receipt) {
                     resolve({
                         transactionHash: receipt.transactionHash,
@@ -104,7 +108,25 @@ module.exports = {
                 })
         })
     },
-
+    getRandomInt: function(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min
+    },
+    getRandomBetSize: function() {
+        return new BigNumber(this.getRandomInt(1, 5))
+            .times(this.getEthInWei())
+            .toFixed(0)
+    },
+    getRandomCreditsToPurchase: function() {
+        return new BigNumber(this.getRandomInt(1000, 5000))
+            .times(this.getEthInWei())
+            .toFixed(0)
+    },
+    getEthInWei: function() {
+        return new BigNumber(10).exponentiatedBy(18).toFixed(0)
+    },
+    convertWeiToEth: function(n) {
+        return new BigNumber(n).dividedBy(this.getEthInWei()).toFixed()
+    },
     increaseTime: function(bySeconds) {
         myWeb3.currentProvider.send({
             jsonrpc: '2.0',

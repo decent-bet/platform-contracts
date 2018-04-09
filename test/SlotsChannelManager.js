@@ -488,7 +488,6 @@ contract('SlotsChannelManager', accounts => {
         )
 
         Object.keys(spin).forEach(async prop => {
-            console.log('Validate w/ invalid prop', prop)
             let _spin = JSON.parse(JSON.stringify(spin))
             _spin[prop] = 'a'
 
@@ -514,7 +513,6 @@ contract('SlotsChannelManager', accounts => {
                 )
             } catch (e) {
                 // Valid result
-                console.log('Thrown', e.message)
                 validated = false
             }
 
@@ -583,44 +581,46 @@ contract('SlotsChannelManager', accounts => {
 
         // Second spin
         validated = true
+
+        let numberOfSpins = utils.getRandomInt(5, 20)
         try {
-            // Max number of lines
-            let betSize = '5000000000000000000'
+            for (let i = 0; i < numberOfSpins; i++) {
+                // Max number of lines
+                let betSize = utils.getRandomBetSize()
 
-            // User spin
-            let spin = await handler.getSpin(
-                houseSpins,
-                nonce,
-                finalReelHash,
-                finalSeedHash,
-                userHashes,
-                initialDeposit,
-                betSize,
-                nonFounder,
-                constants.privateKeys.nonFounder
-            )
-            let encryptedSpin = AES.encrypt(
-                JSON.stringify(spin),
-                channelAesKey
-            ).toString()
+                // User spin
+                let spin = await handler.getSpin(
+                    houseSpins,
+                    nonce,
+                    finalReelHash,
+                    finalSeedHash,
+                    userHashes,
+                    initialDeposit,
+                    betSize,
+                    nonFounder,
+                    constants.privateKeys.nonFounder
+                )
+                let encryptedSpin = AES.encrypt(
+                    JSON.stringify(spin),
+                    channelAesKey
+                ).toString()
 
-            console.log('Spin', spin)
-
-            // Process spin as the house
-            await handler.processSpin(
-                channelId,
-                dbChannel,
-                founder,
-                userSpins,
-                houseSpins,
-                spins,
-                finalUserHash,
-                slotsChannelManager,
-                reelsAndHashes,
-                spin,
-                encryptedSpin
-            )
-            nonce++
+                // Process spin as the house
+                let lastHouseSpin = await handler.processSpin(
+                    channelId,
+                    dbChannel,
+                    founder,
+                    userSpins,
+                    houseSpins,
+                    spins,
+                    finalUserHash,
+                    slotsChannelManager,
+                    reelsAndHashes,
+                    spin,
+                    encryptedSpin
+                )
+                nonce++
+            }
         } catch (e) {
             // Valid result
             console.log('Thrown', e.message)

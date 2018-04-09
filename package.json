@@ -5,6 +5,7 @@
   "author": "dev <dev@decent.bet>",
   "license": "MIT",
   "dependencies": {
+    "bignumber.js": "^6.0.0",
     "chai": "^4.1.2",
     "dotenv": "^5.0.1",
     "ethereum-units": "^0.0.1-b",

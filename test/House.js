@@ -21,6 +21,7 @@ let nonFounder
 let nonInvestor
 
 contract('House', accounts => {
+    console.log('Accounts', accounts)
     it('initializes house contract', async () => {
         founder = accounts[0]
         nonFounder = accounts[1]
@@ -209,10 +210,13 @@ contract('House', accounts => {
         })
 
         it('allows users to purchase house credits if they have a DBET balance', async () => {
-            const creditsToPurchase = '1000000000000000000000'
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
             let nextSession = currentSession + 1
+            const lotteryTicketsDividor = new BigNumber(1000)
+                .times(utils.getEthInWei())
+                .toFixed()
+            const creditsToPurchase = lotteryTicketsDividor
             let totalPurchasedCredits = new BigNumber(0)
 
             for (let i = 0; i < 6; i++) {
@@ -222,7 +226,7 @@ contract('House', accounts => {
                 await house.purchaseCredits(creditsToPurchase, {
                     from: nonFounder
                 })
-                totalPurchasedCredits = totalPurchasedCredits.add(
+                totalPurchasedCredits = totalPurchasedCredits.plus(
                     creditsToPurchase
                 )
 
@@ -242,7 +246,7 @@ contract('House', accounts => {
                 assert.equal(
                     lotteryTickets,
                     expectedLotteryTickets,
-                    'Invalid lottery tickets for user: ' +
+                    'Invalid lottery tickets for nonFounder: ' +
                         lotteryTickets +
                         ', ' +
                         totalPurchasedCredits.toFixed()
@@ -257,7 +261,69 @@ contract('House', accounts => {
                 assert.equal(
                     sessionCredits,
                     expectedSessionCredits,
-                    'Invalid house credits for user'
+                    'Invalid house credits for no'
+                )
+            }
+
+            for (let i = 3; i < accounts.length; i++) {
+                let user = accounts[i]
+                await token.faucet({ from: user })
+                let tokenBalance = await token.balanceOf(user)
+                const creditsToPurchase = utils.getRandomCreditsToPurchase()
+                console.log(
+                    'Token balance',
+                    user,
+                    tokenBalance.toFixed(),
+                    ', credits to purchase',
+                    creditsToPurchase
+                )
+                let totalPurchasedCredits = new BigNumber(0)
+
+                await token.approve(house.address, creditsToPurchase, {
+                    from: user
+                })
+                await house.purchaseCredits(creditsToPurchase, {
+                    from: user
+                })
+                totalPurchasedCredits = totalPurchasedCredits.plus(
+                    creditsToPurchase
+                )
+
+                let lotteryTickets = await houseLotteryController.getUserTicketCount(
+                    nextSession,
+                    user
+                )
+                lotteryTickets = lotteryTickets.toFixed()
+
+                // Maximum of 5 lottery tickets
+                let expectedLotteryTickets = totalPurchasedCredits
+                    .dividedBy(lotteryTicketsDividor)
+                    .integerValue(BigNumber.ROUND_DOWN)
+                    .toString()
+
+                assert.equal(
+                    lotteryTickets,
+                    expectedLotteryTickets,
+                    'Invalid lottery tickets for user ' +
+                        user +
+                        ': ' +
+                        lotteryTickets +
+                        ', ' +
+                        expectedLotteryTickets +
+                        ', ' +
+                        utils.convertWeiToEth(totalPurchasedCredits)
+                )
+
+                let userCredits = await houseFundsController.getUserCreditsForSession(
+                    nextSession,
+                    user
+                )
+                let sessionCredits = userCredits[0].toFixed()
+                let expectedSessionCredits = totalPurchasedCredits.toFixed()
+                assert.equal(
+                    sessionCredits,
+                    expectedSessionCredits,
+                    'Invalid house credits for user ' + user
                 )
             }
         })
@@ -401,7 +467,7 @@ contract('House', accounts => {
         it('allows authorized addresses to deposit allocated tokens to house offerings', async () => {
             let houseBalance = await token.balanceOf(house.address)
             houseBalance = houseBalance.toFixed(0)
-            console.log('House balance', houseBalance)
+            console.log('House balance', utils.convertWeiToEth(houseBalance))
 
             await house.depositAllocatedTokensToHouseOffering(
                 bettingProvider.address,
@@ -465,8 +531,8 @@ contract('House', accounts => {
 
             console.log(
                 'Provider balance',
-                providerBalance,
-                expectedProviderBalance
+                utils.convertWeiToEth(providerBalance),
+                utils.convertWeiToEth(expectedProviderBalance)
             )
             assert.equal(
                 providerBalance,
@@ -486,8 +552,8 @@ contract('House', accounts => {
 
             console.log(
                 'New provider balance',
-                newProviderBalance,
-                expectedNewProviderBalance
+                utils.convertWeiToEth(newProviderBalance),
+                utils.convertWeiToEth(expectedNewProviderBalance)
             )
             assert.equal(
                 newProviderBalance,
@@ -507,8 +573,8 @@ contract('House', accounts => {
 
             console.log(
                 'Slots channel manager balance',
-                slotsBalance,
-                expectedSlotsBalance
+                utils.convertWeiToEth(slotsBalance),
+                utils.convertWeiToEth(expectedSlotsBalance)
             )
             assert.equal(
                 slotsBalance,
@@ -661,7 +727,11 @@ contract('House', accounts => {
                 nonFounder
             )
             let sessionCredits = userCredits[0].toFixed()
-            console.log('userCredits', nextSession, sessionCredits)
+            console.log(
+                'userCredits',
+                nextSession,
+                utils.convertWeiToEth(sessionCredits)
+            )
             assert.equal(
                 sessionCredits,
                 creditsToPurchase,
@@ -687,10 +757,14 @@ contract('House', accounts => {
                 nonFounder
             )
             let sessionCredits = userCredits[0].toFixed()
-            console.log('userCredits', currentSession + 1, sessionCredits)
+            console.log(
+                'userCredits',
+                currentSession + 1,
+                utils.convertWeiToEth(sessionCredits)
+            )
             let houseBalance = await token.balanceOf(house.address)
             houseBalance = houseBalance.toFixed(0)
-            console.log('House balance', houseBalance)
+            console.log('House balance', utils.convertWeiToEth(houseBalance))
             assert.equal(
                 creditsToRollOver,
                 rolledOverCredits,
@@ -778,7 +852,7 @@ contract('House', accounts => {
                 houseBalance = houseBalance.toFixed(0)
                 console.log(
                     'House balance before depositing to offerings',
-                    houseBalance
+                    utils.convertWeiToEth(houseBalance)
                 )
 
                 let currentSession = await house.currentSession()
@@ -990,7 +1064,7 @@ contract('House', accounts => {
             let houseProfitPostAddProfit = houseFundsPostAddProfit[6]
 
             assert.equal(
-                houseProfitPreAddProfit.add(amount).toFixed(),
+                houseProfitPreAddProfit.plus(amount).toFixed(),
                 houseProfitPostAddProfit.toFixed(),
                 'Invalid profit in houseFunds after adding unregistered offering profits'
             )
@@ -1071,10 +1145,10 @@ contract('House', accounts => {
             console.log(
                 'Balances',
                 previousSession,
-                providerBalance,
-                newProviderBalance,
-                slotsChannelManagerBalance,
-                initialHouseBalance.toFixed()
+                utils.convertWeiToEth(providerBalance),
+                utils.convertWeiToEth(newProviderBalance),
+                utils.convertWeiToEth(slotsChannelManagerBalance),
+                utils.convertWeiToEth(initialHouseBalance)
             )
 
             // Betting provider
@@ -1089,7 +1163,12 @@ contract('House', accounts => {
                 .plus(providerBalance)
                 .toFixed()
 
-            console.log('Provider withdraw', houseBalance, expectedHouseBalance)
+            console.log(
+                'Provider withdraw',
+                utils.convertWeiToEth(houseBalance),
+                utils.convertWeiToEth(expectedHouseBalance)
+            )
+
             assert.equal(
                 houseBalance,
                 expectedHouseBalance,
@@ -1111,8 +1190,8 @@ contract('House', accounts => {
 
             console.log(
                 'New provider withdraw',
-                houseBalance,
-                expectedHouseBalance
+                utils.convertWeiToEth(houseBalance),
+                utils.convertWeiToEth(expectedHouseBalance)
             )
             assert.equal(
                 houseBalance,
@@ -1134,7 +1213,11 @@ contract('House', accounts => {
                 .plus(slotsChannelManagerBalance)
                 .toFixed()
 
-            console.log('Slots withdraw', houseBalance, expectedHouseBalance)
+            console.log(
+                'Slots withdraw',
+                utils.convertWeiToEth(houseBalance),
+                utils.convertWeiToEth(expectedHouseBalance)
+            )
             assert.equal(
                 houseBalance,
                 expectedHouseBalance,
@@ -1197,24 +1280,42 @@ contract('House', accounts => {
             let payoutPerCredit = await houseFundsController.getPayoutPerCredit(
                 previousSession
             )
-            console.log('Payout per credit', payoutPerCredit.toFixed())
+            console.log(
+                'Payout per credit',
+                utils.convertWeiToEth(payoutPerCredit)
+            )
 
             let houseTokenBalance = await token.balanceOf(house.address)
-            console.log('House token balance', houseTokenBalance.toFixed())
+            console.log(
+                'House token balance',
+                utils.convertWeiToEth(houseTokenBalance)
+            )
 
             let userTokenBalance = await token.balanceOf(nonFounder)
-            console.log('User token balance', userTokenBalance.toFixed())
+            console.log(
+                'User token balance',
+                utils.convertWeiToEth(userTokenBalance)
+            )
 
-            console.log('Prev session credits', prevSessionCredits)
+            console.log(
+                'Prev session credits',
+                utils.convertWeiToEth(prevSessionCredits)
+            )
 
             await house.liquidateCredits(previousSession, { from: nonFounder })
 
             // TODO: Verify balances after liquidation
             houseTokenBalance = await token.balanceOf(house.address)
-            console.log('House token balance', houseTokenBalance.toFixed())
+            console.log(
+                'House token balance',
+                utils.convertWeiToEth(houseTokenBalance)
+            )
 
             userTokenBalance = await token.balanceOf(nonFounder)
-            console.log('User token balance', userTokenBalance.toFixed())
+            console.log(
+                'User token balance',
+                utils.convertWeiToEth(userTokenBalance)
+            )
 
             userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
                 previousSession,
@@ -1347,13 +1448,19 @@ contract('House', accounts => {
             try {
                 let logWinnerEvent = await waitForLogWinnerEvent()
                 console.log('LogWinner event:', logWinnerEvent)
-                Object.keys(logWinnerEvent.args).map((key) => {
+                Object.keys(logWinnerEvent.args).map(key => {
                     let val = logWinnerEvent.args[key]
-                    console.log(key, typeof val === 'object' ? val.toFixed() : val)
+                    console.log(
+                        key,
+                        typeof val === 'object' ? val.toFixed() : val
+                    )
                 })
 
-                for(let i = 0; i < 6; i++) {
-                    let ticketOwner = await houseLotteryController.lotteryTicketHolders(previousSession, i)
+                for (let i = 0; i < 6; i++) {
+                    let ticketOwner = await houseLotteryController.lotteryTicketHolders(
+                        previousSession,
+                        i
+                    )
                     console.log('Lottery user ticket', i, ticketOwner)
                 }
 
@@ -1377,11 +1484,13 @@ contract('House', accounts => {
             let winnerTokenBalancePreClaim = await token.balanceOf(nonFounder)
             let houseTokenBalancePreClaim = await token.balanceOf(house.address)
 
-            let winner = await houseLotteryController.getLotteryWinner(previousSession)
+            let winner = await houseLotteryController.getLotteryWinner(
+                previousSession
+            )
             console.log('Lottery winner', winner)
 
             await house.claimLotteryWinnings(previousSession, {
-                from: nonFounder
+                from: winner
             })
 
             let winnerTokenBalancePostClaim = await token.balanceOf(nonFounder)
@@ -1428,8 +1537,9 @@ contract('House', accounts => {
         it('disallows non-founders from withdrawing current session tokens from house offerings', async () => {
             await utils.assertFail(
                 house.emergencyWithdrawCurrentSessionTokensFromHouseOffering(
-                    slotsChannelManager.address
-                , { from: nonFounder })
+                    slotsChannelManager.address,
+                    { from: nonFounder }
+                )
             )
         })
 
@@ -1449,7 +1559,7 @@ contract('House', accounts => {
                 house.address
             )
             assert.equal(
-                houseTokenBalancePreWithdraw.add(slotsTokenBalance).toFixed(),
+                houseTokenBalancePreWithdraw.plus(slotsTokenBalance).toFixed(),
                 houseTokenBalancePostWithdraw.toFixed(),
                 'House token balances pre/post withdraw do not match'
             )
@@ -1490,11 +1600,13 @@ contract('House', accounts => {
             let userCreditsPreWithdraw = userCreditsStatsPreWithdraw[0]
             let userTokenBalancePreWithdraw = await token.balanceOf(nonFounder)
 
-            let payoutPerCredit = await houseFundsController.getPayoutPerCredit(currentSession)
+            let payoutPerCredit = await houseFundsController.getPayoutPerCredit(
+                currentSession
+            )
             payoutPerCredit = payoutPerCredit.dividedBy(ethInWei)
             let payout = payoutPerCredit.times(userCreditsPreWithdraw)
 
-            await house.emergencyWithdraw({from: nonFounder})
+            await house.emergencyWithdraw({ from: nonFounder })
 
             let userCreditsStatsPostWithdraw = await houseFundsController.getUserCreditsForSession(
                 currentSession,
@@ -1509,7 +1621,7 @@ contract('House', accounts => {
                 'User credits are not 0 after emergency withdraw'
             )
             assert.equal(
-                userTokenBalancePreWithdraw.add(payout).toFixed(),
+                userTokenBalancePreWithdraw.plus(payout).toFixed(),
                 userTokenBalancePostWithdraw.toFixed(),
                 'User token balance does not account for payout after emergency withdraw'
             )
