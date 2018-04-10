@@ -273,9 +273,9 @@ contract('House', accounts => {
                 console.log(
                     'Token balance',
                     user,
-                    tokenBalance.toFixed(),
+                    utils.convertWeiToEth(tokenBalance),
                     ', credits to purchase',
-                    creditsToPurchase
+                    utils.convertWeiToEth(creditsToPurchase)
                 )
                 let totalPurchasedCredits = new BigNumber(0)
 
@@ -1304,13 +1304,13 @@ contract('House', accounts => {
 
             await house.liquidateCredits(previousSession, { from: nonFounder })
 
-            // TODO: Verify balances after liquidation
             houseTokenBalance = await token.balanceOf(house.address)
             console.log(
                 'House token balance',
                 utils.convertWeiToEth(houseTokenBalance)
             )
 
+            let userTokenBalancePreLiquidation = userTokenBalance
             userTokenBalance = await token.balanceOf(nonFounder)
             console.log(
                 'User token balance',
@@ -1323,11 +1323,117 @@ contract('House', accounts => {
             )
             let liquidatedCredits = userCreditsForPrevSession[1].toFixed()
 
+            console.log(
+                'Liquidated credits',
+                userTokenBalance.toFixed(),
+                userTokenBalancePreLiquidation.toFixed(),
+                prevSessionCredits,
+                new BigNumber(utils.convertWeiToEth(payoutPerCredit))
+                    .times(prevSessionCredits)
+                    .toFixed(),
+                userTokenBalancePreLiquidation
+                    .plus(
+                        new BigNumber(utils.convertWeiToEth(payoutPerCredit))
+                            .times(prevSessionCredits)
+                            .toFixed()
+                    )
+                    .toFixed()
+            )
+
+            assert.equal(
+                userTokenBalance.toFixed(),
+                userTokenBalancePreLiquidation
+                    .plus(
+                        new BigNumber(
+                            utils.convertWeiToEth(payoutPerCredit)
+                        ).times(prevSessionCredits)
+                    )
+                    .toFixed(),
+                'Invalid balances after liquidating credits'
+            )
+
             assert.equal(
                 prevSessionCredits,
                 liquidatedCredits,
                 'Invalid amount of credits liquidated'
             )
+
+            // TODO: Check for profit vs expected profit after all liquidations
+            for (let i = 3; i < accounts.length; i++) {
+                let user = accounts[i]
+                let userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
+                    previousSession,
+                    user
+                )
+                let prevSessionCredits = userCreditsForPrevSession[0].toFixed()
+
+                let payoutPerCredit = await houseFundsController.getPayoutPerCredit(
+                    previousSession
+                )
+                console.log(
+                    'Payout per credit',
+                    utils.convertWeiToEth(payoutPerCredit)
+                )
+
+                let houseTokenBalance = await token.balanceOf(house.address)
+                console.log(
+                    'House token balance',
+                    utils.convertWeiToEth(houseTokenBalance)
+                )
+
+                let userTokenBalance = await token.balanceOf(user)
+                console.log(
+                    'User token balance',
+                    user,
+                    utils.convertWeiToEth(userTokenBalance)
+                )
+
+                console.log(
+                    'Prev session credits',
+                    utils.convertWeiToEth(prevSessionCredits)
+                )
+
+                await house.liquidateCredits(previousSession, { from: user })
+
+                houseTokenBalance = await token.balanceOf(house.address)
+                console.log(
+                    'House token balance',
+                    utils.convertWeiToEth(houseTokenBalance)
+                )
+
+                userTokenBalancePreLiquidation = userTokenBalance
+                userTokenBalance = await token.balanceOf(user)
+                console.log(
+                    'User token balance',
+                    user,
+                    utils.convertWeiToEth(userTokenBalance)
+                )
+
+                userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
+                    previousSession,
+                    user
+                )
+                let liquidatedCredits = userCreditsForPrevSession[1].toFixed()
+
+                assert.equal(
+                    userTokenBalance.toFixed(),
+                    userTokenBalancePreLiquidation
+                        .plus(
+                            new BigNumber(
+                                utils.convertWeiToEth(payoutPerCredit)
+                            ).times(prevSessionCredits)
+                        )
+                        .toFixed(),
+                    'Invalid balances after liquidating credits for user: ' +
+                        user
+                )
+
+                assert.equal(
+                    prevSessionCredits,
+                    liquidatedCredits,
+                    'Invalid amount of credits liquidated for user: ' + user
+                )
+            }
         })
 
         it(
