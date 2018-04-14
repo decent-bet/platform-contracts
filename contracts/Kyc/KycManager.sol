@@ -92,4 +92,9 @@ contract KycManager is ECVerify {
         LogRemoveApprovedAddress(_address);
     }
 
+    // Returns whether an address has been verified
+    function isVerified(address _address) returns (bool) {
+        return approvedAddresses[_address];
+    }
+
 }

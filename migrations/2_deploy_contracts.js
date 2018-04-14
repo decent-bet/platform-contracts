@@ -85,6 +85,8 @@ let deploy = async (deployer, network) => {
             )
             token = await getContractInstanceAndInfo(DecentBetToken)
 
+            kycManager = await getContractInstanceAndInfo(KycManager)
+
             // Deploy the House contract
             await deployer.deploy(House, token.address)
             house = await getContractInstanceAndInfo(House)
@@ -185,6 +187,7 @@ let deploy = async (deployer, network) => {
                 '\nHouseAuthorizedController: ' + houseAuthorizedController.address,
                 '\nHouseSessionsController: ' + houseSessionsController.address,
                 '\nHouseLottery: ' + houseLotteryController.address,
+                '\nKycManager: ' + kycManager.address,
                 '\nSlotsChannelManager: ' + SlotsChannelManager.address,
                 '\nBettingProviderHelper: ' + bettingProviderHelper.address,
                 '\nBettingProvider: ' + bettingProvider.address,
