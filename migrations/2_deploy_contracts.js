@@ -6,6 +6,7 @@ const HouseAuthorizedController = artifacts.require('HouseAuthorizedController')
 const HouseFundsController = artifacts.require('HouseFundsController')
 const HouseLotteryController = artifacts.require('HouseLotteryController')
 const HouseSessionsController = artifacts.require('HouseSessionsController')
+const KycManager = artifacts.require('KycManager')
 const BettingProvider = artifacts.require('BettingProvider')
 const BettingProviderHelper = artifacts.require('BettingProviderHelper')
 const SportsOracle = artifacts.require('SportsOracle')
@@ -33,6 +34,7 @@ let deploy = async (deployer, network) => {
         houseFundsController,
         houseLotteryController,
         houseSessionsController,
+        kycManager,
         bettingProvider,
         bettingProviderHelper,
         sportsOracle,
