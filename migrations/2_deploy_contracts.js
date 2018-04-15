@@ -42,35 +42,33 @@ let deploy = async (deployer, network) => {
 
     let contractInfo = {}
 
-    const getContractInstanceAndInfo = async (contract) => {
+    const getContractInstanceAndInfo = async contract => {
         let instance = await contract.deployed()
-        contractInfo[contract.contractName] = await utils.getGasUsage(contract, deployer.network_id)
+        contractInfo[contract.contractName] = await utils.getGasUsage(
+            contract,
+            deployer.network_id
+        )
         return instance
     }
 
     console.log('Deploying with network', network)
 
     if (network === 'rinkeby' || network === 'development') {
-        const timestamp = Math.round(new Date().getTime() / 1000)
-
-        await deployer.deploy(
-            MultiSigWallet,
-            accounts,
-            signaturesRequired
-        )
-        await getContractInstanceAndInfo(MultiSigWallet)
-
-        upgradeMaster = accounts[0]
-        team = accounts[0]
-        decentBetMultisig = MultiSigWallet.address
-
-        const ethPrice = 300
-        const basePrice = ethPrice / 0.125
-
-        startTime = timestamp + 2 * 24 * 60 * 60
-        endTime = timestamp + 28 * 24 * 60 * 60
-
         try {
+            const timestamp = Math.round(new Date().getTime() / 1000)
+
+            await deployer.deploy(MultiSigWallet, accounts, signaturesRequired)
+            await getContractInstanceAndInfo(MultiSigWallet)
+
+            upgradeMaster = accounts[0]
+            team = accounts[0]
+            decentBetMultisig = MultiSigWallet.address
+
+            const ethPrice = 300
+            const basePrice = ethPrice / 0.125
+
+            startTime = timestamp + 2 * 24 * 60 * 60
+            endTime = timestamp + 28 * 24 * 60 * 60
             // Deploy the DecentBetToken contract
             await deployer.deploy(
                 DecentBetToken,
@@ -88,30 +86,48 @@ let deploy = async (deployer, network) => {
             house = await getContractInstanceAndInfo(House)
 
             await deployer.deploy(HouseAuthorizedController, house.address)
-            houseAuthorizedController = await getContractInstanceAndInfo(HouseAuthorizedController)
-            await house.setHouseAuthorizedControllerAddress(houseAuthorizedController.address)
+            houseAuthorizedController = await getContractInstanceAndInfo(
+                HouseAuthorizedController
+            )
+            await house.setHouseAuthorizedControllerAddress(
+                houseAuthorizedController.address
+            )
 
             await deployer.deploy(HouseFundsController, house.address)
-            houseFundsController = await getContractInstanceAndInfo(HouseFundsController)
-            await house.setHouseFundsControllerAddress(houseFundsController.address)
+            houseFundsController = await getContractInstanceAndInfo(
+                HouseFundsController
+            )
+            await house.setHouseFundsControllerAddress(
+                houseFundsController.address
+            )
 
             await deployer.deploy(HouseSessionsController, house.address)
-            houseSessionsController = await getContractInstanceAndInfo(HouseSessionsController)
-            await house.setHouseSessionsControllerAddress(houseSessionsController.address)
+            houseSessionsController = await getContractInstanceAndInfo(
+                HouseSessionsController
+            )
+            await house.setHouseSessionsControllerAddress(
+                houseSessionsController.address
+            )
 
             // Deploy the Lottery contract
             await deployer.deploy(HouseLotteryController)
-            houseLotteryController = await getContractInstanceAndInfo(HouseLotteryController)
+            houseLotteryController = await getContractInstanceAndInfo(
+                HouseLotteryController
+            )
 
             // Set the house within the lottery contract
             await houseLotteryController.setHouse.sendTransaction(house.address)
 
             // Set the house lottery address within the house contract
-            await house.setHouseLotteryControllerAddress.sendTransaction(houseLotteryController.address)
+            await house.setHouseLotteryControllerAddress.sendTransaction(
+                houseLotteryController.address
+            )
 
             // Deploy the BettingProviderHelper contract
             await deployer.deploy(BettingProviderHelper)
-            bettingProviderHelper = await getContractInstanceAndInfo(BettingProviderHelper)
+            bettingProviderHelper = await getContractInstanceAndInfo(
+                BettingProviderHelper
+            )
 
             // Deploy the BettingProvider contract
             await deployer.deploy(
@@ -142,7 +158,9 @@ let deploy = async (deployer, network) => {
 
             // Deploy the SlotsChannelFinalizer contract
             await deployer.deploy(SlotsChannelFinalizer, slotsHelper.address)
-            slotsChannelFinalizer = await getContractInstanceAndInfo(SlotsChannelFinalizer)
+            slotsChannelFinalizer = await getContractInstanceAndInfo(
+                SlotsChannelFinalizer
+            )
 
             // Deploy the SlotsChannelManager contract
             await deployer.deploy(
@@ -152,7 +170,9 @@ let deploy = async (deployer, network) => {
                 slotsHelper.address,
                 slotsChannelFinalizer.address
             )
-            slotsChannelManager = await getContractInstanceAndInfo(SlotsChannelManager)
+            slotsChannelManager = await getContractInstanceAndInfo(
+                SlotsChannelManager
+            )
 
             // Set SlotsChannelManager within the SlotsChannelFinalizer contract
             await slotsChannelFinalizer.setSlotsChannelManager.sendTransaction(
@@ -180,7 +200,8 @@ let deploy = async (deployer, network) => {
                 '\nToken: ' + token.address,
                 '\nHouse: ' + house.address,
                 '\nHouseFundsController: ' + houseFundsController.address,
-                '\nHouseAuthorizedController: ' + houseAuthorizedController.address,
+                '\nHouseAuthorizedController: ' +
+                    houseAuthorizedController.address,
                 '\nHouseSessionsController: ' + houseSessionsController.address,
                 '\nHouseLottery: ' + houseLotteryController.address,
                 '\nSlotsChannelManager: ' + SlotsChannelManager.address,

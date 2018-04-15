@@ -10,7 +10,8 @@ const mnemonic = process.env.MNEMONIC
 const infuraKey = process.env.INFURA_KEY
 const network = process.env.NETWORK
 
-const LOCAL_NODE_URL = 'http://ganache-cli:8545'
+const HOST = process.env.NODE_ENV === 'docker' ? 'ganache-cli' : 'localhost'
+const LOCAL_NODE_URL = 'http://' + HOST + ':8545'
 
 const networkUrl =
     network === NETWORK_DEVELOPMENT
@@ -36,7 +37,7 @@ module.exports = {
     migrations_directory: './migrations',
     networks: {
         development: {
-            host: 'ganache-cli',
+            host: HOST,
             port: 8545,
             network_id: '*', // Match any network id,
             from: provider.address,
