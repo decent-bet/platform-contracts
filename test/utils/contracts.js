@@ -5,6 +5,7 @@ let HouseAuthorizedController = artifacts.require('HouseAuthorizedController')
 let HouseFundsController = artifacts.require('HouseFundsController')
 let HouseLotteryController = artifacts.require('HouseLotteryController')
 let HouseSessionsController = artifacts.require('HouseSessionsController')
+let KycManager = artifacts.require('KycManager')
 let BettingProvider = artifacts.require('BettingProvider')
 let BettingProviderHelper = artifacts.require('BettingProviderHelper')
 let SportsOracle = artifacts.require('SportsOracle')
@@ -19,6 +20,7 @@ module.exports = {
     HouseFundsController,
     HouseLotteryController,
     HouseSessionsController,
+    KycManager,
     BettingProvider,
     BettingProviderHelper,
     SportsOracle,

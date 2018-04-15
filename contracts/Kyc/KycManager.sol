@@ -4,7 +4,9 @@ import '../Libraries/ECVerify.sol';
 
 // KYC manager contract allowing authorized addresses to add/update/remove approved addresses
 // Approved addresses can be accessed from House/Gaming contracts
-contract KycManager is ECVerify {
+contract KycManager {
+
+    using ECVerify for *;
 
     // Structs
     struct ApprovedUser {
@@ -14,12 +16,12 @@ contract KycManager is ECVerify {
     }
 
     // Variables
-    address public owner;
+    address public founder;
 
-    mapping (address => bool) public authorizedAddresses;
+    mapping (address => bool) public authorized;
     address[] public authorizedAddressList;
 
-    mapping(address => bool) public approvedAddresses;
+    mapping(address => bool) public approved;
     ApprovedUser[] public approvedAddressList;
 
     // Events
@@ -29,37 +31,37 @@ contract KycManager is ECVerify {
     event LogRemoveApprovedAddress  (address _address);
 
     function KycManager() {
-        owner = msg.sender;
+        founder = msg.sender;
     }
 
-    // Allows only owners to execute a function
-    modifier onlyOwner() {
-        assert(msg.sender == owner);
+    // Allows only founder to execute a function
+    modifier onlyFounder() {
+        assert(msg.sender == founder);
         _;
     }
 
     // Allows only authorized addresses to execute a function
     modifier onlyAuthorized() {
-        assert(authorizedAddresses[msg.sender] == true);
+        assert(authorized[msg.sender] == true);
         _;
     }
 
     // Adds an authorized address
     function addAuthorizedAddress(address _address)
-    onlyOwner {
-        assert(authorizedAddresses[_address] == false);
-        authorizedAddresses[_address] = true;
+    onlyFounder {
+        assert(authorized[_address] == false);
+        authorized[_address] = true;
         authorizedAddressList.push(_address);
         LogNewAuthorizedAddress(_address);
     }
 
     // Removes an authorized address
     function removeAuthorizedAddress(address _address, uint index)
-    onlyOwner {
-        assert(authorizedAddresses[_address] == true);
+    onlyFounder {
+        assert(authorized[_address] == true);
         assert(authorizedAddressList[index] == _address);
-        authorizedAddresses[_address] = false;
-        delete authorizedAddresses[index];
+        authorized[_address] = false;
+        delete authorizedAddressList[index];
         LogRemoveAuthorizedAddress(_address);
     }
 
@@ -68,33 +70,32 @@ contract KycManager is ECVerify {
     // Signed message would be of the format sgn(sha3(checkId))
     function approveAddress(address _address, string checkId, bytes signedMessage)
     onlyAuthorized {
-        assert(approvedAddresses[_address] == false);
+        assert(approved[_address] == false);
         bytes32 hash = keccak256(_address, checkId);
-        if(!ecverify(hash, signedMessage, _address)) revert();
-        approvedAddresses[_address] = true;
-        ApprovedUser user = ApprovedUser({
+        if(!ECVerify.ecverify(hash, signedMessage, _address)) revert();
+        approved[_address] = true;
+        approvedAddressList.push(ApprovedUser({
             _address:      _address,
             checkId:       checkId,
             signedMessage: signedMessage
-        });
-        approvedAddressList.push(user);
+        }));
         LogNewApprovedAddress(_address);
     }
 
     // Removes an address from the KYC approved list
     function removeApprovedAddress(address _address, uint index)
     onlyAuthorized {
-        assert(approvedAddresses[_address] == true);
+        assert(approved[_address] == true);
         assert(approvedAddressList[index]._address == _address);
 
-        approvedAddresses[_address] = false;
+        approved[_address] = false;
         delete approvedAddressList[index];
         LogRemoveApprovedAddress(_address);
     }
 
     // Returns whether an address has been verified
     function isVerified(address _address) returns (bool) {
-        return approvedAddresses[_address];
+        return approved[_address];
     }
 
 }

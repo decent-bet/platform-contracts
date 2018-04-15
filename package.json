@@ -18,6 +18,7 @@
   "scripts": {
     "test": "truffle test",
     "test-house": "truffle test ./test/House.js",
-    "test-slots": "truffle test ./test/SlotsChannelManager.js"
+    "test-slots": "truffle test ./test/SlotsChannelManager.js",
+    "test-kyc": "truffle test ./test/KycManager.js"
   }
 }

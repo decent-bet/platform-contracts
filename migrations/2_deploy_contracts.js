@@ -85,6 +85,13 @@ let deploy = async (deployer, network) => {
             )
             token = await getContractInstanceAndInfo(DecentBetToken)
 
+            // Deploy the ECVerify Library
+            await deployer.deploy(ECVerify)
+
+            // Link the ECVerify Library to the KycManager contract
+            await deployer.link(ECVerify, KycManager)
+
+            await deployer.deploy(KycManager)
             kycManager = await getContractInstanceAndInfo(KycManager)
 
             // Deploy the House contract
@@ -133,9 +140,6 @@ let deploy = async (deployer, network) => {
             // Deploy the SportsOracle contract
             await deployer.deploy(SportsOracle, token.address)
             sportsOracle = await getContractInstanceAndInfo(SportsOracle)
-
-            // Deploy the ECVerify Library
-            await deployer.deploy(ECVerify)
 
             // Link the ECVerify Library to the SlotsChannelManager contract
             await deployer.link(ECVerify, SlotsChannelManager)
