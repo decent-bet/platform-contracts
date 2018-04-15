@@ -11,6 +11,9 @@ const constants = require('./utils/constants')
 let wallet
 let token
 let house
+let houseAuthorizedController
+let houseFundsController
+let houseSessionsController
 
 let slotsChannelManager
 let slotsChannelFinalizer
@@ -55,6 +58,9 @@ contract('SlotsChannelManager', accounts => {
         wallet = await contracts.MultiSigWallet.deployed()
         token = await contracts.DecentBetToken.deployed()
         house = await contracts.House.deployed()
+        houseAuthorizedController = await contracts.HouseAuthorizedController.deployed()
+        houseFundsController = await contracts.HouseFundsController.deployed()
+        houseSessionsController = await contracts.HouseSessionsController.deployed()
         bettingProvider = await contracts.BettingProvider.deployed()
         sportsOracle = await contracts.SportsOracle.deployed()
         slotsChannelManager = await contracts.SlotsChannelManager.deployed()
@@ -90,6 +96,7 @@ contract('SlotsChannelManager', accounts => {
         await token.approve(house.address, houseCreditsAmount, {
             from: founder
         })
+
         await house.purchaseCredits(houseCreditsAmount, { from: founder })
 
         // Deposit allocated tokens in the final week of session zero
@@ -117,7 +124,7 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(currentSession, 1, 'Invalid current session number')
 
         // Check if first offering is BettingProvider
-        let firstOffering = await house.offeringAddresses(0)
+        let firstOffering = await houseSessionsController.offeringAddresses(0)
         assert.equal(
             bettingProvider.address,
             firstOffering,
@@ -125,7 +132,7 @@ contract('SlotsChannelManager', accounts => {
         )
 
         // Check if second offering is SlotsChannelManager
-        let secondOffering = await house.offeringAddresses(1)
+        let secondOffering = await houseSessionsController.offeringAddresses(1)
         assert.equal(
             slotsChannelManager.address,
             secondOffering,
@@ -391,6 +398,11 @@ contract('SlotsChannelManager', accounts => {
                 currentSession
             )
 
+            let isAuthorized = await houseAuthorizedController.authorized(
+                founder
+            )
+            console.log('Activate channel - isAuthorized', isAuthorized)
+
             await slotsChannelManager.activateChannel.sendTransaction(
                 channelId,
                 initialHouseSeedHash,
@@ -476,7 +488,6 @@ contract('SlotsChannelManager', accounts => {
         )
 
         Object.keys(spin).forEach(async prop => {
-            console.log('Validate w/ invalid prop', prop)
             let _spin = JSON.parse(JSON.stringify(spin))
             _spin[prop] = 'a'
 
@@ -502,7 +513,6 @@ contract('SlotsChannelManager', accounts => {
                 )
             } catch (e) {
                 // Valid result
-                console.log('Thrown', e.message)
                 validated = false
             }
 
@@ -571,44 +581,46 @@ contract('SlotsChannelManager', accounts => {
 
         // Second spin
         validated = true
+
+        let numberOfSpins = utils.getRandomInt(5, 20)
         try {
-            // Max number of lines
-            let betSize = '5000000000000000000'
+            for (let i = 0; i < numberOfSpins; i++) {
+                // Max number of lines
+                let betSize = utils.getRandomBetSize()
 
-            // User spin
-            let spin = await handler.getSpin(
-                houseSpins,
-                nonce,
-                finalReelHash,
-                finalSeedHash,
-                userHashes,
-                initialDeposit,
-                betSize,
-                nonFounder,
-                constants.privateKeys.nonFounder
-            )
-            let encryptedSpin = AES.encrypt(
-                JSON.stringify(spin),
-                channelAesKey
-            ).toString()
+                // User spin
+                let spin = await handler.getSpin(
+                    houseSpins,
+                    nonce,
+                    finalReelHash,
+                    finalSeedHash,
+                    userHashes,
+                    initialDeposit,
+                    betSize,
+                    nonFounder,
+                    constants.privateKeys.nonFounder
+                )
+                let encryptedSpin = AES.encrypt(
+                    JSON.stringify(spin),
+                    channelAesKey
+                ).toString()
 
-            console.log('Spin', spin)
-
-            // Process spin as the house
-            await handler.processSpin(
-                channelId,
-                dbChannel,
-                founder,
-                userSpins,
-                houseSpins,
-                spins,
-                finalUserHash,
-                slotsChannelManager,
-                reelsAndHashes,
-                spin,
-                encryptedSpin
-            )
-            nonce++
+                // Process spin as the house
+                let lastHouseSpin = await handler.processSpin(
+                    channelId,
+                    dbChannel,
+                    founder,
+                    userSpins,
+                    houseSpins,
+                    spins,
+                    finalUserHash,
+                    slotsChannelManager,
+                    reelsAndHashes,
+                    spin,
+                    encryptedSpin
+                )
+                nonce++
+            }
         } catch (e) {
             // Valid result
             console.log('Thrown', e.message)
@@ -910,11 +922,7 @@ contract('SlotsChannelManager', accounts => {
         )
         userChannelBalance = userChannelBalance.toNumber()
 
-        assert.equal(
-            userChannelBalance,
-            0,
-            'Invalid user channel balance'
-        )
+        assert.equal(userChannelBalance, 0, 'Invalid user channel balance')
 
         let houseBalancePostClaim = await slotsChannelManager.balanceOf(
             slotsChannelManager.address,

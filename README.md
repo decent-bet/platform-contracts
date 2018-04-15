@@ -77,3 +77,37 @@ The Decent.bet platform currently supports the following contracts:
    & [platform-contracts-init](https://github.com/decent-bet/platform-contracts-init) directories.
 
 10. Run [the platform init scripts](https://github.com/decent-bet/platform-contracts-init) to get the platform contracts initialized to a state with session one started with a functional Sportsbook and Slots.
+
+## Running tests
+
+Tests for the House contract - particularly the HouseLotteryController child contract require the oraclize contract which requires [Ethereum Bridge](https://github.com/oraclize/ethereum-bridge) to be running on test networks. 
+
+### Setting up Ethereum Bridge
+
+* Clone the [Ethereum Bridge](https://github.com/oraclize/ethereum-bridge) repository
+* Run `npm install`
+* Run the bridge in active mode
+
+  ```
+  node bridge -H localhost:8545 -a 3
+  ```
+  
+### Available Tests
+
+* All tests
+
+  ```
+  yarn run test
+  ```
+
+* House contracts (Includes Authorized, Funds, Lottery and Sessions controller contracts)
+
+  ```
+  yarn run test-house
+  ```
+  
+* Slots channel manager contract
+
+  ```
+  yarn run test-slots
+  ```

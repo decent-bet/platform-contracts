@@ -1,8 +1,9 @@
 pragma solidity ^0.4.8;
 
 
-import '../Token/AbstractDecentBetToken.sol';
+import '../Token/ERC20.sol';
 import '../House/AbstractHouse.sol';
+import '../House/Controllers/Authorized/AbstractHouseAuthorizedController.sol';
 import './AbstractBettingProviderHelper.sol';
 import './AbstractSportsOracle.sol';
 import '../Libraries/SafeMath.sol';
@@ -14,11 +15,12 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     // Contracts
     AbstractBettingProviderHelper bettingProviderHelper;
 
-    AbstractDecentBetToken decentBetToken;
+    ERC20 decentBetToken;
 
     AbstractSportsOracle sportsOracle;
 
     AbstractHouse house;
+    AbstractHouseAuthorizedController houseAuthorizedController;
 
     // Structs
     struct GameOdds {
@@ -251,17 +253,18 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
     // Constructor.
     function BettingProvider(address decentBetTokenAddress,
-        address _houseAddress, address bettingProviderHelperAddress) {
-        if (decentBetTokenAddress == 0) throw;
-        if (_houseAddress == 0) throw;
-        if (bettingProviderHelperAddress == 0) throw;
+        address _houseAddress, address _houseAuthorizedControllerAddress, address bettingProviderHelperAddress) {
+        if (decentBetTokenAddress == 0) revert();
+        if (_houseAddress == 0) revert();
+        if (_houseAuthorizedControllerAddress == 0) revert();
+        if (bettingProviderHelperAddress == 0) revert();
         name = 'Betting Provider';
         isHouseOffering = true;
         houseAddress = _houseAddress;
-        decentBetToken = AbstractDecentBetToken(decentBetTokenAddress);
+        decentBetToken = ERC20(decentBetTokenAddress);
         house = AbstractHouse(houseAddress);
-        bettingProviderHelper =
-        AbstractBettingProviderHelper(bettingProviderHelperAddress);
+        houseAuthorizedController = AbstractHouseAuthorizedController(_houseAuthorizedControllerAddress);
+        bettingProviderHelper = AbstractBettingProviderHelper(bettingProviderHelperAddress);
 
         // If on local testRPC/testnet and need mock times
         isMock = true;
@@ -270,80 +273,86 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
     // Modifiers.
     modifier onlyHouse() {
-        if(houseAddress != msg.sender) throw;
+        if(houseAddress != msg.sender) revert();
         _;
     }
 
     modifier onlySportsOracle() {
-        if(sportsOracleAddress != msg.sender) throw;
+        if(sportsOracleAddress != msg.sender) revert();
         _;
     }
 
     modifier onlyAuthorized() {
-        if (house.authorized(msg.sender) == false) throw;
+        if (houseAuthorizedController.authorized(msg.sender) == false) revert();
+        _;
+    }
+
+    // Allows functions to be executed only if the house is in an emergency paused state
+    modifier isHouseEmergency() {
+        if(!house.emergencyPaused()) revert();
         _;
     }
 
     // Allows functions to execute only if users have "amount" dbets in their token contract balance.
     modifier isDbetsAvailable(uint amount) {
-        if(decentBetToken.balanceOf(msg.sender) < amount) throw;
+        if(decentBetToken.balanceOf(msg.sender) < amount) revert();
         _;
     }
 
     // Allows functions to execute only if users have "amount" tokens in their depositedTokens balance.
     modifier isTokensAvailable(uint amount) {
-        if (depositedTokens[msg.sender][currentSession] < amount) throw;
+        if (depositedTokens[msg.sender][currentSession] < amount) revert();
         _;
     }
 
     // Allows functions to execute only if game exists.
     modifier isValidGame(uint id) {
-        if (games[id].exists == false) throw;
+        if (games[id].exists == false) revert();
         _;
     }
 
     // Allows functions to execute only if current block timestamp is earlier than the cutoff block timestamp.
     modifier isBeforeGameCutoff(uint id) {
-        if (getTime() >= (games[id].cutOffTime)) throw;
+        if (getTime() >= (games[id].cutOffTime)) revert();
         _;
     }
 
     // Allows functions to execute only if a game is past end time.
     modifier isPastGameEndTime(uint id) {
-        if (getTime() < games[id].endTime) throw;
+        if (getTime() < games[id].endTime) revert();
         _;
     }
 
     // Allows functions to execute only if a game is past end time and is marked as ended.
     modifier isGameProfitsClaimable(uint id) {
         if (getTime() < games[id].endTime + RESULT_OFFSET_HOURS ||
-        !games[id].hasEnded) throw;
+        !games[id].hasEnded) revert();
         _;
     }
 
     // Allows functions to execute only if a bet has been placed.
     modifier isValidBet(uint gameId, uint betId) {
-        if (games[gameId].bettors[msg.sender].bets[betId].exists == false) throw;
+        if (games[gameId].bettors[msg.sender].bets[betId].exists == false) revert();
         _;
     }
 
     modifier isUnclaimedBet(uint gameId, uint betId, address bettor) {
         if(bettor == address(0x0))
             bettor = msg.sender;
-        if (games[gameId].bettors[bettor].bets[betId].claimed) throw;
+        if (games[gameId].bettors[bettor].bets[betId].claimed) revert();
         _;
     }
 
     // Allows function to execute only if the odds are valid.
     modifier isValidOdds(uint gameId, uint oddsId) {
-        if (!games[gameId].odds.odds[oddsId].exists) throw;
+        if (!games[gameId].odds.odds[oddsId].exists) revert();
         _;
     }
 
     // Allows functions to execute only if the session is prior or equal to current house session
     // and if session is not 0.
     modifier isValidPriorSession(uint session) {
-        if(session > currentSession || session == 0) throw;
+        if(session > currentSession || session == 0) revert();
         _;
     }
 
@@ -358,7 +367,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     // Requests a sports oracle to accept this provider.
     function requestSportsOracle(address _address) {
         AbstractSportsOracle _sportsOracle = AbstractSportsOracle(_address);
-        if(!_sportsOracle.requestProvider()) throw;
+        if(!_sportsOracle.requestProvider()) revert();
         LogNewOracleRequest(_address);
     }
 
@@ -373,14 +382,14 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     function houseDeposit(uint amount, uint session)
     onlyHouse returns (bool) {
         // House deposits are allowed only for this session or the next.
-        if(session != currentSession && session != currentSession + 1) return false;
+        if(session != currentSession && session != currentSession + 1) revert();
 
         // Record the total number of tokens deposited into the house.
         depositedTokens[address(this)][session] = safeAdd(depositedTokens[address(this)][session], amount);
         sessionStats[session].totalDeposited = safeAdd(sessionStats[session].totalDeposited, amount);
 
         // Transfer tokens from house to betting provider.
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
         LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
         return true;
@@ -390,8 +399,21 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     function withdrawPreviousSessionTokens()
     onlyHouse returns (bool) {
         uint previousSession = currentSession - 1;
-        if(depositedTokens[address(this)][previousSession] == 0) return false;
-        if(!decentBetToken.transfer(msg.sender, depositedTokens[address(this)][previousSession])) return false;
+        if(depositedTokens[address(this)][previousSession] == 0) revert();
+        uint previousSessionTokens = depositedTokens[address(this)][previousSession];
+        depositedTokens[address(this)][previousSession] = 0;
+        if(!decentBetToken.transfer(msg.sender, previousSessionTokens)) revert();
+        return true;
+    }
+
+    // Allows house to withdraw current session tokens if the house is in an emergency pause state.
+    function emergencyWithdrawCurrentSessionTokens()
+    onlyHouse
+    isHouseEmergency returns (bool) {
+        if(depositedTokens[address(this)][currentSession] == 0) revert();
+        uint currentSessionTokens = depositedTokens[address(this)][currentSession];
+        depositedTokens[address(this)][currentSession] = 0;
+        if(!decentBetToken.transfer(msg.sender, currentSessionTokens)) revert();
         return true;
     }
 
@@ -401,7 +423,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     isDbetsAvailable(amount) returns (bool) {
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) return false;
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
         LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
@@ -411,7 +433,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     isValidPriorSession(session)
     isTokensAvailable(amount) returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
-        if(!decentBetToken.transfer(msg.sender, amount)) return false;
+        if(!decentBetToken.transfer(msg.sender, amount)) revert();
         LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }
@@ -432,11 +454,11 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     function addGame(uint oracleGameId, uint cutOffTime, uint endTime)
     onlyAuthorized {
         // Games count serves as ID for each game pushed to the provider
-        if(!sportsOracle.addProviderGameToUpdate(oracleGameId, gamesCount)) throw;
+        if(!sportsOracle.addProviderGameToUpdate(oracleGameId, gamesCount)) revert();
         // Do not allow when session is 0
-        if(currentSession == 0) throw;
+        if(currentSession == 0) revert();
         // Games can only be added if they are a minimum of 4 hours in the future
-        if(cutOffTime < getTime() + 4 hours) throw;
+        if(cutOffTime < getTime() + 4 hours) revert();
 
         games[gamesCount] = Game({
             session: currentSession,
@@ -483,7 +505,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     onlyAuthorized
     isValidGame(id)
     isBeforeGameCutoff(id) {
-        if(handicap % 25 != 0) throw;
+        if(handicap % 25 != 0) revert();
         Odds memory odds = Odds({
             betType: betType,
             refId: refId,
@@ -554,12 +576,12 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
         // Odds sent in function call were different from that on contract.
         // Don't allow function call to continue.
-        if (games[gameId].odds.odds[oddsId].betType != betType) throw;
+        if (games[gameId].odds.odds[oddsId].betType != betType) revert();
 
-        if(!isValidNewBet(gameId, oddsId, betType, amount)) throw;
+        if(!isValidNewBet(gameId, oddsId, betType, amount)) revert();
 
         // Game must be from current session.
-        if(games[gameId].session != currentSession) throw;
+        if(games[gameId].session != currentSession) revert();
 
         games[gameId].betAmount = safeAdd(games[gameId].betAmount, amount);
         games[gameId].betCount = safeAdd(games[gameId].betCount, 1);
@@ -644,7 +666,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
         // Assisted claims can be made only after offset time.
         // have been passed from endTime.
-        if(bettor != msg.sender && getTime() <= games[gameId].endTime + ASSISTED_CLAIM_TIME_OFFSET) throw;
+        if(bettor != msg.sender && getTime() <= games[gameId].endTime + ASSISTED_CLAIM_TIME_OFFSET) revert();
 
         uint betReturns = getBetReturns(gameId, betId, bettor);
         uint betSession = games[gameId].bettors[bettor].bets[betId].session;
@@ -728,7 +750,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
             }
 
         } else {
-            throw;
+            revert();
         }
     }
 
@@ -864,7 +886,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
     // Don't allow ETH to be sent to this contract
     function() {
-        throw;
+        revert();
     }
 
 }

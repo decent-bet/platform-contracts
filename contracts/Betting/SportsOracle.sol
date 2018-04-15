@@ -1,6 +1,6 @@
 pragma solidity ^0.4.11;
 
-import '../Token/AbstractDecentBetToken.sol';
+import '../Token/ERC20.sol';
 import './AbstractBettingProvider.sol';
 import '../Libraries/SafeMath.sol';
 import '../Libraries/TimeProvider.sol';
@@ -8,7 +8,7 @@ import '../Libraries/TimeProvider.sol';
 contract SportsOracle is SafeMath, TimeProvider {
 
     //Contracts
-    AbstractDecentBetToken decentBetToken;
+    ERC20 decentBetToken;
 
     // Variables
 
@@ -142,7 +142,7 @@ contract SportsOracle is SafeMath, TimeProvider {
     function SportsOracle(address decentBetTokenAddress) {
         owner = msg.sender;
         addAuthorizedAddress(msg.sender);
-        decentBetToken = AbstractDecentBetToken(decentBetTokenAddress);
+        decentBetToken = ERC20(decentBetTokenAddress);
 
         // If on local testRPC/testnet and need mock times
         isMock = true;
