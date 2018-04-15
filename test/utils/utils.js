@@ -1,7 +1,13 @@
 // taken/borrowed from ROSCA/WeTrust https://github.com/WeTrustPlatform/rosca-contracts/blob/b72ee795d2a73b5fda76b7015720b6ea5f8c8804/test/utils/utils.js
 // thanks!
 let Web3 = require('web3')
-let web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
+let web3 = new Web3(
+    new Web3.providers.HttpProvider(
+        'http://' +
+            (process.env.NODE_ENV === 'docker' ? 'ganache-cli' : 'localhost') +
+            ':8545'
+    )
+)
 const BigNumber = require('bignumber.js')
 
 let assert = require('chai').assert
