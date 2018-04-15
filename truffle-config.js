@@ -13,7 +13,8 @@ const network = process.env.NETWORK
 const NON_DOCKER_NODE_URL   = 'http://localhost:8545'
 const DOCKER_NODE_URL       = 'http://ganache-cli:8545'
 
-const LOCAL_NODE_URL = process.env.NODE_ENV === 'docker' ? DOCKER_NODE_URL : NON_DOCKER_NODE_URL
+const IS_DOCKER = process.env.NODE_ENV === 'docker'
+const LOCAL_NODE_URL = IS_DOCKER ? DOCKER_NODE_URL : NON_DOCKER_NODE_URL
 
 const networkUrl =
     network === NETWORK_DEVELOPMENT
@@ -39,7 +40,7 @@ module.exports = {
     migrations_directory: './migrations',
     networks: {
         development: {
-            host: 'localhost',
+            host: IS_DOCKER ? 'ganache-cli' : 'localhost',
             port: 8545,
             network_id: '*', // Match any network id,
             from: provider.address,
