@@ -14,7 +14,7 @@ contract HouseAuthorizedController {
     mapping (address => bool) public authorized;
 
     function HouseAuthorizedController(address _house) {
-        if(_house == 0x0) revert();
+        require(_house != 0x0);
         house = House(_house);
         addToAuthorizedAddresses(house.founder());
     }
@@ -22,12 +22,12 @@ contract HouseAuthorizedController {
     // Modifiers
     // Allows functions to execute only if the house contract sent the transaction.
     modifier onlyHouse() {
-        if(msg.sender != address(house)) revert();
+        require(msg.sender == address(house));
         _;
     }
 
     modifier onlyFounder() {
-        if(msg.sender != house.founder()) revert();
+        require(msg.sender == house.founder());
         _;
     }
 
@@ -42,8 +42,8 @@ contract HouseAuthorizedController {
     // Removes an address from the list of authorized addresses.
     function removeFromAuthorizedAddresses(address _address)
     onlyFounder returns (bool) {
-        if(_address == msg.sender) revert();
-        if (authorized[_address] == false) revert();
+        require(_address != msg.sender);
+        require(authorized[_address]);
         for (uint i = 0; i < authorizedAddresses.length; i++) {
             if (authorizedAddresses[i] == _address) {
                 delete authorizedAddresses[i];

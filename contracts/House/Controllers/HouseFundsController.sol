@@ -53,7 +53,7 @@ contract HouseFundsController is SafeMath {
 
     // Constructor
     function HouseFundsController(address _house){
-        if(_house == 0x0) revert();
+        require(_house != 0x0);
         house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());
     }
@@ -61,25 +61,25 @@ contract HouseFundsController is SafeMath {
     // Modifiers
     // Allows functions to execute only if the house contract sent the transaction.
     modifier onlyHouse() {
-        if(msg.sender != address(house)) revert();
+        require(msg.sender == address(house));
         _;
     }
 
     // Allows functions to execute only if users have "amount" credits available for "session".
     modifier areCreditsAvailable(address _address, uint session, uint amount) {
-        if (houseFunds[session].userCredits[_address].amount < amount) revert();
+        require(houseFunds[session].userCredits[_address].amount >= amount);
         _;
     }
 
     // Allows functions to execute only if users have "amount" tokens in their balance.
     modifier areTokensAvailable(address _address, uint amount) {
-        if (decentBetToken.balanceOf(_address) < amount) revert();
+        require(decentBetToken.balanceOf(_address) >= amount);
         _;
     }
 
     // Allows functions to execute only if rolled over credits from the previous session are available.
     modifier areRolledOverCreditsAvailable(address _address) {
-        if (houseFunds[house.currentSession()].userCredits[_address].rolledOverFromPreviousSession == 0) revert();
+        require(houseFunds[house.currentSession()].userCredits[_address].rolledOverFromPreviousSession > 0);
         _;
     }
 
@@ -91,8 +91,8 @@ contract HouseFundsController is SafeMath {
     onlyHouse returns (uint)
     {
         // The minimum credit purchase needs to be 1000 DBETs
-        if(amount < MIN_CREDIT_PURCHASE) revert();
-        if(decentBetToken.allowance(_address, address(house)) < amount) revert();
+        require(amount >= MIN_CREDIT_PURCHASE);
+        require(decentBetToken.allowance(_address, address(house)) >= amount);
 
         // Issue credits to user equivalent to amount transferred.
         uint nextSession = safeAdd(house.currentSession(), 1);
@@ -123,7 +123,7 @@ contract HouseFundsController is SafeMath {
     areCreditsAvailable(_address, house.currentSession(), amount)
     onlyHouse returns (bool) {
         uint currentSession = house.currentSession();
-        if (currentSession == 0) revert();
+        require(currentSession > 0);
 
         // Payout and current session variables.
         uint available = houseFunds[currentSession].userCredits[_address].amount;
@@ -149,7 +149,7 @@ contract HouseFundsController is SafeMath {
 
     // Allows users to return credits and receive tokens along with profit in return.
     function liquidateCredits(address _address, uint session) onlyHouse returns (uint, uint) {
-        if(houseFunds[session].userCredits[_address].amount == 0) revert();
+        require(houseFunds[session].userCredits[_address].amount > 0);
 
         // Payout variables
         uint payoutPerCredit = getPayoutPerCredit(session);
@@ -287,7 +287,7 @@ contract HouseFundsController is SafeMath {
     // Allows users to withdraw their funds if the house is in an emergencyPaused state.
     function emergencyWithdraw(address _address) onlyHouse returns (uint, uint) {
         uint session = house.currentSession();
-        if(houseFunds[session].userCredits[_address].amount == 0) revert();
+        require(houseFunds[session].userCredits[_address].amount > 0);
 
         // Payout variables
         uint payoutPerCredit = getPayoutPerCredit(session);

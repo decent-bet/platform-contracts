@@ -97,7 +97,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
         if (session == 0 || session <= currentSession) throw;
 
         // Should only work if the winning number has not been finalized.
-        if(isLotteryFinalized(session)) revert();
+        require(!isLotteryFinalized(session));
 
         // This is where currentSession is initialized in the contract.
         // It will only be set when the house would like to pick a winner for a session
@@ -122,7 +122,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
 
     function __callback(bytes32 myid, string _result) {
         callback("callback received");
-        if (msg.sender != oraclize_cbAddress()) revert();
+        require(msg.sender == oraclize_cbAddress());
         uint number = parseOraclizeResult(_result);
         uint previousSession = currentSession - 1;
         uint randomNumber = randomInRange(number, lotteries[previousSession].ticketCount);
@@ -154,11 +154,11 @@ contract HouseLotteryController is SafeMath, usingOraclize {
 
     function updateLotteryPayout(uint session, address sender, uint payout) onlyHouse external returns (bool) {
         // Should only work after the winning number has been finalized.
-        if(!isLotteryFinalized(session)) revert();
+        require(isLotteryFinalized(session));
         // Should not work if the winnings have already been claimed.
-        if(isLotteryClaimed(session)) revert();
+        require(!isLotteryClaimed(session));
         // Only holder of the winning ticket can withdraw.
-        if(getLotteryWinner(session) != sender) revert();
+        require(getLotteryWinner(session) == sender);
 
         lotteries[session].payout = payout;
         lotteries[session].claimed = true;
@@ -189,7 +189,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     }
 
     function getLotteryWinner(uint session) constant returns (address) {
-        if (!lotteries[session].finalized) revert();
+        require(lotteries[session].finalized);
         return lotteryTicketHolders[session][lotteries[session].winningTicket];
     }
 
