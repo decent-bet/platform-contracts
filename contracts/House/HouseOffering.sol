@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 // HouseOffering interface, allowing games/sports betting contracts etc. to be added to the house and
 // essentially allow the house to deposit/withdraw for sessions.

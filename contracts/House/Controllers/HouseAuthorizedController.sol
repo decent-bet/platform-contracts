@@ -1,11 +1,11 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
-import '../../AbstractHouse.sol';
+import '../House.sol';
 
 contract HouseAuthorizedController {
 
     // Variables
-    AbstractHouse public house;
+    House public house;
 
     address[] public authorizedAddresses;
     bool public isHouseAuthorizedController = true;
@@ -15,7 +15,7 @@ contract HouseAuthorizedController {
 
     function HouseAuthorizedController(address _house) {
         if(_house == 0x0) revert();
-        house = AbstractHouse(_house);
+        house = House(_house);
         addToAuthorizedAddresses(house.founder());
     }
 

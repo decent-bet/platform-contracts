@@ -1,10 +1,10 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
-import '../../HouseOffering.sol';
+import '../HouseOffering.sol';
 
-import '../../AbstractHouse.sol';
-import '../../../Token/ERC20.sol';
-import '../../../Libraries/SafeMath.sol';
+import '../House.sol';
+import '../../Token/ERC20.sol';
+import '../../Libraries/SafeMath.sol';
 
 // All functionality related to house sessions and offerings reside here.
 // House sessions records are saved here to decouple the record keeping from the House contract to reduce gas costs on deployment.
@@ -41,7 +41,7 @@ contract HouseSessionsController is SafeMath {
     }
 
     // Variables
-    AbstractHouse house;
+    House house;
     ERC20 public decentBetToken;
     address[] public offeringAddresses;
 
@@ -56,7 +56,7 @@ contract HouseSessionsController is SafeMath {
 
     function HouseSessionsController(address _house){
         if(_house == 0x0) revert();
-        house = AbstractHouse(_house);
+        house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());
     }
 
@@ -147,7 +147,7 @@ contract HouseSessionsController is SafeMath {
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     isValidHouseOffering(houseOffering)
-    onlyHouse {
+    onlyHouse returns (bool) {
 
         uint nextSession = house.currentSession() + 1;
 
@@ -162,6 +162,8 @@ contract HouseSessionsController is SafeMath {
         sessions[nextSession].offeringTokenAllocations[houseOffering].allocation = percentage;
         sessions[nextSession].totalTokensAllocated =
         safeSub(safeAdd(sessions[nextSession].totalTokensAllocated, percentage), previousAllocation);
+
+        return true;
     }
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)

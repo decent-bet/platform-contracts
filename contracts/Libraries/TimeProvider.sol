@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 // Provides time for contracts that can be toggled to a mock time on TestRPC/local networks and the current
 // block timestamp on testnet/mainnet.

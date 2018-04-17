@@ -1,9 +1,9 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 
 import './SlotsImplementation.sol';
-import './AbstractSlotsChannelManager.sol';
-import './AbstractSlotsHelper.sol';
+import './SlotsChannelManager.sol';
+import './SlotsHelper.sol';
 
 import '../../Libraries/SafeMath.sol';
 import '../../Libraries/strings.sol';
@@ -24,8 +24,8 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     // Number of lines
     uint constant NUMBER_OF_LINES = 5;
 
-    AbstractSlotsChannelManager slotsChannelManager;
-    AbstractSlotsHelper slotsHelper;
+    SlotsChannelManager slotsChannelManager;
+    SlotsHelper slotsHelper;
 
     modifier onlyOwner() {
         if(msg.sender != owner) revert();
@@ -39,11 +39,11 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     function SlotsChannelFinalizer(address _slotsHelper) {
         owner = msg.sender;
-        slotsHelper = AbstractSlotsHelper(_slotsHelper);
+        slotsHelper = SlotsHelper(_slotsHelper);
     }
 
     function setSlotsChannelManager(address _slotsChannelManager) onlyOwner {
-        slotsChannelManager = AbstractSlotsChannelManager(_slotsChannelManager);
+        slotsChannelManager = SlotsChannelManager(_slotsChannelManager);
     }
 
     // Check reel array for winning lines (Currently 5 lines)

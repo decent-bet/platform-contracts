@@ -1,11 +1,11 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 import './SlotsImplementation.sol';
-import './AbstractSlotsHelper.sol';
+import './SlotsHelper.sol';
 import '../../Token/ERC20.sol';
-import '../../House/AbstractHouse.sol';
-import '../../House/Controllers/Authorized/AbstractHouseAuthorizedController.sol';
-import '../../House/Controllers/Sessions/AbstractHouseSessionsController.sol';
+import '../../House/House.sol';
+import '../../House/Controllers/HouseAuthorizedController.sol';
+import '../../House/Controllers/HouseSessionsController.sol';
 import '../../House/HouseOffering.sol';
 
 import '../../Libraries/ECVerify.sol';
@@ -48,13 +48,10 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     /* Contracts */
     ERC20 decentBetToken;
 
-    AbstractHouse house;
-
-    AbstractHouseAuthorizedController houseAuthorizedController;
-
-    AbstractHouseSessionsController houseSessionsController;
-
-    AbstractSlotsHelper slotsHelper;
+    House house;
+    HouseAuthorizedController houseAuthorizedController;
+    HouseSessionsController houseSessionsController;
+    SlotsHelper slotsHelper;
 
     /* Mappings */
 
@@ -101,7 +98,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
         houseAddress = _house;
         decentBetToken = ERC20(_token);
-        house = AbstractHouse(_house);
+        house = House(_house);
 
         address houseAuthorizedControllerAddress;
         address houseSessionsControllerAddress;
@@ -111,10 +108,10 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         if(houseAuthorizedControllerAddress == 0) revert();
         if(houseSessionsControllerAddress == 0) revert();
 
-        houseAuthorizedController = AbstractHouseAuthorizedController(houseAuthorizedControllerAddress);
-        houseSessionsController   = AbstractHouseSessionsController(houseSessionsControllerAddress);
+        houseAuthorizedController = HouseAuthorizedController(houseAuthorizedControllerAddress);
+        houseSessionsController   = HouseSessionsController(houseSessionsControllerAddress);
 
-        slotsHelper = AbstractSlotsHelper(_slotsHelper);
+        slotsHelper = SlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
         if(!slotsHelper.isSlotsHelper()) revert();
         name = 'Slots Channel Manager';

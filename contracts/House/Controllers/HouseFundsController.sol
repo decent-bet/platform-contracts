@@ -1,8 +1,8 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
-import '../../AbstractHouse.sol';
-import '../../../Token/ERC20.sol';
-import '../../../Libraries/SafeMath.sol';
+import '../House.sol';
+import '../../Token/ERC20.sol';
+import '../../Libraries/SafeMath.sol';
 
 // All functionality related to house funds reside here.
 // House fund records are saved here to decouple the record keeping from the House contract to reduce gas costs on deployment.
@@ -40,7 +40,7 @@ contract HouseFundsController is SafeMath {
     }
 
     // Variables
-    AbstractHouse house;
+    House house;
     ERC20 public decentBetToken;
 
     bool public isHouseFundsController = true;
@@ -54,7 +54,7 @@ contract HouseFundsController is SafeMath {
     // Constructor
     function HouseFundsController(address _house){
         if(_house == 0x0) revert();
-        house = AbstractHouse(_house);
+        house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());
     }
 
@@ -324,6 +324,10 @@ contract HouseFundsController is SafeMath {
         houseFunds[session].userCredits[_address].claimedFromPreviousSession,
         houseFunds[session].totalFunds,
         houseFunds[session].totalUserCredits);
+    }
+
+    function getProfitForSession(uint session) constant returns (int) {
+        return houseFunds[session].profit;
     }
 
     // Returns a user address for a session.

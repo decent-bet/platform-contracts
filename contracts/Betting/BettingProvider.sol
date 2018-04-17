@@ -1,11 +1,11 @@
-pragma solidity ^0.4.8;
+pragma solidity ^0.4.19;
 
 
 import '../Token/ERC20.sol';
-import '../House/AbstractHouse.sol';
-import '../House/Controllers/Authorized/AbstractHouseAuthorizedController.sol';
-import './AbstractBettingProviderHelper.sol';
-import './AbstractSportsOracle.sol';
+import '../House/House.sol';
+import '../House/Controllers/HouseAuthorizedController.sol';
+import './BettingProviderHelper.sol';
+import './SportsOracle.sol';
 import '../Libraries/SafeMath.sol';
 import '../Libraries/TimeProvider.sol';
 import '../House/HouseOffering.sol';
@@ -13,14 +13,14 @@ import '../House/HouseOffering.sol';
 contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
     // Contracts
-    AbstractBettingProviderHelper bettingProviderHelper;
+    BettingProviderHelper bettingProviderHelper;
 
     ERC20 decentBetToken;
 
-    AbstractSportsOracle sportsOracle;
+    SportsOracle sportsOracle;
 
-    AbstractHouse house;
-    AbstractHouseAuthorizedController houseAuthorizedController;
+    House house;
+    HouseAuthorizedController houseAuthorizedController;
 
     // Structs
     struct GameOdds {
@@ -262,9 +262,9 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         isHouseOffering = true;
         houseAddress = _houseAddress;
         decentBetToken = ERC20(decentBetTokenAddress);
-        house = AbstractHouse(houseAddress);
-        houseAuthorizedController = AbstractHouseAuthorizedController(_houseAuthorizedControllerAddress);
-        bettingProviderHelper = AbstractBettingProviderHelper(bettingProviderHelperAddress);
+        house = House(houseAddress);
+        houseAuthorizedController = HouseAuthorizedController(_houseAuthorizedControllerAddress);
+        bettingProviderHelper = BettingProviderHelper(bettingProviderHelperAddress);
 
         // If on local testRPC/testnet and need mock times
         isMock = true;
@@ -366,7 +366,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
     // Requests a sports oracle to accept this provider.
     function requestSportsOracle(address _address) {
-        AbstractSportsOracle _sportsOracle = AbstractSportsOracle(_address);
+        SportsOracle _sportsOracle = SportsOracle(_address);
         if(!_sportsOracle.requestProvider()) revert();
         LogNewOracleRequest(_address);
     }
@@ -375,7 +375,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     function setSportsOracle(address _address)
     onlyAuthorized returns (bool) {
         sportsOracleAddress = _address;
-        sportsOracle = AbstractSportsOracle(_address);
+        sportsOracle = SportsOracle(_address);
     }
 
     // Allows the house to add funds to the provider for this session or the next.

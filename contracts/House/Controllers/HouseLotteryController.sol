@@ -1,11 +1,10 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 
-import '../../AbstractHouse.sol';
-import '../../HouseOffering.sol';
-import '../../../Libraries/SafeMath.sol';
-import '../../../Token/ERC20.sol';
-import '../../../Libraries/oraclizeAPI.sol';
+import '../HouseOffering.sol';
+import '../../Libraries/SafeMath.sol';
+import '../../Token/ERC20.sol';
+import '../../Libraries/oraclizeAPI.sol';
 
 contract HouseLotteryController is SafeMath, usingOraclize {
 
