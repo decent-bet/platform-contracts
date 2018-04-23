@@ -118,7 +118,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         isHouseOffering = true;
 
         // If on local testRPC/testnet and need mock times
-        isMock = false;
+        isMock = true;
         setTimeController(msg.sender);
     }
 
