@@ -120,12 +120,17 @@ module.exports = {
     getRandomBetSize: function() {
         return new BigNumber(this.getRandomInt(1, 5))
             .times(this.getEthInWei())
+            .times(this.getRandomBetSizeMultiplier())
             .toFixed(0)
     },
     getRandomCreditsToPurchase: function() {
         return new BigNumber(this.getRandomInt(1000, 5000))
             .times(this.getEthInWei())
             .toFixed(0)
+    },
+    getRandomBetSizeMultiplier: function() {
+        const multipliers = [1, 0.1, 0.01]
+        return multipliers[this.getRandomInt(0, 2)]
     },
     getEthInWei: function() {
         return new BigNumber(10).exponentiatedBy(18).toFixed(0)

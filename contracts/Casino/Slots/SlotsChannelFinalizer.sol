@@ -105,14 +105,17 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
             if (!compareReelHashes(curr, prior)) return false;
             // 103k gas
 
-            // Bet size can be only upto maximum number of lines
-            if (prior.betSize > 5 ether || prior.betSize == 0) return false;
+            // Bet size can be only up to maximum number of lines
+            if(!slotsHelper.isValidBetSize(prior.betSize)) return false;
             return true;
         }
         else {
             // During the house's turn, the spin would have the user hash sent by the player
 
-            //32k gas for all conditions
+            // 32k gas for all conditions
+
+            // Bet size can be only upto maximum number of lines
+            if(!slotsHelper.isValidBetSize(curr.betSize)) return false;
 
             // Bet size needs to be determined by the user, not house
             if (curr.betSize != prior.betSize) return false;

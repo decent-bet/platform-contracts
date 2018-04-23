@@ -349,17 +349,15 @@ let processSpin = async (
     }
 
     /**
-     * Validate whether the betSize is between the minimum and maximum betSize
+     * Validate whether the betSize is between the minimum and maximum betSizes.
+     * Valid betsizes are:
+     * 0.01 - 0.05 ETH
+     * 0.1  - 0.5  ETH
+     * 1    - 5    ETH
      * @returns {*}
      */
     let validateBetSize = () => {
-        let betSize = new BigNumber(spin.betSize)
-        const maxBet = utils.getWeb3().utils.toWei('5', 'ether')
-        const minBet = utils.getWeb3().utils.toWei('0.01', 'ether')
-        return (
-            betSize.isLessThanOrEqualTo(maxBet) ||
-            betSize.isGreaterThanOrEqualTo(minBet)
-        )
+        return _getAdjustedBetSize(spin.betSize) !== 0
     }
 
     /**
@@ -405,12 +403,11 @@ let processSpin = async (
                 spin.reelSeedHash
             )
                 return false
-            else if (
-                reelSeedHashes[reelSeedHashes.length - spin.nonce] !==
-                spin.prevReelSeedHash
-            )
-                return false
-            else return true
+            else
+                return (
+                    reelSeedHashes[reelSeedHashes.length - spin.nonce] ===
+                    spin.prevReelSeedHash
+                )
         } else {
             if (SHA256(spin.prevUserHash).toString() !== spin.userHash)
                 return false
@@ -418,14 +415,11 @@ let processSpin = async (
                 reelHashes[reelHashes.length - spin.nonce] !== spin.reelHash
             )
                 return false
-            else if (
-                reelSeedHashes[reelSeedHashes.length - spin.nonce] !==
-                spin.reelSeedHash
-            )
-                return false
-            else {
-                return true
-            }
+            else
+                return (
+                    reelSeedHashes[reelSeedHashes.length - spin.nonce] ===
+                    spin.reelSeedHash
+                )
         }
     }
 
@@ -619,7 +613,7 @@ const _getTightlyPackedSpin = spin => {
  * @returns {number}
  */
 const _calculateReelPayout = (reel, betSize) => {
-    betSize = utils.getWeb3().utils.fromWei(betSize.toString(), 'ether')
+    let adjustedBetSize = _getAdjustedBetSize(betSize)
     let isValid = true
     for (let i = 0; i < reel.length; i++) {
         if (reel[i] > 20) {
@@ -630,9 +624,30 @@ const _calculateReelPayout = (reel, betSize) => {
     if (!isValid) return 0
     let lines = _getLines(reel)
     let totalReward = 0
-    for (let i = 0; i < betSize; i++)
+    for (let i = 0; i < adjustedBetSize; i++)
         totalReward += _getLineRewardMultiplier(lines[i])
     return totalReward
+}
+
+const _getAdjustedBetSize = betSize => {
+    let ethBetSize = new BigNumber(betSize)
+        .dividedBy(utils.getEthInWei())
+        .toNumber()
+    let tenthEthBetSize = new BigNumber(betSize)
+        .dividedBy(utils.getEthInWei())
+        .multipliedBy(10)
+        .toNumber()
+    let hundredthEthBetSize = new BigNumber(betSize)
+        .dividedBy(utils.getEthInWei())
+        .multipliedBy(100)
+        .toNumber()
+
+    if (ethBetSize <= 5 && ethBetSize >= 1) return ethBetSize
+    else if (tenthEthBetSize <= 5 && tenthEthBetSize >= 1)
+        return tenthEthBetSize
+    else if (hundredthEthBetSize <= 5 && hundredthEthBetSize >= 1)
+        return hundredthEthBetSize
+    else return 0
 }
 
 /**

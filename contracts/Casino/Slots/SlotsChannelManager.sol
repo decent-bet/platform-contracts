@@ -23,11 +23,11 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     /* Slot specific */
 
-    // 100 DBETs minimum deposit. Minimum 20 spins (@ 5 DBETs per spin), Maximum 100 spins (@1 DBET per spin)
-    uint constant MIN_DEPOSIT = 100 ether;
+    // 5 DBETs minimum deposit. Minimum 1 spin (@ 5 DBETs per spin), Maximum 500 spins (@0.01 DBET per spin)
+    uint constant MIN_DEPOSIT = 5 ether;
 
-    // 1000 DBETs maximum deposit. Minimum 200 spins (@ 5 DBETs per spin), Maximum 1000 spins (@1 DBET per spin)
-    uint constant MAX_DEPOSIT = 1000 ether;
+    // 5000 DBETs maximum deposit. Minimum 1000 spins (@ 5 DBETs per spin), Maximum 500000 spins (@0.01 DBET per spin)
+    uint constant MAX_DEPOSIT = 5000 ether;
 
     /* END */
 
@@ -118,7 +118,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         isHouseOffering = true;
 
         // If on local testRPC/testnet and need mock times
-        isMock = true;
+        isMock = false;
         setTimeController(msg.sender);
     }
 
@@ -368,7 +368,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         finalBalances[id][true] = houseBalance;
         channels[id].finalNonce = nonce;
         channels[id].finalTurn = turn;
-        channels[id].endTime = getTime() + 24 hours;
+        channels[id].endTime = getTime() + 1 minutes;
         // Set at 1 minute only for Testnet
         if (!channels[id].finalized) channels[id].finalized = true;
         LogChannelFinalized(id, turn);
