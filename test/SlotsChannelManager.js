@@ -213,7 +213,7 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows users from creating channels out of hardcoded initial deposit range', async () => {
         let outOfHigherRange = '1001000000000000000000'
-        let outOfLowerRange = '9900000000000000000'
+        let outOfLowerRange = '4900000000000000000'
 
         await utils.assertFail(
             slotsChannelManager.createChannel.sendTransaction(
