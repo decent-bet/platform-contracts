@@ -10,14 +10,18 @@ const mnemonic = process.env.MNEMONIC
 const infuraKey = process.env.INFURA_KEY
 const network = process.env.NETWORK
 
+const IS_DOCKER = process.env.NODE_ENV === 'docker'
+const HOST = IS_DOCKER ? 'ganache-cli' : 'localhost'
+const LOCAL_NODE_URL = 'http://' + HOST + ':8545'
+
 const networkUrl =
     network === NETWORK_DEVELOPMENT
-        ? 'http://localhost:8545'
+        ? LOCAL_NODE_URL
         : network === NETWORK_RINKEBY
             ? 'https://rinkeby.infura.io/' + infuraKey
             : network === NETWORK_MAINNET
                 ? 'https://mainnet.infura.io/' + infuraKey
-                : 'http://localhost:8545'
+                : LOCAL_NODE_URL
 
 console.log('Network url', networkUrl, network)
 
@@ -34,7 +38,7 @@ module.exports = {
     migrations_directory: './migrations',
     networks: {
         development: {
-            host: 'localhost',
+            host: HOST,
             port: 8545,
             network_id: '*', // Match any network id,
             from: provider.address,

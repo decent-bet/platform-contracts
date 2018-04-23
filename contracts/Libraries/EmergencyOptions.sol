@@ -1,4 +1,4 @@
-pragma solidity ^0.4.8;
+pragma solidity ^0.4.19;
 
 // Adds emergency features to parent contracts
 contract EmergencyOptions {
@@ -8,22 +8,22 @@ contract EmergencyOptions {
     bool public emergencyWithdrawalsEnabled;
 
     modifier isEmergencyPaused() {
-        if(!emergencyPaused) revert();
+        require(emergencyPaused);
         _;
     }
 
     modifier isNotEmergencyPaused() {
-        if(emergencyPaused) revert();
+        require(!emergencyPaused);
         _;
     }
 
     modifier isEmergencyWithdrawalsEnabled() {
-        if(!emergencyWithdrawalsEnabled) revert();
+        require(emergencyWithdrawalsEnabled);
         _;
     }
 
     modifier onlyEmergencyController() {
-        if(msg.sender != emergencyController) revert();
+        require(msg.sender == emergencyController);
         _;
     }
 

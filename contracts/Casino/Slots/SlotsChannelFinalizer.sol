@@ -1,9 +1,9 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 
 import './SlotsImplementation.sol';
-import './AbstractSlotsChannelManager.sol';
-import './AbstractSlotsHelper.sol';
+import './SlotsChannelManager.sol';
+import './SlotsHelper.sol';
 
 import '../../Libraries/SafeMath.sol';
 import '../../Libraries/strings.sol';
@@ -24,26 +24,26 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     // Number of lines
     uint constant NUMBER_OF_LINES = 5;
 
-    AbstractSlotsChannelManager slotsChannelManager;
-    AbstractSlotsHelper slotsHelper;
+    SlotsChannelManager slotsChannelManager;
+    SlotsHelper slotsHelper;
 
     modifier onlyOwner() {
-        if(msg.sender != owner) revert();
+        require(msg.sender == owner);
         _;
     }
 
     modifier isSlotsChannelManagerSet() {
-        if(address(slotsChannelManager) == 0x0) revert();
+        require(address(slotsChannelManager) != 0x0);
         _;
     }
 
     function SlotsChannelFinalizer(address _slotsHelper) {
         owner = msg.sender;
-        slotsHelper = AbstractSlotsHelper(_slotsHelper);
+        slotsHelper = SlotsHelper(_slotsHelper);
     }
 
     function setSlotsChannelManager(address _slotsChannelManager) onlyOwner {
-        slotsChannelManager = AbstractSlotsChannelManager(_slotsChannelManager);
+        slotsChannelManager = SlotsChannelManager(_slotsChannelManager);
     }
 
     // Check reel array for winning lines (Currently 5 lines)
@@ -156,7 +156,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     bytes32 currR, bytes32 currS, bytes32 priorR, bytes32 priorS)
     isSlotsChannelManagerSet returns (bool) {
 
-        if (!slotsChannelManager.isParticipant(id, msg.sender)) revert();
+        require(slotsChannelManager.isParticipant(id, msg.sender));
 
         Spin memory curr = convertSpin(_curr);
         // 5.6k gas
@@ -170,18 +170,17 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
         uint totalSpinReward = getTotalSpinReward(prior);
 
-        if (!isAccurateBalances(curr, prior, totalSpinReward)) revert();
+        require(isAccurateBalances(curr, prior, totalSpinReward));
 
         // 26k gas
-        if(!checkSigPrivate(id, curr)) revert();
-
-        if(!checkSigPrivate(id, prior)) revert();
+        require(checkSigPrivate(id, curr));
+        require(checkSigPrivate(id, prior));
 
         // Checks if spin hashes are pre-images of previous hashes or are hashes in previous spins
-        if (!checkSpinHashes(curr, prior)) revert();
+        require(checkSpinHashes(curr, prior));
 
         // 5.6k gas
-        if(!checkPair(curr, prior)) revert();
+        require(checkPair(curr, prior));
 
         // Finalized
         if (shouldFinalizeChannel(id, curr.nonce))

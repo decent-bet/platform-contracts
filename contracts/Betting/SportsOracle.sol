@@ -1,7 +1,7 @@
 pragma solidity ^0.4.11;
 
 import '../Token/ERC20.sol';
-import './AbstractBettingProvider.sol';
+import './BettingProvider.sol';
 import '../Libraries/SafeMath.sol';
 import '../Libraries/TimeProvider.sol';
 
@@ -347,7 +347,7 @@ contract SportsOracle is SafeMath, TimeProvider {
         // Game period must exist and outcome needs to be published
         if (!gamePeriods[gameId][period].exists || gamePeriods[gameId][period].settleTime == 0) throw;
 
-        AbstractBettingProvider bettingProvider = AbstractBettingProvider(provider);
+        BettingProvider bettingProvider = BettingProvider(provider);
         providerGamesToUpdate[gameId][provider].updated = true;
 
         if (!bettingProvider.updateGameOutcome(

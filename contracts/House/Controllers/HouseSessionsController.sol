@@ -1,10 +1,10 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
-import '../../HouseOffering.sol';
+import '../HouseOffering.sol';
 
-import '../../AbstractHouse.sol';
-import '../../../Token/ERC20.sol';
-import '../../../Libraries/SafeMath.sol';
+import '../House.sol';
+import '../../Token/ERC20.sol';
+import '../../Libraries/SafeMath.sol';
 
 // All functionality related to house sessions and offerings reside here.
 // House sessions records are saved here to decouple the record keeping from the House contract to reduce gas costs on deployment.
@@ -41,7 +41,7 @@ contract HouseSessionsController is SafeMath {
     }
 
     // Variables
-    AbstractHouse house;
+    House house;
     ERC20 public decentBetToken;
     address[] public offeringAddresses;
 
@@ -55,26 +55,26 @@ contract HouseSessionsController is SafeMath {
     mapping (uint => Session) public sessions;
 
     function HouseSessionsController(address _house){
-        if(_house == 0x0) revert();
-        house = AbstractHouse(_house);
+        require(_house != 0x0);
+        house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());
     }
 
     // Modifiers
     // Allows functions to execute only if the house contract sent the transaction.
     modifier onlyHouse() {
-        if(msg.sender != address(house)) revert();
+        require(msg.sender == address(house));
         _;
     }
 
     modifier onlyFounder() {
-        if(msg.sender != address(house.founder())) revert();
+        require(msg.sender == house.founder());
         _;
     }
 
     // Allows functions to execute only if the house offering exists.
     modifier isValidHouseOffering(address offering) {
-        if(!offerings[offering].exists) revert();
+        require(offerings[offering].exists);
         _;
     }
 
@@ -82,10 +82,9 @@ contract HouseSessionsController is SafeMath {
     function addHouseOffering(address houseOfferingAddress)
     onlyFounder {
         // Empty address, invalid input
-        if(houseOfferingAddress == 0x0) revert();
+        require(houseOfferingAddress != 0x0);
         // Not a house offering
-        if(!HouseOffering(houseOfferingAddress).isHouseOffering())
-            revert();
+        require(HouseOffering(houseOfferingAddress).isHouseOffering());
 
         offeringAddresses.push(houseOfferingAddress);
         offerings[houseOfferingAddress] = Offering({
@@ -123,14 +122,14 @@ contract HouseSessionsController is SafeMath {
         uint currentSession = house.currentSession();
         uint previousSession = currentSession - 1;
         // Withdrawals are only allowed after session 1.
-        if(currentSession <= 1) revert();
+        require(currentSession > 1);
 
         // Tokens can only be withdrawn from offerings by house 48h after the previous session has ended to account
         // for pending bets/game outcomes.
-        if(house.getTime() < sessions[previousSession].endTime + 2 days) revert();
+        require(house.getTime() >= (sessions[previousSession].endTime + 2 days));
 
-        // If offering has already been withdrawn, revert.
-        if(sessions[previousSession].withdrawnOfferings[houseOffering]) revert();
+        // Allow only if offering has not been withdrawn.
+        require(!sessions[previousSession].withdrawnOfferings[houseOffering]);
 
         uint previousSessionTokens = offerings[houseOffering].houseOffering.balanceOf(houseOffering, previousSession);
 
@@ -147,21 +146,23 @@ contract HouseSessionsController is SafeMath {
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     isValidHouseOffering(houseOffering)
-    onlyHouse {
+    onlyHouse returns (bool) {
 
         uint nextSession = house.currentSession() + 1;
 
         // Total %age of tokens can't be above 100.
-        if(safeAdd(sessions[nextSession].totalTokensAllocated, percentage) > 100) revert();
+        require(safeAdd(sessions[nextSession].totalTokensAllocated, percentage) <= 100);
 
         // Tokens have already been deposited to offering.
-        if(sessions[nextSession].offeringTokenAllocations[houseOffering].deposited) revert();
+        require(!sessions[nextSession].offeringTokenAllocations[houseOffering].deposited);
 
         uint previousAllocation = sessions[nextSession].offeringTokenAllocations[houseOffering].allocation;
 
         sessions[nextSession].offeringTokenAllocations[houseOffering].allocation = percentage;
         sessions[nextSession].totalTokensAllocated =
         safeSub(safeAdd(sessions[nextSession].totalTokensAllocated, percentage), previousAllocation);
+
+        return true;
     }
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
@@ -170,8 +171,7 @@ contract HouseSessionsController is SafeMath {
         uint nextSession = house.currentSession() + 1;
 
         // Tokens have already been deposited to offering.
-        if(sessions[nextSession].offeringTokenAllocations[houseOffering].deposited)
-            revert();
+        require(!sessions[nextSession].offeringTokenAllocations[houseOffering].deposited);
 
         sessions[nextSession].offeringTokenAllocations[houseOffering].deposited = true;
         sessions[nextSession].depositedAllocations = safeAdd(sessions[nextSession].depositedAllocations, 1);
@@ -217,7 +217,7 @@ contract HouseSessionsController is SafeMath {
             sessions[currentSession].endTime = endTime;
 
             // All offerings should have allocated tokens deposited before switching to next session.
-            if(sessions[currentSession].depositedAllocations != sessions[currentSession].offerings.length) revert();
+            require(sessions[currentSession].depositedAllocations == sessions[currentSession].offerings.length);
         }
 
         return true;

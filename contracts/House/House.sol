@@ -1,4 +1,4 @@
-pragma solidity ^0.4.8;
+pragma solidity ^0.4.19;
 
 import '../Libraries/SafeMath.sol';
 import '../Token/ERC20.sol';
@@ -7,10 +7,10 @@ import '../Libraries/TimeProvider.sol';
 
 import './HouseOffering.sol';
 
-import './Controllers/Authorized/AbstractHouseAuthorizedController.sol';
-import './Controllers/Funds/AbstractHouseFundsController.sol';
-import './Controllers/Lottery/AbstractHouseLotteryController.sol';
-import './Controllers/Sessions/AbstractHouseSessionsController.sol';
+import './Controllers/HouseAuthorizedController.sol';
+import './Controllers/HouseFundsController.sol';
+import './Controllers/HouseLotteryController.sol';
+import './Controllers/HouseSessionsController.sol';
 
 // Decent.bet House Contract.
 // All credits and payouts are in DBETs and are 18 decimal places in length.
@@ -28,14 +28,14 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     // External Contracts
     ERC20 public decentBetToken;
-    AbstractHouseLotteryController public houseLotteryController;
-    AbstractHouseAuthorizedController houseAuthorizedController;
-    AbstractHouseFundsController houseFundsController;
-    AbstractHouseSessionsController houseSessionsController;
+    HouseLotteryController public houseLotteryController;
+    HouseAuthorizedController houseAuthorizedController;
+    HouseFundsController houseFundsController;
+    HouseSessionsController houseSessionsController;
 
     // Constructor
     function House(address decentBetTokenAddress) {
-        if (decentBetTokenAddress == 0) revert();
+        require(decentBetTokenAddress != 0x0);
         founder = msg.sender;
         decentBetToken = ERC20(decentBetTokenAddress);
 
@@ -46,33 +46,34 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     // Modifiers //
     modifier onlyFounder() {
-        if (msg.sender != founder) revert();
+        require(msg.sender == founder);
         _;
     }
 
     modifier onlyAuthorized() {
-        if (!houseAuthorizedController.authorized(msg.sender)) revert();
+        require(houseAuthorizedController.authorized(msg.sender));
         _;
     }
 
     modifier isHouseControllersSet() {
-        if(!houseFundsController.isHouseFundsController()) revert();
-        if(!houseSessionsController.isHouseSessionsController()) revert();
+        require(houseFundsController.isHouseFundsController());
+        require(houseSessionsController.isHouseSessionsController());
         _;
     }
 
     // If this is the last week of a session - signifying the period when token deposits can be made to house offerings.
     modifier isLastWeekForSession() {
-        if (currentSession == 0 && sessionZeroStartTime == 0) revert();
         uint endTime;
         (,endTime) = houseSessionsController.getSessionTimes(currentSession);
-        if (getTime() < (endTime - 1 weeks) || getTime() > (endTime)) revert();
+        if(currentSession == 0)
+            require(sessionZeroStartTime > 0);
+        require(getTime() >= (endTime - 1 weeks) && getTime() <= (endTime));
         _;
     }
 
     // Allows functions to execute only if users have "amount" tokens in their balance.
     modifier areTokensAvailable(uint amount) {
-        if (decentBetToken.balanceOf(msg.sender) < amount) revert();
+        require(decentBetToken.balanceOf(msg.sender) >= amount);
         _;
     }
 
@@ -80,41 +81,42 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     modifier isEndOfSession() {
         uint endTime;
         (,endTime) = houseSessionsController.getSessionTimes(currentSession);
-        if (!(currentSession == 0 && endTime == 0) && getTime() < endTime) revert();
+        require((currentSession == 0 && endTime == 0) || getTime() >= endTime);
         _;
     }
 
     // Allows functions to execute if they happen during an "active" period for a session i.e,
     // Not during a credit buying/token allocation period
     modifier isSessionActivePeriod() {
-        if(currentSession == 0) revert();
+        require(currentSession > 0);
         uint startTime;
         uint endTime;
         (startTime,endTime) = houseSessionsController.getSessionTimes(currentSession);
-        if(getTime() < startTime || getTime() > (endTime - 2 weeks)) revert();
+        require(getTime() >= startTime && getTime() <= (endTime - 2 weeks));
         _;
     }
 
     // Allows functions to execute only if it's currently a credit-buying period i.e
     // 1 week before the end of the current session.
     modifier isCreditBuyingPeriod() {
-        if (currentSession == 0 && sessionZeroStartTime == 0) revert();
+        if(currentSession == 0)
+            require(sessionZeroStartTime != 0);
         uint endTime;
         (,endTime) = houseSessionsController.getSessionTimes(currentSession);
-        if (currentSession != 0 && ((getTime() < (endTime - 2 weeks)) || (getTime() > (endTime - 1 weeks)))) revert();
+        require(getTime() >= (endTime - 2 weeks) && getTime() <= (endTime - 1 weeks));
         _;
     }
 
     // Allows functions to execute only if the profit distribution period is going on i.e
     // after the end of the previous session and after all offering credits have been withdrawn.
     modifier isProfitDistributionPeriod(uint session) {
-        if (session == 0) revert();
+        require(session != 0);
         uint endTime;
         uint withdrawCount;
         (,endTime,,withdrawCount,,) = houseSessionsController.sessions(session);
         uint sessionOfferingsLength = houseSessionsController.getSessionOfferingsLength(session);
-        if (getTime() < (endTime + 4 days)) revert();
-        if (withdrawCount != sessionOfferingsLength) revert();
+        require(getTime() >= (endTime + 4 days));
+        require(withdrawCount == sessionOfferingsLength);
         _;
     }
 
@@ -145,30 +147,30 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Sets the house funds controller address.
     function setHouseAuthorizedControllerAddress(address _address) onlyFounder {
         if(_address == 0x0) revert();
-        if(!AbstractHouseAuthorizedController(_address).isHouseAuthorizedController()) revert();
-        houseAuthorizedController = AbstractHouseAuthorizedController(_address);
+        if(!HouseAuthorizedController(_address).isHouseAuthorizedController()) revert();
+        houseAuthorizedController = HouseAuthorizedController(_address);
     }
 
     // Sets the house funds controller address.
     function setHouseFundsControllerAddress(address _address) onlyFounder {
         if(_address == 0x0) revert();
-        if(!AbstractHouseFundsController(_address).isHouseFundsController()) revert();
-        houseFundsController = AbstractHouseFundsController(_address);
+        if(!HouseFundsController(_address).isHouseFundsController()) revert();
+        houseFundsController = HouseFundsController(_address);
     }
 
     // Sets the house sessions controller address.
     function setHouseSessionsControllerAddress(address _address) onlyFounder {
         if(_address == 0x0) revert();
-        if(!AbstractHouseSessionsController(_address).isHouseSessionsController()) revert();
-        houseSessionsController = AbstractHouseSessionsController(_address);
+        if(!HouseSessionsController(_address).isHouseSessionsController()) revert();
+        houseSessionsController = HouseSessionsController(_address);
     }
 
     // Sets the lottery address.
     function setHouseLotteryControllerAddress(address _address)
     onlyFounder {
         if(_address == 0x0) revert();
-        if(!AbstractHouseLotteryController(_address).isHouseLotteryController()) revert();
-        houseLotteryController = AbstractHouseLotteryController(_address);
+        if(!HouseLotteryController(_address).isHouseLotteryController()) revert();
+        houseLotteryController = HouseLotteryController(_address);
     }
 
     // Transfers DBETs from users to house contract address and generates credits in return.
@@ -349,18 +351,19 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     function claimLotteryWinnings(uint session)
     isHouseControllersSet
     isProfitDistributionPeriod(session) constant returns (uint, uint){
-        uint totalProfit;
-        (,,,,,,totalProfit) = houseFundsController.houseFunds(session);
+        int sessionProfit = houseFundsController.getProfitForSession(session);
 
-        if(totalProfit == 0) revert();
+        if(sessionProfit <= 0) revert();
 
-        uint lotteryPayout = safeDiv(safeMul(totalProfit, 5), 100);
+        uint uSessionProfit = (uint) (sessionProfit);
+
+        uint lotteryPayout = safeDiv(safeMul(uSessionProfit, 5), 100);
 
         if(!houseLotteryController.updateLotteryPayout(session, msg.sender, lotteryPayout)) revert();
 
         if(!decentBetToken.transfer(msg.sender, lotteryPayout)) revert();
 
-        return (totalProfit, lotteryPayout);
+        return (uSessionProfit, lotteryPayout);
     }
 
     // Starts the next session.
@@ -397,7 +400,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     isEmergencyPaused
     onlyFounder {
         // If offering has already been withdrawn, revert.
-        if(houseSessionsController.isOfferingWithdrawn(currentSession, houseOffering)) revert();
+        require(!houseSessionsController.isOfferingWithdrawn(currentSession, houseOffering));
 
         uint sessionTokens;
         bool allOfferingsWithdrawn;

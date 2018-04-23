@@ -1,11 +1,11 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 import './SlotsImplementation.sol';
-import './AbstractSlotsHelper.sol';
+import './SlotsHelper.sol';
 import '../../Token/ERC20.sol';
-import '../../House/AbstractHouse.sol';
-import '../../House/Controllers/Authorized/AbstractHouseAuthorizedController.sol';
-import '../../House/Controllers/Sessions/AbstractHouseSessionsController.sol';
+import '../../House/House.sol';
+import '../../House/Controllers/HouseAuthorizedController.sol';
+import '../../House/Controllers/HouseSessionsController.sol';
 import '../../House/HouseOffering.sol';
 
 import '../../Libraries/ECVerify.sol';
@@ -48,13 +48,10 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     /* Contracts */
     ERC20 decentBetToken;
 
-    AbstractHouse house;
-
-    AbstractHouseAuthorizedController houseAuthorizedController;
-
-    AbstractHouseSessionsController houseSessionsController;
-
-    AbstractSlotsHelper slotsHelper;
+    House house;
+    HouseAuthorizedController houseAuthorizedController;
+    HouseSessionsController houseSessionsController;
+    SlotsHelper slotsHelper;
 
     /* Mappings */
 
@@ -94,29 +91,29 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     function SlotsChannelManager(address _house, address _token,
         address _slotsHelper, address _slotsChannelFinalizer) /* onlyHouse */ {
-        if(_house == 0) revert();
-        if(_token == 0) revert();
-        if(_slotsHelper == 0) revert();
-        if(_slotsChannelFinalizer == 0) revert();
+        require(_house != 0x0);
+        require(_token != 0x0);
+        require(_slotsHelper != 0x0);
+        require(_slotsChannelFinalizer != 0x0);
 
         houseAddress = _house;
         decentBetToken = ERC20(_token);
-        house = AbstractHouse(_house);
+        house = House(_house);
 
         address houseAuthorizedControllerAddress;
         address houseSessionsControllerAddress;
 
         (houseAuthorizedControllerAddress,, houseSessionsControllerAddress) = house.getHouseControllers();
 
-        if(houseAuthorizedControllerAddress == 0) revert();
-        if(houseSessionsControllerAddress == 0) revert();
+        require(houseAuthorizedControllerAddress != 0x0);
+        require(houseSessionsControllerAddress != 0x0);
 
-        houseAuthorizedController = AbstractHouseAuthorizedController(houseAuthorizedControllerAddress);
-        houseSessionsController   = AbstractHouseSessionsController(houseSessionsControllerAddress);
+        houseAuthorizedController = HouseAuthorizedController(houseAuthorizedControllerAddress);
+        houseSessionsController   = HouseSessionsController(houseSessionsControllerAddress);
 
-        slotsHelper = AbstractSlotsHelper(_slotsHelper);
+        slotsHelper = SlotsHelper(_slotsHelper);
         slotsChannelFinalizer = _slotsChannelFinalizer;
-        if(!slotsHelper.isSlotsHelper()) revert();
+        require(slotsHelper.isSlotsHelper());
         name = 'Slots Channel Manager';
         isHouseOffering = true;
 
@@ -128,79 +125,79 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     /* Modifiers */
 
     modifier onlyHouse() {
-        if (msg.sender != houseAddress) revert();
+        require(msg.sender == houseAddress);
         _;
     }
 
     modifier onlyAuthorized() {
-        if (!houseAuthorizedController.authorized(msg.sender)) revert();
+        require(houseAuthorizedController.authorized(msg.sender));
         _;
     }
 
     // Allows functions to be executed only if the house is in an emergency paused state
     modifier isHouseEmergency() {
-        if(!house.emergencyPaused()) revert();
+        require(house.emergencyPaused());
         _;
     }
 
     // Allows functions to be execute only if the house is not in an emergency paused state
     modifier isNotHouseEmergency() {
-        if(house.emergencyPaused()) revert();
+        require(!house.emergencyPaused());
         _;
     }
 
     // Allows functions to execute only if users have "amount" dbets in their token contract balance.
     modifier isDbetsAvailable(uint amount) {
-        if(decentBetToken.balanceOf(msg.sender) < amount) revert();
+        require(decentBetToken.balanceOf(msg.sender) >= amount);
         _;
     }
 
     // Allow functions to execute only if the current session is active
     modifier isSessionActive() {
-        if(!houseSessionsController.isSessionActive(currentSession)) revert();
+        require(houseSessionsController.isSessionActive(currentSession));
         _;
     }
 
     // Allows functions to execute only if the session is prior or equal to current house session
     // and if session is not 0.
     modifier isValidPriorSession(uint session) {
-        if(session > currentSession || session == 0) revert();
+        require(session <= currentSession && session != 0);
         _;
     }
 
     // Allows functions to execute only if users have "amount" tokens in their depositedTokens balance.
     modifier isTokensAvailable(uint amount, uint session) {
-        if (depositedTokens[msg.sender][session] < amount) revert();
+        require(depositedTokens[msg.sender][session] >= amount);
         _;
     }
 
     // Allows only the house to proceed
     modifier isHouse(uint id) {
-        if (msg.sender != players[id][true]) revert();
+        require(msg.sender == players[id][true]);
         _;
     }
 
     // Allows only the player to proceed
     modifier isPlayer(uint id) {
-        if (msg.sender != players[id][false]) revert();
+        require(msg.sender == players[id][false]);
         _;
     }
 
     // Allows only if the user is ready
     modifier isUserReady(uint id) {
-        if (!channels[id].ready) revert();
+        require(channels[id].ready);
         _;
     }
 
     // Allows only if the user is not ready
     modifier isUserNotReady(uint id) {
-        if (channels[id].ready) revert();
+        require(!channels[id].ready);
         _;
     }
 
     // Allows only if channel has not been activated
     modifier isNotActivated(uint id) {
-        if (channels[id].activated) revert();
+        require(!channels[id].activated);
         _;
     }
 
@@ -209,8 +206,8 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     isNotHouseEmergency
     isSessionActive {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
-        if (initialDeposit < MIN_DEPOSIT || initialDeposit > MAX_DEPOSIT) revert();
-        if (balanceOf(msg.sender, currentSession) < initialDeposit) revert();
+        require(initialDeposit >= MIN_DEPOSIT && initialDeposit <= MAX_DEPOSIT);
+        require(balanceOf(msg.sender, currentSession) >= initialDeposit);
         channels[channelCount] = Channel({
             ready: false,
             activated: false,
@@ -238,7 +235,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     onlyHouse
     returns (bool) {
         // House deposits are allowed only for this session or the next.
-        if(session != currentSession && session != currentSession + 1) revert();
+        require(session == currentSession || session == currentSession + 1);
 
         // Record the total number of tokens deposited into the house.
         depositedTokens[address(this)][session] = safeAdd(depositedTokens[address(this)][session], amount);
@@ -254,7 +251,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     function withdrawPreviousSessionTokens()
     onlyHouse returns (bool) {
         uint previousSession = currentSession - 1;
-        if(depositedTokens[address(this)][previousSession] == 0) revert();
+        require(depositedTokens[address(this)][previousSession] > 0);
         uint previousSessionTokens = depositedTokens[address(this)][previousSession];
         depositedTokens[address(this)][previousSession] = 0;
         if(!decentBetToken.transfer(msg.sender, previousSessionTokens)) revert();
@@ -265,7 +262,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     function emergencyWithdrawCurrentSessionTokens()
     onlyHouse
     isHouseEmergency returns (bool) {
-        if(depositedTokens[address(this)][currentSession] == 0) revert();
+        require(depositedTokens[address(this)][currentSession] > 0);
         uint currentSessionTokens = depositedTokens[address(this)][currentSession];
         depositedTokens[address(this)][currentSession] = 0;
         if(!decentBetToken.transfer(msg.sender, currentSessionTokens)) revert();
@@ -307,9 +304,10 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     isPlayer(id)
     isUserNotReady(id)
     returns (bool) {
-        if (strLen(_finalUserHash) != 64) revert();
-        if (strLen(_initialUserNumber) != 64) revert();
-        if (balanceOf(msg.sender, channels[id].session) < channels[id].initialDeposit) revert();
+        require(strLen(_finalUserHash) == 64);
+        require(strLen(_initialUserNumber) == 64);
+        require(balanceOf(msg.sender, channels[id].session) >= channels[id].initialDeposit);
+
         channels[id].initialUserNumber = _initialUserNumber;
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
@@ -341,7 +339,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     returns (bool) {
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
-        if (balanceOf(address(this), channels[id].session) < channels[id].initialDeposit) revert();
+        require(balanceOf(address(this), channels[id].session) >= channels[id].initialDeposit);
         channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
@@ -364,7 +362,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Sets the final spin for the channel
     function setFinal(uint id, uint userBalance, uint houseBalance, uint nonce, bool turn) external {
-        if(msg.sender != address(slotsChannelFinalizer)) revert();
+        require(msg.sender == address(slotsChannelFinalizer));
 
         finalBalances[id][false] = userBalance;
         finalBalances[id][true] = houseBalance;
@@ -378,7 +376,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Allows player/house to claim DBETs after the channel has closed
     function claim(uint id) {
-        if(!isParticipant(id, msg.sender)) revert();
+        require(isParticipant(id, msg.sender));
 
         bool isHouse = (players[id][true] == msg.sender);
 
