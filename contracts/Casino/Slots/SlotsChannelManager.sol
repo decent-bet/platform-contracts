@@ -14,6 +14,7 @@ import '../../Libraries/strings.sol';
 import '../../Libraries/Utils.sol';
 import '../../Libraries/TimeProvider.sol';
 
+import '../../Kyc/KycManager.sol';
 
 // A State channel contract to handle slot games on the Decent.bet platform
 contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering, SafeMath, Utils {
@@ -52,6 +53,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     HouseAuthorizedController houseAuthorizedController;
     HouseSessionsController houseSessionsController;
     SlotsHelper slotsHelper;
+    KycManager kycManager;
 
     /* Mappings */
 
@@ -90,15 +92,17 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     /* Constructor */
 
     function SlotsChannelManager(address _house, address _token,
-        address _slotsHelper, address _slotsChannelFinalizer) /* onlyHouse */ {
+        address _slotsHelper, address _slotsChannelFinalizer, address _kycManager) /* onlyHouse */ {
         require(_house != 0x0);
         require(_token != 0x0);
         require(_slotsHelper != 0x0);
         require(_slotsChannelFinalizer != 0x0);
+        require(_kycManager != 0x0);
 
         houseAddress = _house;
         decentBetToken = ERC20(_token);
         house = House(_house);
+        kycManager = KycManager(_kycManager);
 
         address houseAuthorizedControllerAddress;
         address houseSessionsControllerAddress;
@@ -201,8 +205,15 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         _;
     }
 
+    // Allows functions to execute only if the sender has been KYC verified.
+    modifier isSenderKycVerified() {
+        require(kycManager.isVerified(msg.sender));
+        _;
+    }
+
     /* Functions */
     function createChannel(uint initialDeposit)
+    isSenderKycVerified
     isNotHouseEmergency
     isSessionActive {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
@@ -300,6 +311,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // User deposits DBETs into contract and saves the AES-256 encrypted string of the initial random numbers
     // used to generate all hashes
     function depositChannel(uint id, string _initialUserNumber, string _finalUserHash) // 584k gas
+    isSenderKycVerified
     isNotHouseEmergency
     isPlayer(id)
     isUserNotReady(id)
@@ -319,6 +331,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Allows users to remove their deposit from a channel IF the channel hasn't
     // been activated yet and the user is ready.
     function withdrawChannelDeposit(uint id)
+    isSenderKycVerified
     isPlayer(id)
     isUserReady(id)
     isNotActivated(id) {

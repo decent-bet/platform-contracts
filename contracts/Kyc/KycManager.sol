@@ -94,7 +94,7 @@ contract KycManager {
     }
 
     // Returns whether an address has been verified
-    function isVerified(address _address) returns (bool) {
+    function isVerified(address _address) constant returns (bool) {
         return approved[_address];
     }
 

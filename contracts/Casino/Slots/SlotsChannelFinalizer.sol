@@ -9,8 +9,10 @@ import '../../Libraries/SafeMath.sol';
 import '../../Libraries/strings.sol';
 import '../../Libraries/Utils.sol';
 
+import '../../Kyc/KycManager.sol';
+
 // Since the finalize function call requires a lot of gas and makes SlotsChannelManager
-// undeployable due to an OOG exception, we move it into a separate contract.
+// un-deployable due to an OOG exception, we move it into a separate contract.
 contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     address public owner;
@@ -26,6 +28,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     SlotsChannelManager slotsChannelManager;
     SlotsHelper slotsHelper;
+    KycManager kycManager;
 
     modifier onlyOwner() {
         require(msg.sender == owner);
@@ -37,9 +40,18 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         _;
     }
 
-    function SlotsChannelFinalizer(address _slotsHelper) {
+    // Allows functions to execute only if the sender has been KYC verified.
+    modifier isSenderKycVerified() {
+        require(kycManager.isVerified(msg.sender));
+        _;
+    }
+
+    function SlotsChannelFinalizer(address _slotsHelper, address _kycManager) {
         owner = msg.sender;
+        require(_slotsHelper != 0x0);
+        require(_kycManager != 0x0);
         slotsHelper = SlotsHelper(_slotsHelper);
+        kycManager  = KycManager(_kycManager);
     }
 
     function setSlotsChannelManager(address _slotsChannelManager) onlyOwner {
@@ -94,7 +106,6 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     // Verifies last two spins and returns their validity
     function checkPair(Spin curr, Spin prior) private returns (bool) {
-
         // If Player's turn
         if (curr.turn == false) {
 
@@ -154,6 +165,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     function finalize(uint id, string _curr, string _prior,
     bytes32 currR, bytes32 currS, bytes32 priorR, bytes32 priorS)
+    isSenderKycVerified
     isSlotsChannelManagerSet returns (bool) {
 
         require(slotsChannelManager.isParticipant(id, msg.sender));
