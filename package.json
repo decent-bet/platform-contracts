@@ -10,6 +10,7 @@
     "dotenv": "^5.0.1",
     "ethereum-units": "^0.0.1-b",
     "ethereumjs-util": "^5.1.5",
+    "ethers": "^3.0.15",
     "seedrandom": "^2.4.3",
     "truffle": "^4.1.3",
     "truffle-hdwallet-provider": "^0.0.3",
