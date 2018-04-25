@@ -14,10 +14,13 @@ let assert = require('chai').assert
 const MAX_GAS_COST_PER_TX = 1e5 /* gas used per tx */ * 2e10
 const ERROR_VM_EXCEPTION_REVERT =
     'VM Exception while processing transaction: revert'
+const ERROR_VM_EXCEPTION_INVALID_OPCODE =
+    'VM Exception while processing transaction: invalid opcode'
 /* gas price */
 
 // we need this because test env is different than script env
 let myWeb3 = typeof web3 === undefined ? undefined : web3
+let ethUtil = require('ethereumjs-util')
 
 module.exports = {
     crowdsaleState: {
@@ -66,8 +69,9 @@ module.exports = {
             //       testrpc log actually show an 'invalid jump' event.)
             const outOfGas = error.message.search('out of gas') >= 0
             const revert = error.message.search(ERROR_VM_EXCEPTION_REVERT) >= 0
+            const invalidOpcode = error.message.search(ERROR_VM_EXCEPTION_INVALID_OPCODE) >= 0
             assert(
-                invalidJump || outOfGas || revert,
+                invalidJump || outOfGas || revert || invalidOpcode,
                 "Expected throw, got '" + error + "' instead"
             )
             return
@@ -138,6 +142,47 @@ module.exports = {
     convertWeiToEth: function(n) {
         return new BigNumber(n).dividedBy(this.getEthInWei()).toFixed()
     },
+    /**
+     * Signs a string using a private key
+     * @param text
+     * @param address
+     * @param key
+     * @returns {Promise<any>}
+     * @private
+     */
+    signString: function(text, address, key) {
+        return new Promise((resolve, reject) => {
+            /*
+             * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the user's address;
+             */
+            try {
+                let msgHash = ethUtil.sha3(text)
+                let privateKey = ethUtil.toBuffer(key)
+
+                const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
+                const sig = ethUtil.toRpcSig(v, r, s)
+
+                let m = ethUtil.toBuffer(msgHash)
+                let pub = ethUtil.ecrecover(m, v, r, s)
+                let adr = '0x' + ethUtil.pubToAddress(pub).toString('hex')
+
+                let nonChecksummedAddress = address.toLowerCase()
+
+                if (adr !== nonChecksummedAddress)
+                    throw new Error('Invalid address for signed message')
+
+                resolve({
+                    v,
+                    r,
+                    s,
+                    msgHash,
+                    sig
+                })
+            } catch (e) {
+                reject(e)
+            }
+        })
+    },
     increaseTime: function(bySeconds) {
         myWeb3.currentProvider.send({
             jsonrpc: '2.0',
@@ -146,7 +191,6 @@ module.exports = {
             id: new Date().getTime()
         })
     },
-
     mineOneBlock: function() {
         myWeb3.currentProvider.send({
             jsonrpc: '2.0',

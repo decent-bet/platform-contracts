@@ -106,45 +106,6 @@ const getChannelDepositParams = (id, key) => {
 }
 
 /**
- * Signs a string using a private key
- * @param text
- * @param address
- * @param key
- * @returns {Promise<any>}
- * @private
- */
-let _signString = (text, address, key) => {
-    return new Promise((resolve, reject) => {
-        /*
-         * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the user's address;
-         */
-        try {
-            let msgHash = ethUtil.sha3(text)
-            let privateKey = ethUtil.toBuffer(key)
-
-            const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
-            const sgn = ethUtil.toRpcSig(v, r, s)
-
-            let m = ethUtil.toBuffer(msgHash)
-            let pub = ethUtil.ecrecover(m, v, r, s)
-            let adr = '0x' + ethUtil.pubToAddress(pub).toString('hex')
-
-            let nonChecksummedAddress = address.toLowerCase()
-
-            if (adr !== nonChecksummedAddress)
-                throw new Error('Invalid address for signed message')
-
-            resolve({
-                msgHash: msgHash,
-                sig: sgn
-            })
-        } catch (e) {
-            reject(e)
-        }
-    })
-}
-
-/**
  * Returns a spin based on the current nonce and last house spin
  * @param houseSpins
  * @param nonce
@@ -195,7 +156,7 @@ const getSpin = async (
         betSize: betSize
     }
 
-    let sign = await _signString(_getTightlyPackedSpin(spin), address, key)
+    let sign = await utils.signString(_getTightlyPackedSpin(spin), address, key)
     return new Promise(resolve => {
         spin.sign = sign.sig
         resolve(spin)
@@ -492,7 +453,7 @@ let processSpin = async (
 
         let tightlyPackedSpin = _getTightlyPackedSpin(houseSpin)
 
-        houseSpin.sign = await _signString(
+        houseSpin.sign = await utils.signString(
             tightlyPackedSpin,
             founder,
             constants.privateKeys.house
