@@ -207,7 +207,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Allows functions to execute only if the sender has been KYC verified.
     modifier isSenderKycVerified() {
-        require(kycManager.isVerified(msg.sender));
+        require(kycManager.isVerified(address(this), msg.sender));
         _;
     }
 

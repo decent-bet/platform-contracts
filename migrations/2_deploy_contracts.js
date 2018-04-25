@@ -108,26 +108,6 @@ let deploy = async (deployer, network) => {
             await deployer.deploy(KycManager)
             kycManager = await getContractInstanceAndInfo(KycManager)
 
-            // Approve first 9 accounts obtained from mnemonic
-            for (let i = 0; i < 9; i++) {
-                let signedMessage = await utils.signString(
-                    SAMPLE_CHECK_ID,
-                    accounts[i],
-                    constants.availablePrivateKeys[i]
-                )
-                const v = signedMessage.v
-                const r = ethUtil.bufferToHex(signedMessage.r)
-                const s = ethUtil.bufferToHex(signedMessage.s)
-
-                await kycManager.approveAddress(
-                    accounts[i],
-                    SAMPLE_CHECK_ID,
-                    v,
-                    r,
-                    s
-                )
-            }
-
             // Deploy the House contract
             await deployer.deploy(House, token.address, kycManager.address)
             house = await getContractInstanceAndInfo(House)
@@ -244,6 +224,39 @@ let deploy = async (deployer, network) => {
                     gas: 3000000
                 }
             )
+
+            await kycManager.addKycEnabledContract(house.address)
+            await kycManager.addKycEnabledContract(slotsChannelManager.address)
+
+            // Approve first 9 accounts obtained from mnemonic
+            for (let i = 0; i < 9; i++) {
+                let signedMessage = await utils.signString(
+                    SAMPLE_CHECK_ID,
+                    accounts[i],
+                    constants.availablePrivateKeys[i]
+                )
+                const v = signedMessage.v
+                const r = ethUtil.bufferToHex(signedMessage.r)
+                const s = ethUtil.bufferToHex(signedMessage.s)
+
+                await kycManager.approveAddress(
+                    house.address,
+                    accounts[i],
+                    SAMPLE_CHECK_ID,
+                    v,
+                    r,
+                    s
+                )
+
+                await kycManager.approveAddress(
+                    slotsChannelManager.address,
+                    accounts[i],
+                    SAMPLE_CHECK_ID,
+                    v,
+                    r,
+                    s
+                )
+            }
 
             console.log(
                 'Deployed:',

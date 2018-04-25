@@ -42,7 +42,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     // Allows functions to execute only if the sender has been KYC verified.
     modifier isSenderKycVerified() {
-        require(kycManager.isVerified(msg.sender));
+        require(kycManager.isVerified(address(slotsChannelManager), msg.sender));
         _;
     }
 
