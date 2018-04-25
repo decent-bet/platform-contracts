@@ -16,13 +16,27 @@ const SlotsChannelFinalizer = artifacts.require('SlotsChannelFinalizer')
 const SlotsChannelManager = artifacts.require('SlotsChannelManager')
 const SlotsHelper = artifacts.require('SlotsHelper')
 
+const ethUtil = require('ethereumjs-util')
+
 const utils = require('../test/utils/utils')
+const constants = require('../test/utils/constants')
+
+const SAMPLE_CHECK_ID = '8546921-123123-123123'
+
+let getAccounts = () => {
+    return new Promise((resolve, reject) => {
+        web3.eth.getAccounts((err, _accounts) => {
+            if (!err) resolve(_accounts)
+            else reject()
+        })
+    })
+}
 
 let deploy = async (deployer, network) => {
     let decentBetMultisig
     let upgradeMaster, agentOwner
     let startTime, endTime
-    let accounts = [process.env.DEFAULT_ACCOUNT]
+    let accounts = await getAccounts()
     web3.eth.defaultAccount = process.env.DEFAULT_ACCOUNT
 
     let signaturesRequired = 1
@@ -44,9 +58,12 @@ let deploy = async (deployer, network) => {
 
     let contractInfo = {}
 
-    const getContractInstanceAndInfo = async (contract) => {
+    const getContractInstanceAndInfo = async contract => {
         let instance = await contract.deployed()
-        contractInfo[contract.contractName] = await utils.getGasUsage(contract, deployer.network_id)
+        contractInfo[contract.contractName] = await utils.getGasUsage(
+            contract,
+            deployer.network_id
+        )
         return instance
     }
 
@@ -57,7 +74,7 @@ let deploy = async (deployer, network) => {
 
         await deployer.deploy(
             MultiSigWallet,
-            accounts,
+            accounts.slice(0, 1),
             signaturesRequired
         )
         await getContractInstanceAndInfo(MultiSigWallet)
@@ -88,41 +105,77 @@ let deploy = async (deployer, network) => {
             // Deploy the ECVerify Library
             await deployer.deploy(ECVerify)
 
-            // Link the ECVerify Library to the KycManager contract
-            await deployer.link(ECVerify, KycManager)
-
             await deployer.deploy(KycManager)
             kycManager = await getContractInstanceAndInfo(KycManager)
 
+            // Approve first 9 accounts obtained from mnemonic
+            for (let i = 0; i < 9; i++) {
+                let signedMessage = await utils.signString(
+                    SAMPLE_CHECK_ID,
+                    accounts[i],
+                    constants.availablePrivateKeys[i]
+                )
+                const v = signedMessage.v
+                const r = ethUtil.bufferToHex(signedMessage.r)
+                const s = ethUtil.bufferToHex(signedMessage.s)
+
+                await kycManager.approveAddress(
+                    accounts[i],
+                    SAMPLE_CHECK_ID,
+                    v,
+                    r,
+                    s
+                )
+            }
+
             // Deploy the House contract
-            await deployer.deploy(House, token.address)
+            await deployer.deploy(House, token.address, kycManager.address)
             house = await getContractInstanceAndInfo(House)
 
+            // Deploy House controller contracts
             await deployer.deploy(HouseAuthorizedController, house.address)
-            houseAuthorizedController = await getContractInstanceAndInfo(HouseAuthorizedController)
-            await house.setHouseAuthorizedControllerAddress(houseAuthorizedController.address)
+            houseAuthorizedController = await getContractInstanceAndInfo(
+                HouseAuthorizedController
+            )
+            await house.setHouseAuthorizedControllerAddress(
+                houseAuthorizedController.address
+            )
 
             await deployer.deploy(HouseFundsController, house.address)
-            houseFundsController = await getContractInstanceAndInfo(HouseFundsController)
-            await house.setHouseFundsControllerAddress(houseFundsController.address)
+            houseFundsController = await getContractInstanceAndInfo(
+                HouseFundsController
+            )
+            await house.setHouseFundsControllerAddress(
+                houseFundsController.address
+            )
 
             await deployer.deploy(HouseSessionsController, house.address)
-            houseSessionsController = await getContractInstanceAndInfo(HouseSessionsController)
-            await house.setHouseSessionsControllerAddress(houseSessionsController.address)
+            houseSessionsController = await getContractInstanceAndInfo(
+                HouseSessionsController
+            )
+            await house.setHouseSessionsControllerAddress(
+                houseSessionsController.address
+            )
 
             // Deploy the Lottery contract
             await deployer.deploy(HouseLotteryController)
-            houseLotteryController = await getContractInstanceAndInfo(HouseLotteryController)
+            houseLotteryController = await getContractInstanceAndInfo(
+                HouseLotteryController
+            )
 
             // Set the house within the lottery contract
             await houseLotteryController.setHouse.sendTransaction(house.address)
 
             // Set the house lottery address within the house contract
-            await house.setHouseLotteryControllerAddress.sendTransaction(houseLotteryController.address)
+            await house.setHouseLotteryControllerAddress.sendTransaction(
+                houseLotteryController.address
+            )
 
             // Deploy the BettingProviderHelper contract
             await deployer.deploy(BettingProviderHelper)
-            bettingProviderHelper = await getContractInstanceAndInfo(BettingProviderHelper)
+            bettingProviderHelper = await getContractInstanceAndInfo(
+                BettingProviderHelper
+            )
 
             // Deploy the BettingProvider contract
             await deployer.deploy(
@@ -149,8 +202,14 @@ let deploy = async (deployer, network) => {
             slotsHelper = await getContractInstanceAndInfo(SlotsHelper)
 
             // Deploy the SlotsChannelFinalizer contract
-            await deployer.deploy(SlotsChannelFinalizer, slotsHelper.address)
-            slotsChannelFinalizer = await getContractInstanceAndInfo(SlotsChannelFinalizer)
+            await deployer.deploy(
+                SlotsChannelFinalizer,
+                slotsHelper.address,
+                kycManager.address
+            )
+            slotsChannelFinalizer = await getContractInstanceAndInfo(
+                SlotsChannelFinalizer
+            )
 
             // Deploy the SlotsChannelManager contract
             await deployer.deploy(
@@ -158,9 +217,12 @@ let deploy = async (deployer, network) => {
                 house.address,
                 token.address,
                 slotsHelper.address,
-                slotsChannelFinalizer.address
+                slotsChannelFinalizer.address,
+                kycManager.address
             )
-            slotsChannelManager = await getContractInstanceAndInfo(SlotsChannelManager)
+            slotsChannelManager = await getContractInstanceAndInfo(
+                SlotsChannelManager
+            )
 
             // Set SlotsChannelManager within the SlotsChannelFinalizer contract
             await slotsChannelFinalizer.setSlotsChannelManager.sendTransaction(
@@ -188,7 +250,8 @@ let deploy = async (deployer, network) => {
                 '\nToken: ' + token.address,
                 '\nHouse: ' + house.address,
                 '\nHouseFundsController: ' + houseFundsController.address,
-                '\nHouseAuthorizedController: ' + houseAuthorizedController.address,
+                '\nHouseAuthorizedController: ' +
+                    houseAuthorizedController.address,
                 '\nHouseSessionsController: ' + houseSessionsController.address,
                 '\nHouseLottery: ' + houseLotteryController.address,
                 '\nKycManager: ' + kycManager.address,

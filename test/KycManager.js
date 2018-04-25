@@ -1,3 +1,5 @@
+const ethUtil = require('ethereumjs-util')
+
 let constants = require('./utils/constants.js')
 let contracts = require('./utils/contracts.js')
 let utils = require('./utils/utils')
@@ -55,7 +57,6 @@ contract('KYC Manager', accounts => {
         assert.equal(authorized, false, 'Non founder should not be authorized')
 
         await kycManager.addAuthorizedAddress(nonFounder)
-
         authorized = await kycManager.authorized(nonFounder)
 
         assert.equal(
@@ -67,13 +68,14 @@ contract('KYC Manager', accounts => {
 
     it('disallows non-founders from removing authorized addresses', async () => {
         await utils.assertFail(
-            kycManager.removeAuthorizedAddress(nonFounder, 0, { from: nonFounder })
+            kycManager.removeAuthorizedAddress(nonFounder, 0, {
+                from: nonFounder
+            })
         )
     })
 
     it('allows founders to remove authorized addresses', async () => {
-        await kycManager.removeAuthorizedAddress(nonFounder, 0)
-
+        await kycManager.removeAuthorizedAddress(nonFounder, 1)
         let authorized = await kycManager.authorized(nonFounder)
 
         assert.equal(
@@ -83,75 +85,83 @@ contract('KYC Manager', accounts => {
         )
     })
 
-    it('disallows unauthorized addresses from adding approved addresses', async () => {
-        let packedMessage = (nonAuthorized + SAMPLE_CHECK_ID)
-        let signedMessage = await utils.signString(
-            packedMessage,
-            nonAuthorized,
-            constants.privateKeys.nonParticipant
-        )
-        signedMessage = signedMessage.sig
-        console.log('check1', packedMessage, nonAuthorized, SAMPLE_CHECK_ID, signedMessage)
-        await utils.assertFail(
-            kycManager.approveAddress(
-                nonAuthorized,
-                SAMPLE_CHECK_ID,
-                signedMessage,
-                { from: nonAuthorized }
-            )
-        )
-    })
-
-    it('disallows authorized addresses from removing non-approved addresses', async () => {
-        await utils.assertFail(
-            kycManager.removeApprovedAddress(nonAuthorized, 0, {
-                from: nonFounder
-            })
-        )
-    })
-
-    it('disallows authorized addresses from adding approved addresses without a valid check ID and/or signed message', async () => {
-        let signedMessage = 'invalid'
-        await utils.assertFail(
-            kycManager.approveAddress(
-                nonAuthorized,
-                SAMPLE_CHECK_ID,
-                signedMessage,
-                { from: nonFounder }
-            )
-        )
-    })
-
-    it('allows authorized addresses to add approved addresses with a valid check ID and signed message', async () => {
-        let signedMessage = await utils.signString(
-            nonAuthorized + SAMPLE_CHECK_ID,
-            nonAuthorized,
-            constants.privateKeys.nonParticipant
-        )
-        signedMessage = signedMessage.sig
-        await utils.assertFail(
-            kycManager.approveAddress(
-                nonAuthorized,
-                SAMPLE_CHECK_ID,
-                signedMessage,
-                { from: nonFounder }
-            )
-        )
-    })
-
+    // Since migration script adds all available mnemonic addresses to approved list, remove it from the list first
     it('disallows unauthorized addresses from removing approved addresses', async () => {
         await utils.assertFail(
-            kycManager.removeApprovedAddress(nonAuthorized, 0, {
+            kycManager.removeApprovedAddress(nonAuthorized, 2, {
                 from: nonAuthorized
             })
         )
     })
 
     it('allows authorized addresses to remove approved addresses', async () => {
+        await kycManager.removeApprovedAddress(nonAuthorized, 2, {
+            from: founder
+        })
+        let approved = await kycManager.approved(nonAuthorized)
+        assert.equal(
+            approved,
+            false,
+            'Address was not removed from approved list'
+        )
+    })
+
+    it('disallows authorized addresses from removing non-approved addresses', async () => {
         await utils.assertFail(
-            kycManager.removeApprovedAddress(nonAuthorized, 0, {
-                from: nonFounder
+            kycManager.removeApprovedAddress(nonAuthorized, 2, {
+                from: founder
             })
         )
+    })
+
+    it('disallows unauthorized addresses from adding approved addresses', async () => {
+        let signedMessage = await utils.signString(
+            SAMPLE_CHECK_ID,
+            nonAuthorized,
+            constants.privateKeys.nonParticipant
+        )
+        const v = signedMessage.v
+        const r = ethUtil.bufferToHex(signedMessage.r)
+        const s = ethUtil.bufferToHex(signedMessage.s)
+
+        await utils.assertFail(
+            kycManager.approveAddress(nonAuthorized, SAMPLE_CHECK_ID, v, r, s, {
+                from: nonAuthorized
+            })
+        )
+    })
+
+    it('disallows authorized addresses from adding approved addresses without a valid check ID and/or signed message', async () => {
+        let v = 27
+        let r = '0x'
+        let s = '0x'
+        await utils.assertFail(
+            kycManager.approveAddress(nonAuthorized, SAMPLE_CHECK_ID, v, r, s, {
+                from: founder
+            })
+        )
+    })
+
+    it('allows authorized addresses to add approved addresses with a valid check ID and signed message', async () => {
+        let signedMessage = await utils.signString(
+            SAMPLE_CHECK_ID,
+            nonAuthorized,
+            constants.privateKeys.nonParticipant
+        )
+        const v = signedMessage.v
+        const r = ethUtil.bufferToHex(signedMessage.r)
+        const s = ethUtil.bufferToHex(signedMessage.s)
+
+        await kycManager.approveAddress(
+            nonAuthorized,
+            SAMPLE_CHECK_ID,
+            v,
+            r,
+            s,
+            { from: founder }
+        )
+
+        let approved = await kycManager.approved(nonAuthorized)
+        assert.equal(approved, true, 'Non authorized has not been approved')
     })
 })

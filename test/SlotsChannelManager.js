@@ -23,6 +23,7 @@ let sportsOracle
 let founder
 let nonFounder
 let nonParticipant
+let nonKycVerified
 
 let channelId
 
@@ -54,6 +55,7 @@ contract('SlotsChannelManager', accounts => {
         founder = accounts[0]
         nonFounder = accounts[1]
         nonParticipant = accounts[2]
+        nonKycVerified = accounts[9]
 
         wallet = await contracts.MultiSigWallet.deployed()
         token = await contracts.DecentBetToken.deployed()
@@ -237,6 +239,16 @@ contract('SlotsChannelManager', accounts => {
         await utils.assertFail(
             slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
                 from: nonParticipant
+            })
+        )
+    })
+
+    it('disallows users from creating channels if not kyc verified', async () => {
+        let initialDeposit = '500000000000000000000'
+
+        await utils.assertFail(
+            slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
+                from: nonKycVerified
             })
         )
     })

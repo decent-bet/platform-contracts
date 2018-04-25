@@ -59,12 +59,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         _;
     }
 
-    modifier isHouseControllersSet() {
-        require(houseFundsController.isHouseFundsController());
-        require(houseSessionsController.isHouseSessionsController());
-        _;
-    }
-
     // If this is the last week of a session - signifying the period when token deposits can be made to house offerings.
     modifier isLastWeekForSession() {
         uint endTime;
@@ -188,7 +182,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     function purchaseCredits(uint amount)
     isSenderKycVerified
     isNotEmergencyPaused
-    isHouseControllersSet
     {
         uint userCredits = houseFundsController.purchaseCredits(msg.sender, amount);
         uint nextSession = currentSession + 1;
@@ -205,7 +198,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     function liquidateCredits(uint session)
     isSenderKycVerified
     isNotEmergencyPaused
-    isHouseControllersSet
     isProfitDistributionPeriod(session) {
         uint payout;
         uint amount;
@@ -232,8 +224,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     function rollOverCredits(uint amount)
     isSenderKycVerified
     isNotEmergencyPaused
-    isCreditBuyingPeriod
-    isHouseControllersSet {
+    isCreditBuyingPeriod {
         if(!houseFundsController.rollOverCredits(msg.sender, amount)) revert();
 
         LogRolledOverCredits(msg.sender, currentSession, amount);
@@ -243,8 +234,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // payout per credit for the previous session.
     function claimRolledOverCredits()
     isNotEmergencyPaused
-    isSessionActivePeriod
-    isHouseControllersSet {
+    isSessionActivePeriod {
         uint adjustedCredits;
         uint rolledOverFromPreviousSession;
         uint creditsForCurrentSession;
@@ -275,7 +265,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     // Withdraws session tokens for the previously ended session from a house offering.
     function withdrawPreviousSessionTokensFromHouseOffering(address houseOffering)
-    isHouseControllersSet
     onlyAuthorized {
         uint previousSessionTokens;
         bool allOfferingsWithdrawn;
@@ -319,7 +308,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     isCreditBuyingPeriod
-    isHouseControllersSet
     onlyAuthorized {
         if(!houseSessionsController.allocateTokensForHouseOffering(percentage, houseOffering)) revert();
         LogOfferingAllocation((currentSession + 1), houseOffering, percentage);
@@ -327,7 +315,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
     isLastWeekForSession
-    isHouseControllersSet
     onlyAuthorized {
         uint nextSession = currentSession + 1;
 
@@ -363,7 +350,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Allows a winner to withdraw lottery winnings.
     function claimLotteryWinnings(uint session)
     isSenderKycVerified
-    isHouseControllersSet
     isProfitDistributionPeriod(session) constant returns (uint, uint){
         int sessionProfit = houseFundsController.getProfitForSession(session);
 
@@ -410,7 +396,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Emergency features
     // Emergency withdraws current session tokens from a house offering.
     function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering)
-    isHouseControllersSet
     isEmergencyPaused
     onlyFounder {
         // If offering has already been withdrawn, revert.
@@ -436,7 +421,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     // Allows users to withdraw tokens if the contract is in an emergencyPaused state.
     function emergencyWithdraw()
-    isHouseControllersSet
     isEmergencyPaused
     isEmergencyWithdrawalsEnabled {
         uint payout;

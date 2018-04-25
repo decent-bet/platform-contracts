@@ -19,13 +19,14 @@ let newBettingProvider
 let founder
 let nonFounder
 let nonInvestor
+let nonKycVerified
 
 contract('House', accounts => {
-    console.log('Accounts', accounts)
     it('initializes house contract', async () => {
         founder = accounts[0]
         nonFounder = accounts[1]
         nonInvestor = accounts[2]
+        nonKycVerified = accounts[9]
 
         wallet = await contracts.MultiSigWallet.deployed()
         token = await contracts.DecentBetToken.deployed()
@@ -209,6 +210,17 @@ contract('House', accounts => {
             )
         })
 
+        it('disallows users from purchasing house credits if they are not KYC verified', async () => {
+            const creditsToPurchase = '1000000000000000000000'
+            await token.faucet({ from: nonKycVerified })
+            await token.approve(house.address, creditsToPurchase, {
+                from: nonKycVerified
+            })
+            await utils.assertFail(
+                house.purchaseCredits(creditsToPurchase, { from: nonKycVerified })
+            )
+        })
+
         it('allows users to purchase house credits if they have a DBET balance', async () => {
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
@@ -265,7 +277,7 @@ contract('House', accounts => {
                 )
             }
 
-            for (let i = 3; i < accounts.length; i++) {
+            for (let i = 3; i < accounts.length - 1; i++) {
                 let user = accounts[i]
                 await token.faucet({ from: user })
                 let tokenBalance = await token.balanceOf(user)
@@ -328,13 +340,13 @@ contract('House', accounts => {
             }
         })
 
-        it("disallows users from liquidating house credits when it isn't a profit distribution period", async () => {
+        it('disallows users from liquidating house credits when it isn\'t a profit distribution period', async () => {
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
             await utils.assertFail(house.liquidateCredits(currentSession))
         })
 
-        it("disallows users from rolling over credits when it isn't a profit distribution period", async () => {
+        it('disallows users from rolling over credits when it isn\'t a profit distribution period', async () => {
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
             let userCredits = await houseFundsController.getUserCreditsForSession(
@@ -1359,7 +1371,7 @@ contract('House', accounts => {
             )
 
             // TODO: Check for profit vs expected profit after all liquidations
-            for (let i = 3; i < accounts.length; i++) {
+            for (let i = 3; i < accounts.length - 1; i++) {
                 let user = accounts[i]
                 let userCreditsForPrevSession = await houseFundsController.getUserCreditsForSession(
                     previousSession,

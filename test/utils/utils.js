@@ -155,7 +155,7 @@ module.exports = {
                 let privateKey = ethUtil.toBuffer(key)
 
                 const { v, r, s } = ethUtil.ecsign(msgHash, privateKey)
-                const sgn = ethUtil.toRpcSig(v, r, s)
+                const sig = ethUtil.toRpcSig(v, r, s)
 
                 let m = ethUtil.toBuffer(msgHash)
                 let pub = ethUtil.ecrecover(m, v, r, s)
@@ -167,8 +167,11 @@ module.exports = {
                     throw new Error('Invalid address for signed message')
 
                 resolve({
-                    msgHash: msgHash,
-                    sig: sgn
+                    v,
+                    r,
+                    s,
+                    msgHash,
+                    sig
                 })
             } catch (e) {
                 reject(e)
