@@ -83,12 +83,29 @@ contract SlotsHelper is SafeMath, Utils {
 
     function getTotalReward(uint betSize, uint[5] reelArray) returns (uint) {
         uint totalReward = 0;
-        uint adjustedBetSize = safeDiv(betSize, 1 ether);
+        uint adjustedBetSize = getAdjustedBetSize(betSize);
         for (uint8 i = 0; i < adjustedBetSize; i++) { //300k gas
             totalReward = safeAdd(totalReward, getLineRewardMultiplier(getLine(i, reelArray)));
         }
         totalReward = safeMul(totalReward, 1 ether);
         return totalReward;
+    }
+
+    function getAdjustedBetSize(uint betSize) returns (uint) {
+        if((betSize / 1 ether) <= 5 && (betSize / 1 ether) >= 1)
+            return safeDiv(betSize, 1 ether);
+        else if((betSize / 0.1 ether) <= 5 && (betSize / 0.1 ether) >= 1)
+            return safeDiv(betSize, 0.1 ether);
+        else if((betSize / 0.01 ether) <= 5 && (betSize / 0.01 ether) >= 1)
+            return safeDiv(betSize, 0.01 ether);
+        else
+            revert();
+    }
+
+    function isValidBetSize(uint betSize) returns (bool) {
+        return  ((betSize / 1 ether)    <= 5 && (betSize / 1 ether)    >= 1) ||
+                ((betSize / 0.1 ether)  <= 5 && (betSize / 0.1 ether)  >= 1) ||
+                ((betSize / 0.01 ether) <= 5 && (betSize / 0.01 ether) >= 1);
     }
 
     // Checks if a line is a winning line and returns the reward multiplier

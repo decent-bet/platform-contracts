@@ -214,8 +214,8 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('disallows users from creating channels out of hardcoded initial deposit range', async () => {
-        let outOfHigherRange = '1001000000000000000000'
-        let outOfLowerRange = '99000000000000000000'
+        let outOfHigherRange = '5001000000000000000000'
+        let outOfLowerRange = '4900000000000000000'
 
         await utils.assertFail(
             slotsChannelManager.createChannel.sendTransaction(
@@ -537,7 +537,7 @@ contract('SlotsChannelManager', accounts => {
         let validated = true
         try {
             // Max number of lines
-            let betSize = '5000000000000000000'
+            let betSize = '500000000000000000'
 
             // User spin
             let spin = await handler.getSpin(
@@ -594,11 +594,16 @@ contract('SlotsChannelManager', accounts => {
         // Second spin
         validated = true
 
-        let numberOfSpins = utils.getRandomInt(5, 20)
         try {
-            for (let i = 0; i < numberOfSpins; i++) {
+            for (let i = 0; i < 20; i++) {
                 // Max number of lines
                 let betSize = utils.getRandomBetSize()
+                console.log(
+                    'Random bet size',
+                    new BigNumber(betSize)
+                        .dividedBy(utils.getEthInWei())
+                        .toString()
+                )
 
                 // User spin
                 let spin = await handler.getSpin(
@@ -618,7 +623,7 @@ contract('SlotsChannelManager', accounts => {
                 ).toString()
 
                 // Process spin as the house
-                let lastHouseSpin = await handler.processSpin(
+                await handler.processSpin(
                     channelId,
                     dbChannel,
                     founder,
@@ -639,7 +644,7 @@ contract('SlotsChannelManager', accounts => {
             validated = false
         }
 
-        assert.equal(validated, true, 'Spin should be valid')
+        assert.equal(validated, true, 'Spins should be valid')
     })
 
     it('disallows non participants from finalizing a channel', async () => {

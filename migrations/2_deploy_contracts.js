@@ -17,9 +17,9 @@ const SlotsChannelManager = artifacts.require('SlotsChannelManager')
 const SlotsHelper = artifacts.require('SlotsHelper')
 
 const ethUtil = require('ethereumjs-util')
+const Wallet = require('ethers').Wallet
 
 const utils = require('../test/utils/utils')
-const constants = require('../test/utils/constants')
 
 const SAMPLE_APPLICANT_ID = '1030303-123123-123123'
 const SAMPLE_CHECK_ID = '8546921-123123-123123'
@@ -108,6 +108,28 @@ let deploy = async (deployer, network) => {
 
             await deployer.deploy(KycManager)
             kycManager = await getContractInstanceAndInfo(KycManager)
+
+            // Approve first 9 accounts obtained from mnemonic
+            let wallet
+            for (let i = 0; i < 9; i++) {
+                wallet = Wallet.fromMnemonic(process.env.MNEMONIC, "m/44'/60'/0'/0/" + i)
+                let signedMessage = await utils.signString(
+                    SAMPLE_CHECK_ID,
+                    accounts[i],
+                    wallet.privateKey
+                )
+                const v = signedMessage.v
+                const r = ethUtil.bufferToHex(signedMessage.r)
+                const s = ethUtil.bufferToHex(signedMessage.s)
+
+                await kycManager.approveAddress(
+                    accounts[i],
+                    SAMPLE_CHECK_ID,
+                    v,
+                    r,
+                    s
+                )
+            }
 
             // Deploy the House contract
             await deployer.deploy(House, token.address, kycManager.address)
