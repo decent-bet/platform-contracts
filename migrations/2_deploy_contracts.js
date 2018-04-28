@@ -109,28 +109,6 @@ let deploy = async (deployer, network) => {
             await deployer.deploy(KycManager)
             kycManager = await getContractInstanceAndInfo(KycManager)
 
-            // Approve first 9 accounts obtained from mnemonic
-            let wallet
-            for (let i = 0; i < 9; i++) {
-                wallet = Wallet.fromMnemonic(process.env.MNEMONIC, "m/44'/60'/0'/0/" + i)
-                let signedMessage = await utils.signString(
-                    SAMPLE_CHECK_ID,
-                    accounts[i],
-                    wallet.privateKey
-                )
-                const v = signedMessage.v
-                const r = ethUtil.bufferToHex(signedMessage.r)
-                const s = ethUtil.bufferToHex(signedMessage.s)
-
-                await kycManager.approveAddress(
-                    accounts[i],
-                    SAMPLE_CHECK_ID,
-                    v,
-                    r,
-                    s
-                )
-            }
-
             // Deploy the House contract
             await deployer.deploy(House, token.address, kycManager.address)
             house = await getContractInstanceAndInfo(House)
@@ -252,11 +230,13 @@ let deploy = async (deployer, network) => {
             await kycManager.addKycEnabledContract(slotsChannelManager.address)
 
             // Approve first 9 accounts obtained from mnemonic
+            let wallet
             for (let i = 0; i < 9; i++) {
+                wallet = Wallet.fromMnemonic(process.env.MNEMONIC, "m/44'/60'/0'/0/" + i)
                 let signedMessage = await utils.signString(
                     SAMPLE_APPLICANT_ID,
                     accounts[i],
-                    constants.availablePrivateKeys[i]
+                    wallet.privateKey
                 )
                 const v = signedMessage.v
                 const r = ethUtil.bufferToHex(signedMessage.r)
