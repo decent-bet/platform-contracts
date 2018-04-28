@@ -8,6 +8,7 @@ contract KycManager {
     struct User {
         address _address;
         bool approved;
+        string applicantId;
         string checkId;
         uint8 v;
         bytes32 r;
@@ -108,16 +109,17 @@ contract KycManager {
 
     // Approves a user address after KYC checks from onfido backend
     // checkId would be the checkId for a successful verification from the onfido backend
-    // Signed message would be of the format sgn(sha3(checkId))
-    function approveAddress(address _contract, address _address, string checkId, uint8 v, bytes32 r, bytes32 s)
+    // Signed message would be of the format sgn(sha3(applicantId))
+    function approveAddress(address _contract, address _address, string applicantId, string checkId, uint8 v, bytes32 r, bytes32 s)
     onlyAuthorized {
         require(kycEnabledContracts[_contract].exists);
         require(!kycEnabledContracts[_contract].users[_address].approved);
-        bytes32 hash = keccak256(checkId);
+        bytes32 hash = keccak256(applicantId);
         require(_address == ecrecover(hash, v, r, s));
         kycEnabledContracts[_contract].users[_address] = User({
             _address:      _address,
             approved:      true,
+            applicantId:   applicantId,
             checkId:       checkId,
             v:             v,
             r:             r,
@@ -147,8 +149,9 @@ contract KycManager {
 
     // Returns a KYC enabled contract user.
     function getKYCEnabledContractUser(address _contract, address _address) constant returns
-                            (bool, string, uint8, bytes32, bytes32) {
+                            (bool, string, string, uint8, bytes32, bytes32) {
         return (kycEnabledContracts[_contract].users[_address].approved,
+                kycEnabledContracts[_contract].users[_address].applicantId,
                 kycEnabledContracts[_contract].users[_address].checkId,
                 kycEnabledContracts[_contract].users[_address].v,
                 kycEnabledContracts[_contract].users[_address].r,

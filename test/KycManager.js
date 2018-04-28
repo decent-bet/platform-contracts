@@ -18,6 +18,7 @@ let nonFounder
 let nonAuthorized
 
 const SAMPLE_CHECK_ID = '8546921-123123-123123'
+const SAMPLE_APPLICANT_ID = '1030303-123123-123123'
 
 contract('KYC Manager', accounts => {
     console.log('Accounts', accounts)
@@ -152,7 +153,7 @@ contract('KYC Manager', accounts => {
 
     it('disallows unauthorized addresses from adding approved addresses', async () => {
         let signedMessage = await utils.signString(
-            SAMPLE_CHECK_ID,
+            SAMPLE_APPLICANT_ID,
             nonAuthorized,
             constants.privateKeys.nonParticipant
         )
@@ -161,7 +162,7 @@ contract('KYC Manager', accounts => {
         const s = ethUtil.bufferToHex(signedMessage.s)
 
         await utils.assertFail(
-            kycManager.approveAddress(house.address, nonAuthorized, SAMPLE_CHECK_ID, v, r, s, {
+            kycManager.approveAddress(house.address, nonAuthorized, SAMPLE_APPLICANT_ID, SAMPLE_CHECK_ID, v, r, s, {
                 from: nonAuthorized
             })
         )
@@ -172,7 +173,7 @@ contract('KYC Manager', accounts => {
         let r = '0x'
         let s = '0x'
         await utils.assertFail(
-            kycManager.approveAddress(house.address, nonAuthorized, SAMPLE_CHECK_ID, v, r, s, {
+            kycManager.approveAddress(house.address, nonAuthorized, SAMPLE_APPLICANT_ID, SAMPLE_CHECK_ID, v, r, s, {
                 from: founder
             })
         )
@@ -180,7 +181,7 @@ contract('KYC Manager', accounts => {
 
     it('allows authorized addresses to add approved addresses with a valid check ID and signed message', async () => {
         let signedMessage = await utils.signString(
-            SAMPLE_CHECK_ID,
+            SAMPLE_APPLICANT_ID,
             nonAuthorized,
             constants.privateKeys.nonParticipant
         )
@@ -191,6 +192,7 @@ contract('KYC Manager', accounts => {
         await kycManager.approveAddress(
             house.address,
             nonAuthorized,
+            SAMPLE_APPLICANT_ID,
             SAMPLE_CHECK_ID,
             v,
             r,

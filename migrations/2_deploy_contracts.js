@@ -21,6 +21,7 @@ const ethUtil = require('ethereumjs-util')
 const utils = require('../test/utils/utils')
 const constants = require('../test/utils/constants')
 
+const SAMPLE_APPLICANT_ID = '1030303-123123-123123'
 const SAMPLE_CHECK_ID = '8546921-123123-123123'
 
 let getAccounts = () => {
@@ -231,7 +232,7 @@ let deploy = async (deployer, network) => {
             // Approve first 9 accounts obtained from mnemonic
             for (let i = 0; i < 9; i++) {
                 let signedMessage = await utils.signString(
-                    SAMPLE_CHECK_ID,
+                    SAMPLE_APPLICANT_ID,
                     accounts[i],
                     constants.availablePrivateKeys[i]
                 )
@@ -242,6 +243,7 @@ let deploy = async (deployer, network) => {
                 await kycManager.approveAddress(
                     house.address,
                     accounts[i],
+                    SAMPLE_APPLICANT_ID,
                     SAMPLE_CHECK_ID,
                     v,
                     r,
@@ -251,6 +253,7 @@ let deploy = async (deployer, network) => {
                 await kycManager.approveAddress(
                     slotsChannelManager.address,
                     accounts[i],
+                    SAMPLE_APPLICANT_ID,
                     SAMPLE_CHECK_ID,
                     v,
                     r,
