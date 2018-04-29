@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 
 import '../Token/ERC20.sol';
@@ -374,7 +374,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     public {
         SportsOracle _sportsOracle = SportsOracle(_address);
         if(!_sportsOracle.requestProvider()) revert();
-        LogNewOracleRequest(_address);
+        emit LogNewOracleRequest(_address);
     }
 
     // Sets the oracle that can set results for this provider.
@@ -401,7 +401,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         // Transfer tokens from house to betting provider.
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
-        LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
+        emit LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
         return true;
     }
 
@@ -440,7 +440,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
-        LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
+        emit LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
 
@@ -452,7 +452,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
         if(!decentBetToken.transfer(msg.sender, amount)) revert();
-        LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
+        emit LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }
 
@@ -499,7 +499,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
             hasEnded : false,
             exists : true
             });
-        LogNewGame(gamesCount++, oracleGameId, cutOffTime, endTime);
+        emit LogNewGame(gamesCount++, oracleGameId, cutOffTime, endTime);
     }
 
     // Updates bet limits for a period in a game.
@@ -510,7 +510,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     public {
         games[gameId].betLimits.limits[period] = limits;
         games[gameId].betLimits.exists[period] = true;
-        LogUpdatedBetLimits(gameId, period);
+        emit LogUpdatedBetLimits(gameId, period);
     }
 
     function updateGameMaxBetLimit(uint gameId, uint maxBetLimit)
@@ -519,7 +519,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     isBeforeGameCutoff(gameId)
     public {
         games[gameId].betLimits.maxBetLimit = maxBetLimit;
-        LogUpdatedMaxBet(gameId);
+        emit LogUpdatedMaxBet(gameId);
     }
 
     // Handicap and points must be multiplied by 100.
@@ -569,7 +569,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         games[id].odds.odds[oddsId].over = over;
         games[id].odds.odds[oddsId].under = under;
         games[id].odds.odds[oddsId].updateTime = getTime();
-        LogUpdatedGameOdds(id, oddsId);
+        emit LogUpdatedGameOdds(id, oddsId);
     }
 
     // Updates the outcome of a game.
@@ -628,7 +628,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         depositedTokens[address(this)][currentSession] =
         safeAdd(depositedTokens[address(this)][currentSession], amount);
 
-        LogNewBet(gameId, oddsId, msg.sender, betId);
+        emit LogNewBet(gameId, oddsId, msg.sender, betId);
 
         return true;
     }
@@ -660,7 +660,7 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 
     // Split place bet into two functions to avoid stack too deep errors.
     function addNewBet(uint gameId, uint betId, uint oddsId,
-        uint choice, uint amount, uint session)
+                       uint choice, uint amount, uint session)
     internal {
         games[gameId].bettors[msg.sender].bets[games[gameId].bettors[msg.sender].betCount] = Bet({
             id : betId,
@@ -730,14 +730,17 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         sessionStats[currentSession].totalPayout =
         safeAdd(sessionStats[currentSession].totalPayout, betReturns);
 
-        LogClaimedBet(gameId, games[gameId].bettors[bettor].bets[betId].oddsId,
+        emit LogClaimedBet(gameId, games[gameId].bettors[bettor].bets[betId].oddsId,
             currentSession, bettor,
             (bettor != msg.sender) ? msg.sender : address(0x0), betId, betReturns);
     }
 
     // Internal calls
     // Calculates returns for a bet based on the bet type.
-    function getBetReturns(uint gameId, uint betId, address bettor) public constant returns (uint) {
+    function getBetReturns(uint gameId, uint betId, address bettor)
+    public
+    view
+    returns (uint) {
 
         Bet storage bet = games[gameId].bettors[bettor].bets[betId];
         Outcome storage outcome = games[gameId].outcomes[bet.odds.period];
@@ -788,7 +791,10 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     }
 
     // Returns the winnings based on american format odds (+100/-100)
-    function getWinnings(uint amount, int odds) public pure returns (uint) {
+    function getWinnings(uint amount, int odds)
+    public
+    pure
+    returns (uint) {
         uint absOdds = (odds < 0) ? ((uint) (odds * -1)) : ((uint) (odds));
         if(odds < 0) {
             // Amount / (odds/100)
@@ -803,15 +809,20 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     }
 
     // Split into an additional function to avoid stack too deep error.
-    function pushOdds(uint gameId, Odds odds) internal returns (bool) {
+    function pushOdds(uint gameId, Odds odds)
+    internal
+    returns (bool) {
         games[gameId].odds.odds[games[gameId].odds.oddsCount] = odds;
         games[gameId].odds.oddsCount++;
-        LogNewGameOdds(gameId, games[gameId].odds.oddsCount + 1);
+        emit LogNewGameOdds(gameId, games[gameId].odds.oddsCount + 1);
         return true;
     }
 
     // Accessor functions for front-end accessibility.
-    function getGame(uint id) public constant returns (uint oracleGameId, uint session,
+    function getGame(uint id)
+    public
+    view
+    returns (uint oracleGameId, uint session,
         uint betAmount, uint payouts, uint betCount, uint cutOffTime, uint endTime,
         bool hasEnded, bool exists) {
         Game storage game = games[id];
@@ -826,24 +837,39 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         game.exists);
     }
 
-    function getGamePeriodBetLimits(uint id, uint period) public constant returns (uint[4], bool) {
+    function getGamePeriodBetLimits(uint id, uint period)
+    public
+    view
+    returns (uint[4], bool) {
         return (games[id].betLimits.limits[period], games[id].betLimits.exists[period]);
     }
 
-    function getGameMaxBetLimit(uint id) public constant returns (uint) {
+    function getGameMaxBetLimit(uint id)
+    public
+    view
+    returns (uint) {
         return games[id].betLimits.maxBetLimit;
     }
 
-    function getUserBets(address user, uint index) public constant returns (uint, uint, bool) {
+    function getUserBets(address user, uint index)
+    public
+    view
+    returns (uint, uint, bool) {
         return (userBets[user][index].gameId, userBets[user][index].betId, userBets[user][index].exists);
     }
 
-    function getGameBettor(uint id, uint index) public constant returns (address, uint) {
+    function getGameBettor(uint id, uint index)
+    public
+    view
+    returns (address, uint) {
         address bettorAddress = games[id].bettorsList[index];
         return (bettorAddress, games[id].bettors[bettorAddress].betCount);
     }
 
-    function getGameBettorBet(uint gameId, address bettor, uint id) public constant returns (uint oddsId,
+    function getGameBettorBet(uint gameId, address bettor, uint id)
+    public
+    view
+    returns (uint oddsId,
         uint choice, uint amount, uint blockTime, uint session, bool claimed,
         bool exists) {
         Bet storage bet = games[gameId].bettors[bettor].bets[id];
@@ -856,7 +882,10 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         bet.exists);
     }
 
-    function getGameBettorBetOdds(uint gameId, address bettor, uint id) public constant returns
+    function getGameBettorBetOdds(uint gameId, address bettor, uint id)
+    public
+    view
+    returns
     (uint betType, uint period, int handicap, int team1, int team2, int draw,
         uint points, int over, int under, bool isTeam1) {
         Odds storage odds = games[gameId].bettors[bettor].bets[id].odds;
@@ -872,17 +901,26 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         odds.isTeam1);
     }
 
-    function getGameBettorBetOddsDetails(uint gameId, address bettor, uint id) public constant returns
+    function getGameBettorBetOddsDetails(uint gameId, address bettor, uint id)
+    public
+    view
+    returns
     (string refId, uint updateTime, bool isActive) {
         Odds storage odds = games[gameId].bettors[bettor].bets[id].odds;
         return (odds.refId, odds.updateTime, odds.isActive);
     }
 
-    function getGameOddsCount(uint id) public constant returns (uint) {
+    function getGameOddsCount(uint id)
+    public
+    view
+    returns (uint) {
         return games[id].odds.oddsCount;
     }
 
-    function getGameOdds(uint gameId, uint id) public constant returns (uint betType,
+    function getGameOdds(uint gameId, uint id)
+    public
+    view
+    returns (uint betType,
         uint period, int handicap, int team1, int team2, int draw,
         uint points, int over, int under, bool isTeam1) {
         // games[gameId].odds.odds[games[gameId].odds.oddsCount]
@@ -899,15 +937,20 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
         odds.isTeam1);
     }
 
-    function getGameOddsDetails(uint gameId, uint id) public constant returns (string refId,
+    function getGameOddsDetails(uint gameId, uint id)
+    public
+    view
+    returns (string refId,
         uint updateTime, bool isActive){
         Odds storage odds = games[gameId].odds.odds[id];
         return (odds.refId, odds.updateTime, odds.isActive);
     }
 
-    function getGameOutcome(uint gameId, uint period) public constant returns (int result,
-        uint totalPoints, uint team1Points, uint team2Points, bool isPublished,
-        uint settleTime) {
+    function getGameOutcome(uint gameId, uint period)
+    public
+    view
+    returns (int result, uint totalPoints, uint team1Points, uint team2Points,
+             bool isPublished, uint settleTime) {
         Outcome storage outcome = games[gameId].outcomes[period];
         return (outcome.result,
         outcome.totalPoints,
@@ -918,7 +961,8 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     }
 
     // Don't allow ETH to be sent to this contract
-    function() public {
+    function()
+    public {
         revert();
     }
 

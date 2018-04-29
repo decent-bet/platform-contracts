@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 import '../HouseOffering.sol';
 
@@ -238,45 +238,72 @@ contract HouseSessionsController is SafeMath {
     // Utility functions for front-end purposes.
 
     // Returns session start and end time.
-    function getSessionTime(uint session) public constant returns (uint, uint) {
+    function getSessionTime(uint session)
+    public
+    view
+    returns (uint, uint) {
         return (sessions[session].startTime, sessions[session].endTime);
     }
 
     // Returns whether a session is active.
-    function isSessionActive(uint session) public constant returns (bool) {
+    function isSessionActive(uint session)
+    public
+    view
+    returns (bool) {
         return house.getTime() >= sessions[session].startTime &&
                house.getTime() <= sessions[session].endTime;
     }
 
     // Returns whether an offering exists.
-    function doesOfferingExist(address _offering) public constant returns (bool) {
+    function doesOfferingExist(address _offering)
+    public
+    view
+    returns (bool) {
         return offerings[_offering].exists;
     }
 
     // Returns an offering for a session.
-    function getSessionOffering(uint session, uint index) public constant returns (address offering) {
+    function getSessionOffering(uint session, uint index)
+    public
+    view
+    returns (address offering) {
         return sessions[session].offerings[index];
     }
 
-    function getSessionTimes(uint session) public constant returns (uint, uint) {
+    function getSessionTimes(uint session)
+    public
+    view
+    returns (uint, uint) {
         return (sessions[session].startTime, sessions[session].endTime);
     }
 
     // Returns offering token allocations and deposits.
-    function getOfferingTokenAllocations(uint session, address _address) public constant returns (uint, bool) {
+    function getOfferingTokenAllocations(uint session, address _address)
+    public
+    view
+    returns (uint, bool) {
         return (sessions[session].offeringTokenAllocations[_address].allocation,
         sessions[session].offeringTokenAllocations[_address].deposited);
     }
 
-    function getSessionOfferingsLength(uint session) public constant returns (uint) {
+    function getSessionOfferingsLength(uint session)
+    public
+    view
+    returns (uint) {
         return sessions[session].offerings.length;
     }
 
-    function getOfferingAddressesLength() public constant returns (uint) {
+    function getOfferingAddressesLength()
+    public
+    view
+    returns (uint) {
         return offeringAddresses.length;
     }
 
-    function isOfferingWithdrawn(uint session, address offering) public view returns (bool) {
+    function isOfferingWithdrawn(uint session, address offering)
+    public
+    view
+    returns (bool) {
         return sessions[session].withdrawnOfferings[offering];
     }
 

@@ -23,6 +23,7 @@ const utils = require('../test/utils/utils')
 
 const SAMPLE_APPLICANT_ID = '1030303-123123-123123'
 const SAMPLE_CHECK_ID = '8546921-123123-123123'
+const ORACLIZE_ADDRESS = '0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475'
 
 let getAccounts = () => {
     return new Promise((resolve, reject) => {
@@ -139,7 +140,7 @@ let deploy = async (deployer, network) => {
             )
 
             // Deploy the Lottery contract
-            await deployer.deploy(HouseLotteryController)
+            await deployer.deploy(HouseLotteryController, ORACLIZE_ADDRESS)
             houseLotteryController = await getContractInstanceAndInfo(
                 HouseLotteryController
             )

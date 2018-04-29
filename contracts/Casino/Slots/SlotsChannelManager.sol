@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 import './SlotsImplementation.sol';
 import './SlotsHelper.sol';
@@ -57,16 +57,16 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     /* Mappings */
 
     // Channels created.
-    mapping (uint => Channel) channels;
+    mapping (bytes32 => Channel) channels;
 
     // Amount of DBETs deposited by user and house for a channel.
-    mapping (uint => mapping(bool => uint)) public channelDeposits;
+    mapping (bytes32 => mapping(bool => uint)) public channelDeposits;
 
     // Finalized balances for user and house for a channel.
-    mapping (uint => mapping(bool => uint)) public finalBalances;
+    mapping (bytes32 => mapping(bool => uint)) public finalBalances;
 
     // Addresses of the players involved - false = user, true = house for a channel.
-    mapping (uint => mapping(bool => address)) public players;
+    mapping (bytes32 => mapping(bool => address)) public players;
 
     // Users need to deposit/withdraw tokens for a session with the provider before creating channels.
     // These can be withdrawn at any time.
@@ -74,15 +74,15 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     mapping (address => mapping (uint => uint)) public depositedTokens;
 
     /* Events */
-    event LogNewChannel(uint id, address indexed user, uint initialDeposit, uint timestamp);
+    event LogNewChannel(bytes32 id, address indexed user, uint initialDeposit, uint timestamp);
 
-    event LogChannelFinalized(uint indexed id, bool isHouse);
+    event LogChannelFinalized(bytes32 indexed id, bool isHouse);
 
-    event LogChannelDeposit(uint indexed id, address user, string finalUserHash);
+    event LogChannelDeposit(bytes32 indexed id, address user, string finalUserHash);
 
-    event LogChannelActivate(uint indexed id, address user, string finalSeedHash, string finalReelHash);
+    event LogChannelActivate(bytes32 indexed id, address user, string finalSeedHash, string finalReelHash);
 
-    event LogClaimChannelTokens(uint indexed id, bool isHouse, uint timestamp);
+    event LogClaimChannelTokens(bytes32 indexed id, bool isHouse, uint timestamp);
 
     event LogDeposit(address _address, uint amount, uint session, uint balance);
 
@@ -171,25 +171,25 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Allows only the player to proceed
-    modifier isPlayer(uint id) {
+    modifier isPlayer(bytes32 id) {
         require(msg.sender == players[id][false]);
         _;
     }
 
     // Allows only if the user is ready
-    modifier isUserReady(uint id) {
+    modifier isUserReady(bytes32 id) {
         require(channels[id].ready);
         _;
     }
 
     // Allows only if the user is not ready
-    modifier isUserNotReady(uint id) {
+    modifier isUserNotReady(bytes32 id) {
         require(!channels[id].ready);
         _;
     }
 
     // Allows only if channel has not been activated
-    modifier isNotActivated(uint id) {
+    modifier isNotActivated(bytes32 id) {
         require(!channels[id].activated);
         _;
     }
@@ -209,7 +209,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
         require(initialDeposit >= MIN_DEPOSIT && initialDeposit <= MAX_DEPOSIT);
         require(balanceOf(msg.sender, currentSession) >= initialDeposit);
-        channels[channelCount] = Channel({
+        bytes32 channelId = keccak256(channelCount, msg.sender, getTime());
+        channels[channelId] = Channel({
             ready: false,
             activated: false,
             finalized: false,
@@ -223,9 +224,9 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
             finalTurn: false,
             session: currentSession,
             exists: true
-            });
-        players[channelCount][false] = msg.sender;
-        LogNewChannel(channelCount, msg.sender, initialDeposit, getTime());
+        });
+        players[channelId][false] = msg.sender;
+        emit LogNewChannel(channelId, msg.sender, initialDeposit, getTime());
         channelCount++;
     }
 
@@ -244,7 +245,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         // Transfer tokens from house to betting provider.
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
-        LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
+        emit LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
         return true;
     }
 
@@ -277,7 +278,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
-        LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
+        emit LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
 
@@ -287,7 +288,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     isTokensAvailable(amount, session) public returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
         if(!decentBetToken.transfer(msg.sender, amount)) revert();
-        LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
+        emit LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }
 
@@ -301,7 +302,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // User deposits DBETs into contract and saves the AES-256 encrypted string of the initial random numbers
     // used to generate all hashes
-    function depositChannel(uint id, string _initialUserNumber, string _finalUserHash) // 584k gas
+    function depositChannel(bytes32 id, string _initialUserNumber, string _finalUserHash) // 584k gas
     isSenderKycVerified
     isNotHouseEmergency
     isPlayer(id)
@@ -315,13 +316,13 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
         transferTokensToChannel(id, false);
-        LogChannelDeposit(id, players[id][false], _finalUserHash);
+        emit LogChannelDeposit(id, players[id][false], _finalUserHash);
         return true;
     }
 
     // Allows users to remove their deposit from a channel IF the channel hasn't
     // been activated yet and the user is ready.
-    function withdrawChannelDeposit(uint id)
+    function withdrawChannelDeposit(bytes32 id)
     isSenderKycVerified
     isPlayer(id)
     isUserReady(id)
@@ -336,8 +337,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // House sends the final reel and seed hashes to activate the channel along with the initial house seed hash
     // to verify the blended seed after a channel is closed
-    function activateChannel(uint id,
-        string _finalSeedHash, string _finalReelHash) // 373k gas
+    function activateChannel(bytes32 id, string _finalSeedHash, string _finalReelHash) // 373k gas
     public
     onlyAuthorized
     isNotActivated(id)
@@ -351,12 +351,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].activated = true;
         players[id][true] = msg.sender;
         transferTokensToChannel(id, true);
-        LogChannelActivate(id, players[id][true], _finalSeedHash, _finalReelHash);
+        emit LogChannelActivate(id, players[id][true], _finalSeedHash, _finalReelHash);
         return true;
     }
 
     // Transfers tokens to a channel.
-    function transferTokensToChannel(uint id, bool isHouse) private {
+    function transferTokensToChannel(bytes32 id, bool isHouse) private {
         // Transfer from house address instead of authorized addresses sending txs on behalf of the house
         address _address = isHouse ? address(this) : players[id][false];
         channelDeposits[id][isHouse] =
@@ -366,7 +366,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Sets the final spin for the channel
-    function setFinal(uint id, uint userBalance, uint houseBalance, uint nonce, bool turn) external {
+    function setFinal(bytes32 id, uint userBalance, uint houseBalance, uint nonce, bool turn) external {
         require(msg.sender == address(slotsChannelFinalizer));
 
         finalBalances[id][false] = userBalance;
@@ -376,11 +376,11 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].endTime = getTime() + 1 minutes;
         // Set at 1 minute only for Testnet
         if (!channels[id].finalized) channels[id].finalized = true;
-        LogChannelFinalized(id, turn);
+        emit LogChannelFinalized(id, turn);
     }
 
     // Allows player/house to claim DBETs after the channel has closed
-    function claim(uint id) public {
+    function claim(bytes32 id) public {
         require(isParticipant(id, msg.sender));
 
         bool isHouse = (players[id][true] == msg.sender);
@@ -397,7 +397,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
                 depositedTokens[_address][channels[id].session] =
                 safeAdd(depositedTokens[_address][channels[id].session], amount);
 
-                LogClaimChannelTokens(id, isHouse, getTime());
+                emit LogClaimChannelTokens(id, isHouse, getTime());
             }
         } else
             revert();
@@ -409,12 +409,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Query balance of channel tokens for either party
-    function channelBalanceOf(uint id, bool isHouse) public constant returns (uint) {
+    function channelBalanceOf(bytes32 id, bool isHouse) public constant returns (uint) {
         return finalBalances[id][isHouse];
     }
 
     // Checks the signature of a spin sent and verifies it's validity
-    function checkSig(uint id, bytes32 hash, bytes sig, bool turn) public returns (bool) {
+    function checkSig(bytes32 id, bytes32 hash, bytes sig, bool turn) public returns (bool) {
         //        bytes32 hash = sha3(reelHash, reel, reelSeedHash, prevReelSeedHash, userHash, prevUserHash,
         //        nonce, turn, userBalance, houseBalance, betSize);
         //        address player = players[turn];
@@ -427,12 +427,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Allows only the house and player to proceed
-    function isParticipant(uint id, address _address) public constant returns (bool) {
+    function isParticipant(bytes32 id, address _address) public constant returns (bool) {
         return (houseAuthorizedController.authorized(_address) || _address == players[id][false]);
     }
 
     // Helper function to return channel information for the frontend
-    function getChannelInfo(uint id) public constant returns (address, bool, bool, bool, uint, uint, uint) {
+    function getChannelInfo(bytes32 id) public constant returns (address, bool, bool, bool, uint, uint, uint) {
         return (players[id][false],
         channels[id].ready,
         channels[id].activated,
@@ -443,7 +443,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Helper function to return hashes used for the frontend/backend
-    function getChannelHashes(uint id) public constant returns (string, string, string, string) {
+    function getChannelHashes(bytes32 id) public constant returns (string, string, string, string) {
         return (channels[id].finalUserHash,
         channels[id].initialUserNumber,
         channels[id].finalReelHash,
@@ -451,16 +451,16 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Helper function to return whether a channel has been finalized and it's final nonce
-    function getChannelFinalized(uint id) public constant returns (bool, uint) {
+    function getChannelFinalized(bytes32 id) public constant returns (bool, uint) {
         return (channels[id].finalized, channels[id].finalNonce);
     }
 
-    function getPlayer(uint id, bool isHouse) public constant returns (address){
+    function getPlayer(bytes32 id, bool isHouse) public constant returns (address){
         return players[id][isHouse];
     }
 
     // Utility function to check whether the channel has closed
-    function isChannelClosed(uint id) public constant returns (bool) {
+    function isChannelClosed(bytes32 id) public constant returns (bool) {
         return channels[id].finalized && getTime() > channels[id].endTime;
     }
 

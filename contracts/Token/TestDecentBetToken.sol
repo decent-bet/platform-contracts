@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 // Decent.bet Token only for testing purposes
 
@@ -57,7 +57,7 @@ contract TestDecentBetVault is SafeMath, TimeProvider {
         // Will fail if allocation (and therefore toTransfer) is 0.
         if (!decentBetToken.transfer(decentBetMultisig, decentBetToken.balanceOf(this))) revert();
         // Otherwise ether are trapped here, we could disallow payable instead...
-        if (!decentBetMultisig.send(this.balance)) revert();
+        if (!decentBetMultisig.send(address(this).balance)) revert();
     }
 
     // disallow ETH payments to TimeVault
@@ -173,13 +173,13 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
 
     function faucet() public {
         balances[msg.sender] = 10000 ether;
-        Transfer(0, msg.sender, 10000 ether);
+        emit Transfer(0, msg.sender, 10000 ether);
     }
 
     function ownerFaucet() public {
         if(msg.sender != owner) revert();
         balances[msg.sender] = 100000000 ether;
-        Transfer(0, msg.sender, 100000000 ether);
+        emit Transfer(0, msg.sender, 100000000 ether);
     }
 
     function balanceOf(address who) public constant returns (uint) {
@@ -200,7 +200,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
             senderBalance = safeSub(senderBalance, value);
             balances[msg.sender] = senderBalance;
             balances[to] = safeAdd(balances[to], value);
-            Transfer(msg.sender, to, value);
+            emit Transfer(msg.sender, to, value);
             return true;
         }
         return false;
@@ -224,7 +224,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
             balances[to] = safeAdd(balances[to], value);
             balances[from] = safeSub(balances[from], value);
             allowed[from][msg.sender] = safeSub(allowed[from][msg.sender], value);
-            Transfer(from, to, value);
+            emit Transfer(from, to, value);
             return true;
         }
         else {return false;}
@@ -237,7 +237,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     function approve(address spender, uint256 value) public returns (bool ok) {
         // Abort if not in Success state.
         allowed[msg.sender][spender] = value;
-        Approval(msg.sender, spender, value);
+        emit Approval(msg.sender, spender, value);
         return true;
     }
 
@@ -269,7 +269,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
         totalSupply = safeSub(totalSupply, value);
         totalUpgraded = safeAdd(totalUpgraded, value);
         upgradeAgent.upgradeFrom(msg.sender, value);
-        Upgrade(msg.sender, upgradeAgent, value);
+        emit Upgrade(msg.sender, upgradeAgent, value);
     }
 
     /// @notice Set address of upgrade target contract and enable upgrade
@@ -286,7 +286,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
         if (!upgradeAgent.isUpgradeAgent()) revert();
         // this needs to be called in success condition to guarantee the invariant is true
         upgradeAgent.setOriginalSupply();
-        UpgradeAgentSet(upgradeAgent);
+        emit UpgradeAgentSet(upgradeAgent);
     }
 
     /// @notice Set address of upgrade target contract and enable upgrade
@@ -317,7 +317,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
 
         upgradeAgent.finalizeUpgrade();
         // call finalize upgrade on new contract
-        UpgradeFinalized(msg.sender, upgradeAgent);
+        emit UpgradeFinalized(msg.sender, upgradeAgent);
     }
 
     // Crowdfunding:

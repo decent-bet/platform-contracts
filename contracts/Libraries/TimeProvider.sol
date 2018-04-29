@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 // Provides time for contracts that can be toggled to a mock time on TestRPC/local networks and the current
 // block timestamp on testnet/mainnet.
@@ -27,10 +27,11 @@ contract TimeProvider {
     onlyTimeController
     public {
         mockTime = time;
-        LogUpdatedTime(time);
+        emit LogUpdatedTime(time);
     }
 
-    function setTimeController(address _timeController) internal {
+    function setTimeController(address _timeController)
+    internal {
         timeController = _timeController;
     }
 

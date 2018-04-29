@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 import '../House.sol';
 import '../../Token/ERC20.sol';
@@ -227,7 +227,7 @@ contract HouseFundsController is SafeMath {
     // If the session was profitable, 5% of the profit generated is excluded to be deposited in the house lottery.
     function getPayoutPerCredit(uint session)
     public
-    constant
+    view
     returns (uint) {
         uint totalWithdrawn = houseFunds[session].totalWithdrawn;
         uint totalUnregisteredOfferingProfits = houseFunds[session].totalUnregisteredOfferingProfits;
@@ -262,7 +262,7 @@ contract HouseFundsController is SafeMath {
         safeAdd(houseFunds[session].totalUnregisteredOfferingProfits, amount);
 
         // Add to profit for the session
-        houseFunds[session].profit = houseFunds[session].profit + (int)(amount);
+        houseFunds[session].profit = houseFunds[session].profit + (int) (amount);
 
         return true;
     }
@@ -336,7 +336,9 @@ contract HouseFundsController is SafeMath {
     // Utility functions for front-end purposes.
 
     // Returns house funds and user specific credit info for a session.
-    function getUserCreditsForSession(uint session, address _address) public constant
+    function getUserCreditsForSession(uint session, address _address)
+    public
+    view
     returns (uint amount, uint liquidated, uint rolledOverToNextSession, uint claimedFromPreviousSession,
         uint totalFunds, uint totalUserCredits) {
         return (houseFunds[session].userCredits[_address].amount,
@@ -347,12 +349,18 @@ contract HouseFundsController is SafeMath {
         houseFunds[session].totalUserCredits);
     }
 
-    function getProfitForSession(uint session) public constant returns (int) {
+    function getProfitForSession(uint session)
+    public
+    view
+    returns (int) {
         return houseFunds[session].profit;
     }
 
     // Returns a user address for a session.
-    function getUserForSession(uint session, uint index) public constant returns (address _address) {
+    function getUserForSession(uint session, uint index)
+    public
+    view
+    returns (address _address) {
         return houseFunds[session].users[index];
     }
 

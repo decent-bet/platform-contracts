@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 
 import './SlotsImplementation.sol';
@@ -79,7 +79,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     }
 
     // Checks the signature of a spin sent and verifies it's validity
-    function checkSigPrivate(uint id, Spin s) private view returns (bool) {
+    function checkSigPrivate(bytes32 id, Spin s) private view returns (bool) {
         bytes32 hash = keccak256(s.reelHash, s.reel, s.reelSeedHash, s.prevReelSeedHash, s.userHash, s.prevUserHash,
         uintToString(s.nonce), boolToString(s.turn), uintToString(s.userBalance), uintToString(s.houseBalance),
         uintToString(s.betSize));
@@ -168,7 +168,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         return true;
     }
 
-    function finalize(uint id, string _curr, string _prior,
+    function finalize(bytes32 id, string _curr, string _prior,
     bytes32 currR, bytes32 currS, bytes32 priorR, bytes32 priorS)
     isSenderKycVerified
     isSlotsChannelManagerSet public returns (bool) {
@@ -207,7 +207,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         return true;
     }
 
-    function shouldFinalizeChannel(uint id, uint nonce) private view returns (bool) {
+    function shouldFinalizeChannel(bytes32 id, uint nonce) private view returns (bool) {
         bool finalized;
         uint finalNonce;
         (finalized, finalNonce) = slotsChannelManager.getChannelFinalized(id);

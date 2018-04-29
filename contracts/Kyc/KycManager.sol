@@ -43,7 +43,8 @@ contract KycManager {
     event LogNewApprovedAddress       (address _contract, address _address, uint index);
     event LogRemoveApprovedAddress    (address _contract, address _address);
 
-    function KycManager() public {
+    function KycManager()
+    public {
         founder = msg.sender;
         addAuthorizedAddress(msg.sender);
     }
@@ -76,7 +77,7 @@ contract KycManager {
         require(!kycEnabledContracts[_address].exists);
         kycEnabledContractList.push(_address);
         kycEnabledContracts[_address].exists = true;
-        LogNewKycEnabledContract(_address, msg.sender);
+        emit LogNewKycEnabledContract(_address, msg.sender);
     }
 
     // Allows authorized addresses to remove a KYC enabled contract
@@ -87,7 +88,7 @@ contract KycManager {
         require(kycEnabledContractList[index] == _address);
         delete kycEnabledContractList[index];
         kycEnabledContracts[_address].exists = false;
-        LogRemovedKycEnabledContract(_address, msg.sender);
+        emit LogRemovedKycEnabledContract(_address, msg.sender);
     }
 
     // Adds an authorized address
@@ -97,7 +98,7 @@ contract KycManager {
         require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddressList.push(_address);
-        LogNewAuthorizedAddress(_address);
+        emit LogNewAuthorizedAddress(_address);
     }
 
     // Removes an authorized address
@@ -108,7 +109,7 @@ contract KycManager {
         require(authorizedAddressList[index] == _address);
         authorized[_address] = false;
         delete authorizedAddressList[index];
-        LogRemoveAuthorizedAddress(_address);
+        emit LogRemoveAuthorizedAddress(_address);
     }
 
     // Approves a user address after KYC checks from onfido backend
@@ -132,7 +133,7 @@ contract KycManager {
             s:             s
         });
         kycEnabledContracts[_contract].approvedAddressList.push(_address);
-        LogNewApprovedAddress(_contract, _address, kycEnabledContracts[_contract].approvedAddressList.length - 1);
+        emit LogNewApprovedAddress(_contract, _address, kycEnabledContracts[_contract].approvedAddressList.length - 1);
     }
 
     // Removes an address from the KYC approved list
@@ -145,18 +146,23 @@ contract KycManager {
 
         kycEnabledContracts[_contract].users[_address].approved = false;
         delete kycEnabledContracts[_contract].approvedAddressList[index];
-        LogRemoveApprovedAddress(_contract, _address);
+        emit LogRemoveApprovedAddress(_contract, _address);
     }
 
     // Returns whether an address has been verified for a contract.
     // Works even if KYC enabled contract has been removed from this contract.
-    function isVerified(address _contract, address _address) public constant returns (bool) {
+    function isVerified(address _contract, address _address)
+    public
+    view
+    returns (bool) {
         return kycEnabledContracts[_contract].users[_address].approved;
     }
 
     // Returns a KYC enabled contract user.
-    function getKYCEnabledContractUser(address _contract, address _address) public constant returns
-                            (bool, string, string, uint8, bytes32, bytes32) {
+    function getKYCEnabledContractUser(address _contract, address _address)
+    public
+    view
+    returns (bool, string, string, uint8, bytes32, bytes32) {
         return (kycEnabledContracts[_contract].users[_address].approved,
                 kycEnabledContracts[_contract].users[_address].applicantId,
                 kycEnabledContracts[_contract].users[_address].checkId,

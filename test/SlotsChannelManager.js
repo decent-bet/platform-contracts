@@ -253,15 +253,21 @@ contract('SlotsChannelManager', accounts => {
     it('allows users to create channels with a sufficient balance', async () => {
         let initialDeposit = '500000000000000000000'
 
-        await slotsChannelManager.createChannel.sendTransaction(
+        let receipt = await slotsChannelManager.createChannel(
             initialDeposit,
             {
                 from: nonFounder
             }
         )
 
-        let channelCount = await slotsChannelManager.channelCount()
-        channelId = (channelCount.toNumber() - 1).toString()
+        channelId = receipt.logs[0].args.id
+
+        let loggedEvent = receipt.logs[0].event
+        assert.equal(
+            loggedEvent,
+            'LogNewChannel',
+            'New channel not created'
+        )
     })
 
     it('disallows transferTokensToChannel call from outside contract', async () => {

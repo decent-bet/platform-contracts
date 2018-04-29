@@ -207,7 +207,7 @@ contract SportsOracle is SafeMath, TimeProvider {
         require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddresses.push(_address);
-        LogNewAuthorizedAddress(_address);
+        emit LogNewAuthorizedAddress(_address);
     }
 
     // Allow oracle to accept new providers via payment.
@@ -222,7 +222,7 @@ contract SportsOracle is SafeMath, TimeProvider {
     onlyOwner
     public {
         gameUpdateCost = cost;
-        LogNewGameUpdateCost(cost);
+        emit LogNewGameUpdateCost(cost);
     }
 
     // Set a price to accept new providers if it has been toggled on.
@@ -230,7 +230,7 @@ contract SportsOracle is SafeMath, TimeProvider {
     onlyOwner
     public {
         providerAcceptanceCost = cost;
-        LogNewProviderAcceptanceCost(cost);
+        emit LogNewProviderAcceptanceCost(cost);
     }
 
     // Any provider can request the oracle to accept itself.
@@ -249,7 +249,7 @@ contract SportsOracle is SafeMath, TimeProvider {
     public {
         providers[_address].accepted = true;
         acceptedProviderAddresses.push(_address);
-        LogNewAcceptedProvider(_address);
+        emit LogNewAcceptedProvider(_address);
     }
 
     // Allows providers to pay to be accepted by the oracle.
@@ -263,7 +263,7 @@ contract SportsOracle is SafeMath, TimeProvider {
         providers[msg.sender].exists = true;
         acceptedProviderAddresses.push(msg.sender);
         if (!decentBetToken.transferFrom(msg.sender, address(this), providerAcceptanceCost)) revert();
-        LogNewAcceptedProvider(msg.sender);
+        emit LogNewAcceptedProvider(msg.sender);
     }
 
     // gameId - ID in oracle contract
@@ -311,7 +311,7 @@ contract SportsOracle is SafeMath, TimeProvider {
         for(uint i = 0; i < availablePeriods.length; i++) {
             gamePeriods[game.id][availablePeriods[i]].exists = true;
         }
-        LogGameAdded(game.id, refId, sportId, leagueId, ipfsHash);
+        emit LogGameAdded(game.id, refId, sportId, leagueId, ipfsHash);
     }
 
     // Update swarm hash containing meta-data for the game.
@@ -320,7 +320,7 @@ contract SportsOracle is SafeMath, TimeProvider {
     onlyAuthorized
     public {
         games[id].ipfsHash = ipfsHash;
-        LogGameDetailsUpdate(id, games[id].refId, games[id].ipfsHash);
+        emit LogGameDetailsUpdate(id, games[id].refId, games[id].ipfsHash);
     }
 
     // Push outcome for a game.
@@ -342,7 +342,7 @@ contract SportsOracle is SafeMath, TimeProvider {
             settleTime: getTime(),
             exists: true
         });
-        LogGameResult(gameId, games[gameId].refId, period, result, team1Points, team2Points);
+        emit LogGameResult(gameId, games[gameId].refId, period, result, team1Points, team2Points);
     }
 
     // Update the outcome in a provider contract.
@@ -365,7 +365,7 @@ contract SportsOracle is SafeMath, TimeProvider {
             gamePeriods[gameId][period].team1Points,
             gamePeriods[gameId][period].team2Points)) revert();
 
-        LogUpdatedProviderOutcome(gameId,
+        emit LogUpdatedProviderOutcome(gameId,
                                   provider,
                                   providerGamesToUpdate[gameId][provider].gameId,
                                   games[gameId].refId,
@@ -381,10 +381,13 @@ contract SportsOracle is SafeMath, TimeProvider {
     public {
         uint amount = decentBetToken.balanceOf(address(this));
         if (!decentBetToken.transfer(msg.sender, amount)) revert();
-        LogWithdrawal(amount);
+        emit LogWithdrawal(amount);
     }
 
-    function getProviderGameId(uint gameId, address provider) public constant returns (uint id) {
+    function getProviderGameId(uint gameId, address provider)
+    public
+    view
+    returns (uint id) {
         return providerGamesToUpdate[gameId][provider].gameId;
     }
 

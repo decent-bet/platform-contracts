@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 
 import './strings.sol';
@@ -9,24 +9,36 @@ contract Utils {
 
     using strings for *;
 
-    function parseBool(string b) internal pure returns (bool) {
+    function parseBool(string b)
+    internal
+    pure
+    returns (bool) {
         if (strCompare(b, 'false')) return false;
         else if (strCompare(b, 'true')) return true;
         else revert();
     }
 
-    function bytes32ToBool(bytes32 b) public pure returns (bool) {
+    function bytes32ToBool(bytes32 b)
+    public
+    pure
+    returns (bool) {
         if (b == 0) return false;
         else if (b == 1) return true;
         else revert();
     }
 
-    function parseInt(string _a) internal pure returns (uint) {
+    function parseInt(string _a)
+    internal
+    pure
+    returns (uint) {
         return parseInt(_a, 0);
     }
 
     // parseInt(parseFloat*10^_b)
-    function parseInt(string _a, uint _b) internal pure returns (uint) {
+    function parseInt(string _a, uint _b)
+    internal
+    pure
+    returns (uint) {
         bytes memory bresult = bytes(_a);
         uint mint = 0;
         bool decimals = false;
@@ -46,18 +58,27 @@ contract Utils {
     }
 
     // Helper function to easily slice and count string length
-    function strLen(string _string) public pure returns (uint) {
+    function strLen(string _string)
+    public
+    pure
+    returns (uint) {
         return _string.toSlice().len();
     }
 
     // Helper function to compare two strings
-    function strCompare(string s1, string s2) public pure returns (bool) {
+    function strCompare(string s1, string s2)
+    public
+    pure
+    returns (bool) {
         int result = s1.toSlice().compare(s2.toSlice());
         return result == 0;
     }
 
     // Helper function to return char at a certain position
-    function getCharAt(string s, uint index) public pure returns (string) {
+    function getCharAt(string s, uint index)
+    public
+    pure
+    returns (string) {
         bytes memory b = bytes(s);
         string memory char = new string(1);
         bytes memory bChar = bytes(char);
@@ -65,7 +86,10 @@ contract Utils {
         return string(bChar);
     }
 
-    function strConcat(string _a, string _b, string _c, string _d, string _e) internal pure returns (string) {
+    function strConcat(string _a, string _b, string _c, string _d, string _e)
+    internal
+    pure
+    returns (string) {
         bytes memory _ba = bytes(_a);
         bytes memory _bb = bytes(_b);
         bytes memory _bc = bytes(_c);
@@ -82,19 +106,31 @@ contract Utils {
         return string(babcde);
     }
 
-    function strConcat(string _a, string _b, string _c, string _d) internal pure returns (string) {
+    function strConcat(string _a, string _b, string _c, string _d)
+    internal
+    pure
+    returns (string) {
         return strConcat(_a, _b, _c, _d, '');
     }
 
-    function strConcat(string _a, string _b, string _c) internal pure returns (string) {
+    function strConcat(string _a, string _b, string _c)
+    internal
+    pure
+    returns (string) {
         return strConcat(_a, _b, _c, '', '');
     }
 
-    function strConcat(string _a, string _b) internal pure returns (string) {
+    function strConcat(string _a, string _b)
+    internal
+    pure
+    returns (string) {
         return strConcat(_a, _b, '', '', '');
     }
 
-    function uintToBytes(uint v) public pure returns (bytes32 ret) {
+    function uintToBytes(uint v)
+    public
+    pure
+    returns (bytes32 ret) {
         if (v == 0) {
             ret = '0';
         }
@@ -108,7 +144,10 @@ contract Utils {
         return ret;
     }
 
-    function bytes32ToString(bytes32 x) public pure returns (string) {
+    function bytes32ToString(bytes32 x)
+    public
+    pure
+    returns (string) {
         bytes memory bytesString = new bytes(32);
         uint charCount = 0;
         for (uint j = 0; j < 32; j++) {
@@ -125,19 +164,28 @@ contract Utils {
         return string(bytesStringTrimmed);
     }
 
-    function uintToString(uint n) public pure returns (string) {
+    function uintToString(uint n)
+    public
+    pure
+    returns (string) {
         bytes32 b = uintToBytes(n);
         return bytes32ToString(b);
     }
 
-    function boolToString(bool b) public pure returns (string) {
+    function boolToString(bool b)
+    public
+    pure
+    returns (string) {
         if (b == true)
         return "true";
         else if (b == false)
         return "false";
     }
 
-    function toBytes32(string self, uint startIndex) public pure returns (bytes32 b) {
+    function toBytes32(string self, uint startIndex)
+    public
+    pure
+    returns (bytes32 b) {
         uint l = 32;
         bytes memory bs = toBytes(self, startIndex, l);
 
@@ -146,7 +194,10 @@ contract Utils {
         }
     }
 
-    function toBytes(string self, uint startIndex, uint length) internal pure returns (bytes) {
+    function toBytes(string self, uint startIndex, uint length)
+    internal
+    pure
+    returns (bytes) {
         bytes memory str = bytes(self);
         bytes memory bs = new bytes(length);
         uint maxIndex = ((str.length - startIndex) < (length * 2) ? (str.length - startIndex) : startIndex + (length * 2));
@@ -159,7 +210,10 @@ contract Utils {
         return bs;
     }
 
-    function toByte(byte char) public pure returns (byte c) {
+    function toByte(byte char)
+    public
+    pure
+    returns (byte c) {
         if (uint8(char) > 0x57) return byte(uint8(char) - 0x57);
         else return byte(uint8(char) - 0x30);
     }

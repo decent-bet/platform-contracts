@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 import '../Libraries/SafeMath.sol';
 import '../Token/ERC20.sol';
@@ -36,7 +36,8 @@ contract House is SafeMath, EmergencyOptions {
     KycManager kycManager;
 
     // Constructor
-    function House(address decentBetTokenAddress, address kycManagerAddress) public {
+    function House(address decentBetTokenAddress, address kycManagerAddress)
+    public {
         require(decentBetTokenAddress != 0x0);
         founder = msg.sender;
         decentBetToken = ERC20(decentBetTokenAddress);
@@ -128,7 +129,7 @@ contract House is SafeMath, EmergencyOptions {
     event LogRolledOverCredits(address creditHolder, uint session, uint amount);
 
     event LogClaimRolledOverCredits(address creditHolder, uint session, uint rolledOver, uint adjusted,
-        uint creditsForCurrentSession);
+                                    uint creditsForCurrentSession);
 
     event LogNewSession(uint session, uint startTimestamp, uint startBlockNumber, uint endTimestamp, uint endBlockNumber);
 
@@ -197,7 +198,7 @@ contract House is SafeMath, EmergencyOptions {
         // Transfer tokens to house contract address.
         if (!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
-        LogPurchasedCredits(msg.sender, nextSession, amount, userCredits);
+        emit LogPurchasedCredits(msg.sender, nextSession, amount, userCredits);
     }
 
     // Allows users to return credits and receive tokens along with profit in return.
@@ -214,7 +215,7 @@ contract House is SafeMath, EmergencyOptions {
         // Transfers from house to user.
         if (!decentBetToken.transfer(msg.sender, payout)) revert();
 
-        LogLiquidateCredits(msg.sender, session, amount, payout);
+        emit LogLiquidateCredits(msg.sender, session, amount, payout);
     }
 
     // Returns the payout per credit based on the house winnings for a session.
@@ -235,7 +236,7 @@ contract House is SafeMath, EmergencyOptions {
     public {
         if(!houseFundsController.rollOverCredits(msg.sender, amount)) revert();
 
-        LogRolledOverCredits(msg.sender, currentSession, amount);
+        emit LogRolledOverCredits(msg.sender, currentSession, amount);
     }
 
     // Allows users who've rolled over credits from a session to claim credits in the next session based on the
@@ -263,12 +264,12 @@ contract House is SafeMath, EmergencyOptions {
             if(!HouseOffering(houseOffering).houseDeposit(tokenAmount, currentSession))
                 revert();
 
-            LogOfferingDeposit(currentSession, houseOffering, allocation, tokenAmount);
+            emit LogOfferingDeposit(currentSession, houseOffering, allocation, tokenAmount);
         }
 
         if (!houseLotteryController.allotLotteryTickets(currentSession, msg.sender, adjustedCredits)) revert();
 
-        LogClaimRolledOverCredits(msg.sender, currentSession, rolledOverFromPreviousSession, adjustedCredits,
+        emit LogClaimRolledOverCredits(msg.sender, currentSession, rolledOverFromPreviousSession, adjustedCredits,
             creditsForCurrentSession);
     }
 
@@ -316,7 +317,7 @@ contract House is SafeMath, EmergencyOptions {
 
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
-        LogAddToSessionProfitsFromUnregisteredHouseOffering(session, unregisteredOffering, amount);
+        emit LogAddToSessionProfitsFromUnregisteredHouseOffering(session, unregisteredOffering, amount);
     }
 
     // Allocates a %age of tokens for a house offering for the next session
@@ -325,7 +326,7 @@ contract House is SafeMath, EmergencyOptions {
     onlyAuthorized
     public {
         if(!houseSessionsController.allocateTokensForHouseOffering(percentage, houseOffering)) revert();
-        LogOfferingAllocation((currentSession + 1), houseOffering, percentage);
+        emit LogOfferingAllocation((currentSession + 1), houseOffering, percentage);
     }
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
@@ -351,15 +352,18 @@ contract House is SafeMath, EmergencyOptions {
         if(!HouseOffering(houseOffering).houseDeposit(tokenAmount, nextSession))
             revert();
 
-        LogOfferingDeposit(nextSession, houseOffering, allocation, tokenAmount);
+        emit LogOfferingDeposit(nextSession, houseOffering, allocation, tokenAmount);
     }
 
     // Get house lottery to retrieve random ticket winner using oraclize as RNG.
     function pickLotteryWinner(uint session)
     onlyAuthorized
-    isProfitDistributionPeriod(session) public payable returns (bool) {
+    isProfitDistributionPeriod(session)
+    public
+    payable
+    returns (bool) {
         if(!houseLotteryController.pickWinner(currentSession)) revert();
-        LogPickLotteryWinner(currentSession);
+        emit LogPickLotteryWinner(currentSession);
         return true;
     }
 
@@ -367,7 +371,8 @@ contract House is SafeMath, EmergencyOptions {
     function claimLotteryWinnings(uint session)
     isSenderKycVerified
     isProfitDistributionPeriod(session)
-    public returns (uint, uint){
+    public
+    returns (uint, uint){
         int sessionProfit = houseFundsController.getProfitForSession(session);
 
         if(sessionProfit <= 0) revert();
@@ -398,7 +403,7 @@ contract House is SafeMath, EmergencyOptions {
             sessionZeroStartTime = getTime();
             endTime = safeAdd(startTime, 2 weeks);
             if(!houseSessionsController.beginNextSession(startTime, endTime, 0)) revert();
-            LogNewSession(currentSession, startTime, 0, endTime, 0);
+            emit LogNewSession(currentSession, startTime, 0, endTime, 0);
         } else {
             currentSession = nextSession;
             endTime = safeAdd(startTime, 12 weeks);
@@ -407,7 +412,7 @@ contract House is SafeMath, EmergencyOptions {
             for(uint i = 0; i < houseSessionsController.getOfferingAddressesLength(); i++)
                 HouseOffering(houseSessionsController.offeringAddresses(i)).setSession(nextSession);
 
-            LogNewSession(nextSession, startTime, 0, endTime, 0);
+            emit LogNewSession(nextSession, startTime, 0, endTime, 0);
         }
     }
 
@@ -449,19 +454,26 @@ contract House is SafeMath, EmergencyOptions {
 
         if(!decentBetToken.transfer(msg.sender, payout)) revert();
 
-        LogEmergencyWithdraw(msg.sender, currentSession, amount, payout);
+        emit LogEmergencyWithdraw(msg.sender, currentSession, amount, payout);
     }
 
-    function getHouseControllers() public constant returns (address, address, address) {
+    function getHouseControllers()
+    public
+    view
+    returns (address, address, address) {
         return (address(houseAuthorizedController), address(houseFundsController), address(houseSessionsController));
     }
 
-    function getTime() view public returns (uint) {
+    function getTime()
+    public
+    view
+    returns (uint) {
         return now;
     }
 
     // Do not accept ETH sent to this contract.
-    function() public {
+    function()
+    public {
         revert();
     }
 
