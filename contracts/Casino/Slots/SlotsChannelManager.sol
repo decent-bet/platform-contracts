@@ -91,7 +91,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     /* Constructor */
 
     function SlotsChannelManager(address _house, address _token,
-        address _slotsHelper, address _slotsChannelFinalizer, address _kycManager) public {
+        address _slotsHelper, address _slotsChannelFinalizer, address _kycManager)
+    public {
         require(_house != 0x0);
         require(_token != 0x0);
         require(_slotsHelper != 0x0);
@@ -356,7 +357,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Transfers tokens to a channel.
-    function transferTokensToChannel(bytes32 id, bool isHouse) private {
+    function transferTokensToChannel(bytes32 id, bool isHouse)
+    private {
         // Transfer from house address instead of authorized addresses sending txs on behalf of the house
         address _address = isHouse ? address(this) : players[id][false];
         channelDeposits[id][isHouse] =
@@ -366,7 +368,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Sets the final spin for the channel
-    function setFinal(bytes32 id, uint userBalance, uint houseBalance, uint nonce, bool turn) external {
+    function setFinal(bytes32 id, uint userBalance, uint houseBalance, uint nonce, bool turn)
+    external {
         require(msg.sender == address(slotsChannelFinalizer));
 
         finalBalances[id][false] = userBalance;
@@ -380,7 +383,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Allows player/house to claim DBETs after the channel has closed
-    function claim(bytes32 id) public {
+    function claim(bytes32 id)
+    public {
         require(isParticipant(id, msg.sender));
 
         bool isHouse = (players[id][true] == msg.sender);
@@ -404,17 +408,26 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Query balance of deposited tokens for a user.
-    function balanceOf(address _address, uint session) public constant returns (uint) {
+    function balanceOf(address _address, uint session)
+    public
+    view
+    returns (uint) {
         return depositedTokens[_address][session];
     }
 
     // Query balance of channel tokens for either party
-    function channelBalanceOf(bytes32 id, bool isHouse) public constant returns (uint) {
+    function channelBalanceOf(bytes32 id, bool isHouse)
+    public
+    view
+    returns (uint) {
         return finalBalances[id][isHouse];
     }
 
     // Checks the signature of a spin sent and verifies it's validity
-    function checkSig(bytes32 id, bytes32 hash, bytes sig, bool turn) public returns (bool) {
+    function checkSig(bytes32 id, bytes32 hash, bytes sig, bool turn)
+    public
+    view
+    returns (bool) {
         //        bytes32 hash = sha3(reelHash, reel, reelSeedHash, prevReelSeedHash, userHash, prevUserHash,
         //        nonce, turn, userBalance, houseBalance, betSize);
         //        address player = players[turn];
@@ -422,17 +435,26 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Returns the address for a signed spin
-    function getSigAddress(bytes32 _msg, uint8 v, bytes32 r, bytes32 s) public pure returns (address) {
+    function getSigAddress(bytes32 _msg, uint8 v, bytes32 r, bytes32 s)
+    public
+    pure
+    returns (address) {
         return ecrecover(keccak256(_msg), v, r, s);
     }
 
     // Allows only the house and player to proceed
-    function isParticipant(bytes32 id, address _address) public constant returns (bool) {
+    function isParticipant(bytes32 id, address _address)
+    public
+    view
+    returns (bool) {
         return (houseAuthorizedController.authorized(_address) || _address == players[id][false]);
     }
 
     // Helper function to return channel information for the frontend
-    function getChannelInfo(bytes32 id) public constant returns (address, bool, bool, bool, uint, uint, uint) {
+    function getChannelInfo(bytes32 id)
+    public
+    view
+    returns (address, bool, bool, bool, uint, uint, uint) {
         return (players[id][false],
         channels[id].ready,
         channels[id].activated,
@@ -443,7 +465,10 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Helper function to return hashes used for the frontend/backend
-    function getChannelHashes(bytes32 id) public constant returns (string, string, string, string) {
+    function getChannelHashes(bytes32 id)
+    public
+    view
+    returns (string, string, string, string) {
         return (channels[id].finalUserHash,
         channels[id].initialUserNumber,
         channels[id].finalReelHash,
@@ -451,20 +476,32 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Helper function to return whether a channel has been finalized and it's final nonce
-    function getChannelFinalized(bytes32 id) public constant returns (bool, uint) {
+    function getChannelFinalized(bytes32 id)
+    public
+    view
+    returns (bool, uint) {
         return (channels[id].finalized, channels[id].finalNonce);
     }
 
-    function getPlayer(bytes32 id, bool isHouse) public constant returns (address){
+    function getPlayer(bytes32 id, bool isHouse)
+    public
+    view
+    returns (address){
         return players[id][isHouse];
     }
 
     // Utility function to check whether the channel has closed
-    function isChannelClosed(bytes32 id) public constant returns (bool) {
+    function isChannelClosed(bytes32 id)
+    public
+    view
+    returns (bool) {
         return channels[id].finalized && getTime() > channels[id].endTime;
     }
 
-    function getTime() view public returns (uint) {
+    function getTime()
+    public
+    view
+    returns (uint) {
         return now;
     }
 

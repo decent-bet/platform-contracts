@@ -52,7 +52,8 @@ contract HouseFundsController is SafeMath {
     mapping (uint => HouseFunds) public houseFunds;
 
     // Constructor
-    function HouseFundsController(address _house) public {
+    function HouseFundsController(address _house)
+    public {
         require(_house != 0x0);
         house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());

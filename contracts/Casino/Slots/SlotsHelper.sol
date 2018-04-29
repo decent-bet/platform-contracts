@@ -36,13 +36,15 @@ contract SlotsHelper is SafeMath, Utils {
 
     uint8 symbolG = 7;
 
-    function SlotsHelper() public {
+    function SlotsHelper()
+    public {
         initReels();
         initPayTable();
     }
 
     // Initializes the paytable to verify reward calculations
-    function initPayTable() private {
+    function initPayTable()
+    private {
         // 3x Multiplier
         paytable[symbolA] = 10;
         paytable[symbolB] = 20;
@@ -53,7 +55,8 @@ contract SlotsHelper is SafeMath, Utils {
         paytable[symbolG] = 300;
     }
 
-    function initReels() private {
+    function initReels()
+    private {
         reels[0] = [7, 2, 2, 1, 5, 3, 5, 3, 2, 2, 3, 4, 2, 5, 1, 1, 6, 4, 1, 5, 3];
         reels[1] = [1, 1, 3, 3, 5, 3, 5, 1, 2, 2, 4, 1, 3, 4, 3, 2, 2, 6, 6, 3, 7];
         reels[2] = [4, 2, 7, 3, 2, 6, 1, 4, 3, 1, 5, 1, 1, 4, 4, 1, 5, 2, 2, 1, 1];
@@ -63,7 +66,10 @@ contract SlotsHelper is SafeMath, Utils {
 
     // Converts a string reel to a uint array
     // Example string reel = '0,1,2,3,4'
-    function convertReelToArray(string reel) public pure returns (uint[5]){
+    function convertReelToArray(string reel)
+    public
+    pure
+    returns (uint[5]){
         uint[5] memory reelArray;
         string memory temp = '';
         uint8 iterator = 0;
@@ -81,7 +87,10 @@ contract SlotsHelper is SafeMath, Utils {
         return reelArray;
     }
 
-    function getTotalReward(uint betSize, uint[5] reelArray) public view returns (uint) {
+    function getTotalReward(uint betSize, uint[5] reelArray)
+    public
+    view
+    returns (uint) {
         uint totalReward = 0;
         uint adjustedBetSize = getAdjustedBetSize(betSize);
         for (uint8 i = 0; i < adjustedBetSize; i++) { //300k gas
@@ -91,7 +100,10 @@ contract SlotsHelper is SafeMath, Utils {
         return totalReward;
     }
 
-    function getAdjustedBetSize(uint betSize) public pure returns (uint) {
+    function getAdjustedBetSize(uint betSize)
+    public
+    pure
+    returns (uint) {
         if((betSize / 1 ether) <= 5 && (betSize / 1 ether) >= 1)
             return safeDiv(betSize, 1 ether);
         else if((betSize / 0.1 ether) <= 5 && (betSize / 0.1 ether) >= 1)
@@ -110,7 +122,10 @@ contract SlotsHelper is SafeMath, Utils {
 
     // Checks if a line is a winning line and returns the reward multiplier
     //uint8[NUMBER_OF_REELS] line
-    function getLineRewardMultiplier(uint[5] line) internal view returns (uint) {
+    function getLineRewardMultiplier(uint[5] line)
+    internal
+    view
+    returns (uint) {
         uint8 repetitions = 0;
         uint rewardMultiplier = 0;
         for (uint8 i = 1; i <= NUMBER_OF_REELS; i++) {
@@ -129,7 +144,10 @@ contract SlotsHelper is SafeMath, Utils {
 
     // Returns line for an index
     // uint8[NUMBER_OF_REELS]
-    function getLine(uint8 lineIndex, uint[5] reelArray) internal view returns (uint[5]) {
+    function getLine(uint8 lineIndex, uint[5] reelArray)
+    internal
+    view
+    returns (uint[5]) {
         // Example [0,1,2,3,20]
 
         // Top = [20,0,1,2,19]
@@ -180,7 +198,10 @@ contract SlotsHelper is SafeMath, Utils {
     }
 
     // Returns the symbol for a reel at a position
-    function getSymbol(uint8 reel, int position) internal view returns (uint8) {
+    function getSymbol(uint8 reel, int position)
+    internal
+    view
+    returns (uint8) {
         if (position == - 1) position = 20;
         else if (position == 21) position = 0;
         // If position is 21, return 0

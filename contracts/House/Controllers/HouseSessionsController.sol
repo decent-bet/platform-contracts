@@ -54,7 +54,8 @@ contract HouseSessionsController is SafeMath {
     // Session statistics.
     mapping (uint => Session) public sessions;
 
-    function HouseSessionsController(address _house) public {
+    function HouseSessionsController(address _house)
+    public {
         require(_house != 0x0);
         house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());

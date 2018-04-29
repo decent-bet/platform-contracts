@@ -13,7 +13,8 @@ contract HouseAuthorizedController {
     // Authorized addresses.
     mapping (address => bool) public authorized;
 
-    function HouseAuthorizedController(address _house) public {
+    function HouseAuthorizedController(address _house)
+    public {
         require(_house != 0x0);
         house = House(_house);
         addToAuthorizedAddresses(house.founder());
