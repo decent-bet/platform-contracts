@@ -183,12 +183,19 @@ module.exports = {
             }
         })
     },
-    increaseTime: function(bySeconds) {
-        myWeb3.currentProvider.send({
-            jsonrpc: '2.0',
-            method: 'evm_increaseTime',
-            params: [bySeconds],
-            id: new Date().getTime()
+    timeTravel: async function(bySeconds) {
+        return new Promise((resolve, reject) => {
+            myWeb3.currentProvider.send({
+                jsonrpc: '2.0',
+                method: 'evm_increaseTime',
+                params: [bySeconds],
+                id: 10
+            }, (err, response) => {
+                if(!err)
+                    resolve(response)
+                else
+                    reject()
+            })
         })
     },
     mineOneBlock: function() {
@@ -198,7 +205,6 @@ module.exports = {
             id: new Date().getTime()
         })
     },
-
     mineToBlockHeight: function(targetBlockHeight) {
         while (myWeb3.eth.blockNumber < targetBlockHeight) {
             this.mineOneBlock()

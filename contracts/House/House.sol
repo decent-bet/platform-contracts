@@ -3,7 +3,6 @@ pragma solidity ^0.4.19;
 import '../Libraries/SafeMath.sol';
 import '../Token/ERC20.sol';
 import '../Libraries/EmergencyOptions.sol';
-import '../Libraries/TimeProvider.sol';
 
 import './HouseOffering.sol';
 
@@ -16,7 +15,7 @@ import '../Kyc/KycManager.sol';
 
 // Decent.bet House Contract.
 // All credits and payouts are in DBETs and are 18 decimal places in length.
-contract House is SafeMath, EmergencyOptions, TimeProvider {
+contract House is SafeMath, EmergencyOptions {
 
     // Variables
     address public founder;
@@ -42,10 +41,6 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         founder = msg.sender;
         decentBetToken = ERC20(decentBetTokenAddress);
         kycManager = KycManager(kycManagerAddress);
-
-        // If on local testRPC/testnet and need mock times
-        isMock = true;
-        setTimeController(msg.sender);
     }
 
     // Modifiers //
@@ -65,7 +60,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         (,endTime) = houseSessionsController.getSessionTimes(currentSession);
         if(currentSession == 0)
             require(sessionZeroStartTime > 0);
-        require(getTime() >= (endTime - 1 weeks) && getTime() <= (endTime));
+        require(getTime() >= (safeSub(endTime, 1 weeks)) && getTime() <= (endTime));
         _;
     }
 
@@ -101,7 +96,8 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
             require(sessionZeroStartTime != 0);
         uint endTime;
         (,endTime) = houseSessionsController.getSessionTimes(currentSession);
-        require(getTime() >= (endTime - 2 weeks) && getTime() <= (endTime - 1 weeks));
+        require(getTime() >= (safeSub(endTime, 2 weeks)) &&
+                getTime() <= (safeSub(endTime, 1 weeks)));
         _;
     }
 
@@ -306,7 +302,9 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         if(currentSession == 0) revert();
 
         // Can only be for current and previous sessions
-        if(session != currentSession && session != (currentSession - 1)) revert();
+        if( session != currentSession &&
+            session != (safeSub(currentSession, 1)))
+            revert();
 
         // Check if a balance is available with offering
         if(decentBetToken.balanceOf(msg.sender) < amount) revert();
@@ -456,6 +454,10 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     function getHouseControllers() public constant returns (address, address, address) {
         return (address(houseAuthorizedController), address(houseFundsController), address(houseSessionsController));
+    }
+
+    function getTime() view public returns (uint) {
+        return now;
     }
 
     // Do not accept ETH sent to this contract.

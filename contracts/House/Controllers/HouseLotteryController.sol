@@ -123,7 +123,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
         callback("callback received");
         require(msg.sender == oraclize_cbAddress());
         uint number = parseOraclizeResult(_result);
-        uint previousSession = currentSession - 1;
+        uint previousSession = safeSub(currentSession, 1);
         uint randomNumber = randomInRange(number, lotteries[previousSession].ticketCount);
         lotteries[previousSession].winningTicket = randomNumber;
         lotteries[previousSession].finalized = true;

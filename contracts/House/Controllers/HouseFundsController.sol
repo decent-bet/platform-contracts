@@ -188,7 +188,7 @@ contract HouseFundsController is SafeMath {
     public
     returns (uint, uint, uint) {
         uint currentSession = house.currentSession();
-        uint previousSession = currentSession - 1;
+        uint previousSession = safeSub(currentSession, 1);
         uint rolledOverFromPreviousSession = houseFunds[currentSession].userCredits[_address]
         .rolledOverFromPreviousSession;
 
@@ -273,7 +273,7 @@ contract HouseFundsController is SafeMath {
     onlyHouse
     public
     returns (bool) {
-        uint previousSession = house.currentSession() - 1;
+        uint previousSession = safeSub(house.currentSession(), 1);
         houseFunds[previousSession].totalWithdrawn =
         safeAdd(houseFunds[previousSession].totalWithdrawn, previousSessionTokens);
 

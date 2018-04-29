@@ -125,7 +125,7 @@ contract HouseSessionsController is SafeMath {
     public
     returns (uint, bool) {
         uint currentSession = house.currentSession();
-        uint previousSession = currentSession - 1;
+        uint previousSession = safeSub(currentSession, 1);
         // Withdrawals are only allowed after session 1.
         require(currentSession > 1);
 
@@ -218,7 +218,7 @@ contract HouseSessionsController is SafeMath {
             sessions[currentSession].startTime = startTime;
             sessions[currentSession].endTime = endTime;
         } else {
-            uint previousSession = currentSession - 1;
+            uint previousSession = safeSub(currentSession, 1);
             // currentSession has been set to nextSession in House contract.
             sessions[previousSession].active = false;
 

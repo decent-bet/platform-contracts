@@ -462,12 +462,9 @@ contract('House', accounts => {
         )
 
         it('disallows unauthorized addresses from depositing allocated tokens to house offerings', async () => {
-            let startTime = await house.sessionZeroStartTime()
-            startTime = startTime.toNumber()
             const oneWeek = 7 * 24 * 60 * 60
-            let lastWeekTime = startTime + oneWeek
 
-            await house.setTime(lastWeekTime, { from: founder })
+            await utils.timeTravel(oneWeek)
             await utils.assertFail(
                 house.depositAllocatedTokensToHouseOffering(
                     bettingProvider.address,
@@ -607,12 +604,9 @@ contract('House', accounts => {
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
 
-            let startTime = await house.sessionZeroStartTime()
-            startTime = startTime.toNumber()
             const oneWeek = 7 * 24 * 60 * 60
-            let endOfSessionTime = startTime + oneWeek * 2
+            await utils.timeTravel(oneWeek)
 
-            await house.setTime(endOfSessionTime, { from: founder })
             await house.beginNextSession({ from: founder })
             let nextSession = await house.currentSession()
 
@@ -718,12 +712,8 @@ contract('House', accounts => {
         })
 
         it('allows users to purchase credits for the next session during credit buying periods', async () => {
-            let houseTime = await house.getTime()
-            houseTime = houseTime.toNumber()
-
             let oneWeek = 24 * 60 * 60 * 7
-            let creditBuyingPeriodTime = houseTime + oneWeek * 10
-            await house.setTime(creditBuyingPeriodTime)
+            await utils.timeTravel(oneWeek * 10)
 
             const creditsToPurchase = '1000000000000000000000'
             let currentSession = await house.currentSession()
@@ -851,12 +841,8 @@ contract('House', accounts => {
             'allows authorized addresses to deposit allocated tokens for house offerings ' +
                 'during last week for session',
             async () => {
-                let houseTime = await house.getTime()
-                houseTime = houseTime.toNumber()
                 const oneWeek = 7 * 24 * 60 * 60
-                let lastWeekTime = houseTime + oneWeek
-
-                await house.setTime(lastWeekTime, { from: founder })
+                await utils.timeTravel(oneWeek)
 
                 let houseBalance = await token.balanceOf(house.address)
                 let initialHouseBalance = houseBalance
@@ -1083,12 +1069,9 @@ contract('House', accounts => {
         })
 
         it('allows authorized addresses to begin session two', async () => {
-            let houseTime = await house.getTime()
-            houseTime = houseTime.toNumber()
             const oneWeek = 7 * 24 * 60 * 60
-            let endOfSessionTime = houseTime + oneWeek
+            await utils.timeTravel(oneWeek)
 
-            await house.setTime(endOfSessionTime, { from: founder })
             await house.beginNextSession({ from: founder })
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
@@ -1114,13 +1097,8 @@ contract('House', accounts => {
         })
 
         it('disallows non-authorized addresses from withdrawing previous session tokens from house offerings', async () => {
-            let time = await house.getTime()
-            time = time.toNumber()
-
             let oneDay = 24 * 60 * 60
-
-            let withdrawalPeriodTime = time + oneDay * 2
-            await house.setTime(withdrawalPeriodTime, { from: founder })
+            utils.timeTravel(oneDay * 2)
 
             await utils.assertFail(
                 house.withdrawPreviousSessionTokensFromHouseOffering.sendTransaction(
@@ -1256,16 +1234,8 @@ contract('House', accounts => {
             'disallows users without credits in session one from liquidating credits ' +
                 'during profit distribution period',
             async () => {
-                let time = await house.getTime()
-                time = time.toNumber()
                 let oneDay = 24 * 60 * 60
-
-                let profitDistributionPeriodTime = time + oneDay * 3
-
-                console.log('House time', time, profitDistributionPeriodTime)
-                await house.setTime(profitDistributionPeriodTime, {
-                    from: founder
-                })
+                utils.timeTravel(oneDay * 3)
 
                 let currentSession = await house.currentSession()
                 currentSession = currentSession.toNumber()

@@ -102,8 +102,7 @@ contract('SlotsChannelManager', accounts => {
         await house.purchaseCredits(houseCreditsAmount, { from: founder })
 
         // Deposit allocated tokens in the final week of session zero
-        const nextWeek = new Date().getTime() / 1000 + 7 * 24 * 60 * 60 + 1
-        await house.setTime(nextWeek, { from: founder })
+        await utils.timeTravel( 7 * 24 * 60 * 60 + 1)
 
         await house.depositAllocatedTokensToHouseOffering(
             bettingProvider.address,
@@ -115,9 +114,7 @@ contract('SlotsChannelManager', accounts => {
         )
 
         // Begin session one
-        const sessionOneTime =
-            new Date().getTime() / 1000 + 14 * 24 * 60 * 60 + 1
-        await house.setTime(sessionOneTime, { from: founder })
+        await utils.timeTravel(14 * 24 * 60 * 60 + 1)
         await house.beginNextSession()
 
         // Check if house session is one
@@ -780,11 +777,7 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows non participants from claiming a channel after it closes', async () => {
         // Channel end time is 24 hours. Forward the time to 24 hours after a channel has been finalized
-        let time = await slotsChannelManager.getTime()
-        time = time.add(24 * 60 * 60 + 1).toFixed()
-
-        await slotsChannelManager.setTime(time, { from: founder })
-
+        await utils.timeTravel(24 * 60 * 60 + 1)
         await utils.assertFail(
             slotsChannelManager.claim.sendTransaction(channelId, {
                 from: nonParticipant

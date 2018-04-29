@@ -12,12 +12,11 @@ import '../../Libraries/ECVerify.sol';
 import '../../Libraries/SafeMath.sol';
 import '../../Libraries/strings.sol';
 import '../../Libraries/Utils.sol';
-import '../../Libraries/TimeProvider.sol';
 
 import '../../Kyc/KycManager.sol';
 
 // A State channel contract to handle slot games on the Decent.bet platform
-contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering, SafeMath, Utils {
+contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Utils {
 
     using strings for *;
     using ECVerify for *;
@@ -120,10 +119,6 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         require(slotsHelper.isSlotsHelper());
         name = 'Slots Channel Manager';
         isHouseOffering = true;
-
-        // If on local testRPC/testnet and need mock times
-        isMock = true;
-        setTimeController(msg.sender);
     }
 
     /* Modifiers */
@@ -256,7 +251,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Allows house to withdraw session tokens for the previous session.
     function withdrawPreviousSessionTokens()
     onlyHouse public returns (bool) {
-        uint previousSession = currentSession - 1;
+        uint previousSession = safeSub(currentSession, 1);
         require(depositedTokens[address(this)][previousSession] > 0);
         uint previousSessionTokens = depositedTokens[address(this)][previousSession];
         depositedTokens[address(this)][previousSession] = 0;
@@ -467,6 +462,10 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Utility function to check whether the channel has closed
     function isChannelClosed(uint id) public constant returns (bool) {
         return channels[id].finalized && getTime() > channels[id].endTime;
+    }
+
+    function getTime() view public returns (uint) {
+        return now;
     }
 
 }
