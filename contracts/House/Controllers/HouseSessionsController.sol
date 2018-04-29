@@ -54,7 +54,7 @@ contract HouseSessionsController is SafeMath {
     // Session statistics.
     mapping (uint => Session) public sessions;
 
-    function HouseSessionsController(address _house){
+    function HouseSessionsController(address _house) public {
         require(_house != 0x0);
         house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());
@@ -80,7 +80,8 @@ contract HouseSessionsController is SafeMath {
 
     // Adds a new offering to the house.
     function addHouseOffering(address houseOfferingAddress)
-    onlyFounder {
+    onlyFounder
+    public {
         // Empty address, invalid input
         require(houseOfferingAddress != 0x0);
         // Not a house offering
@@ -96,8 +97,9 @@ contract HouseSessionsController is SafeMath {
 
     // Adds a house offering to the next session
     function addOfferingToNextSession(address houseOfferingAddress)
-    isValidHouseOffering(houseOfferingAddress) internal
-    onlyFounder {
+    isValidHouseOffering(houseOfferingAddress)
+    onlyFounder
+    internal {
         uint nextSession = house.currentSession() + 1;
         sessions[nextSession].offerings.push(houseOfferingAddress);
     }
@@ -105,7 +107,8 @@ contract HouseSessionsController is SafeMath {
     // Remove an offering from the next session
     function removeOfferingFromNextSession(address houseOfferingAddress)
     isValidHouseOffering(houseOfferingAddress)
-    onlyFounder {
+    onlyFounder
+    public {
         // TODO: Look into support for current session - freeze contract, allow token withdrawals etc.
         uint nextSession = house.currentSession() + 1;
         for(uint i = 0; i < sessions[nextSession].offerings.length; i++) {
@@ -118,7 +121,9 @@ contract HouseSessionsController is SafeMath {
     // Withdraws session tokens for the previously ended session from a house offering.
     function withdrawPreviousSessionTokensFromHouseOffering(address houseOffering)
     isValidHouseOffering(houseOffering)
-    onlyHouse returns (uint, bool) {
+    onlyHouse
+    public
+    returns (uint, bool) {
         uint currentSession = house.currentSession();
         uint previousSession = currentSession - 1;
         // Withdrawals are only allowed after session 1.
@@ -146,8 +151,9 @@ contract HouseSessionsController is SafeMath {
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     isValidHouseOffering(houseOffering)
-    onlyHouse returns (bool) {
-
+    onlyHouse
+    public
+    returns (bool) {
         uint nextSession = house.currentSession() + 1;
 
         // Total %age of tokens can't be above 100.
@@ -167,7 +173,9 @@ contract HouseSessionsController is SafeMath {
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
     isValidHouseOffering(houseOffering)
-    onlyHouse returns (bool) {
+    onlyHouse
+    public
+    returns (bool) {
         uint nextSession = house.currentSession() + 1;
 
         // Tokens have already been deposited to offering.
@@ -181,7 +189,9 @@ contract HouseSessionsController is SafeMath {
 
     function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering)
     isValidHouseOffering(houseOffering)
-    onlyHouse returns (uint, bool) {
+    onlyHouse
+    public
+    returns (uint, bool) {
         uint currentSession = house.currentSession();
         uint sessionTokens = offerings[houseOffering].houseOffering.balanceOf(houseOffering, currentSession);
 
@@ -198,7 +208,9 @@ contract HouseSessionsController is SafeMath {
     // Starts the next session.
     // Call this function once after setting up the house to begin the initial credit buying period.
     function beginNextSession(uint startTime, uint endTime, uint sessionZeroStartTime)
-    onlyHouse returns (bool) {
+    onlyHouse
+    public
+    returns (bool) {
         uint currentSession = house.currentSession();
 
         if (currentSession == 0 && sessionZeroStartTime == 0) {
@@ -226,45 +238,45 @@ contract HouseSessionsController is SafeMath {
     // Utility functions for front-end purposes.
 
     // Returns session start and end time.
-    function getSessionTime(uint session) constant returns (uint, uint) {
+    function getSessionTime(uint session) public constant returns (uint, uint) {
         return (sessions[session].startTime, sessions[session].endTime);
     }
 
     // Returns whether a session is active.
-    function isSessionActive(uint session) constant returns (bool) {
+    function isSessionActive(uint session) public constant returns (bool) {
         return house.getTime() >= sessions[session].startTime &&
                house.getTime() <= sessions[session].endTime;
     }
 
     // Returns whether an offering exists.
-    function doesOfferingExist(address _offering) constant returns (bool) {
+    function doesOfferingExist(address _offering) public constant returns (bool) {
         return offerings[_offering].exists;
     }
 
     // Returns an offering for a session.
-    function getSessionOffering(uint session, uint index) constant returns (address offering) {
+    function getSessionOffering(uint session, uint index) public constant returns (address offering) {
         return sessions[session].offerings[index];
     }
 
-    function getSessionTimes(uint session) constant returns (uint, uint) {
+    function getSessionTimes(uint session) public constant returns (uint, uint) {
         return (sessions[session].startTime, sessions[session].endTime);
     }
 
     // Returns offering token allocations and deposits.
-    function getOfferingTokenAllocations(uint session, address _address) constant returns (uint, bool) {
+    function getOfferingTokenAllocations(uint session, address _address) public constant returns (uint, bool) {
         return (sessions[session].offeringTokenAllocations[_address].allocation,
         sessions[session].offeringTokenAllocations[_address].deposited);
     }
 
-    function getSessionOfferingsLength(uint session) constant returns (uint) {
+    function getSessionOfferingsLength(uint session) public constant returns (uint) {
         return sessions[session].offerings.length;
     }
 
-    function getOfferingAddressesLength() constant returns (uint) {
+    function getOfferingAddressesLength() public constant returns (uint) {
         return offeringAddresses.length;
     }
 
-    function isOfferingWithdrawn(uint session, address offering) returns (bool) {
+    function isOfferingWithdrawn(uint session, address offering) public view returns (bool) {
         return sessions[session].withdrawnOfferings[offering];
     }
 

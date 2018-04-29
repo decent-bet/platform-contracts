@@ -139,7 +139,7 @@ contract SportsOracle is SafeMath, TimeProvider {
     event LogNewProviderAcceptanceCost(uint cost);
 
     // Constructor
-    function SportsOracle(address decentBetTokenAddress) {
+    function SportsOracle(address decentBetTokenAddress) public {
         owner = msg.sender;
         addAuthorizedAddress(msg.sender);
         decentBetToken = ERC20(decentBetTokenAddress);
@@ -151,57 +151,50 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Modifiers
     modifier onlyOwner() {
-        if (msg.sender != owner)
-        throw;
+        require(msg.sender == owner);
         _;
     }
 
     modifier onlyAuthorized() {
-        if (!authorized[msg.sender])
-        throw;
+        require(authorized[msg.sender]);
         _;
     }
 
     // Allow only accepted providers to call this function.
     modifier onlyAcceptedProvider() {
-        if (!providers[msg.sender].accepted)
-        throw;
+        require(providers[msg.sender].accepted);
         _;
     }
 
     // If oracles allow payments for new providers to use them, allow the function to continue.
     modifier isPayableForProviderAcceptance() {
-        if (!payForProviderAcceptance)
-        throw;
+        require(payForProviderAcceptance);
         _;
     }
 
     // Allow only valid results to be passed through to a function.
     modifier isValidResult(int result) {
-        if (result != RESULT_TEAM1_WIN && result != RESULT_DRAW &&
-            result != RESULT_TEAM2_WIN && result != RESULT_CANCELLED)
-        throw;
+        require(result == RESULT_TEAM1_WIN || result == RESULT_DRAW &&
+                result == RESULT_TEAM2_WIN || result == RESULT_CANCELLED);
         _;
     }
 
     // Functions execute only if game exists.
     modifier isValidGame(uint id) {
-        if (!games[id].exists)
-        throw;
+        require(games[id].exists);
         _;
     }
 
     // Functions execute only if game hasn't started.
     modifier hasGameNotStarted(uint id) {
-        if (games[id].startTime <= getTime())
-        throw;
+        require(games[id].startTime <= getTime());
         _;
     }
 
     // Functions execute only if game has ended.
     modifier hasGameEnded(uint id) {
         if (getTime() <= games[id].endTime)
-            throw;
+            revert();
         _;
     }
 
@@ -209,9 +202,9 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Add a new authorized address.
     function addAuthorizedAddress(address _address)
-    onlyOwner {
-        if(authorized[_address])
-            throw;
+    onlyOwner
+    public {
+        require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddresses.push(_address);
         LogNewAuthorizedAddress(_address);
@@ -219,26 +212,31 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Allow oracle to accept new providers via payment.
     function togglePayForProviderAcceptance(bool enabled)
-    onlyOwner {
+    onlyOwner
+    public {
         payForProviderAcceptance = enabled;
     }
 
     // Set a price for game updates to be pushed to providers.
     function changeGameUpdateCost(uint cost)
-    onlyOwner {
+    onlyOwner
+    public {
         gameUpdateCost = cost;
         LogNewGameUpdateCost(cost);
     }
 
     // Set a price to accept new providers if it has been toggled on.
     function changeProviderAcceptanceCost(uint cost)
-    onlyOwner {
+    onlyOwner
+    public {
         providerAcceptanceCost = cost;
         LogNewProviderAcceptanceCost(cost);
     }
 
     // Any provider can request the oracle to accept itself.
-    function requestProvider() returns (bool) {
+    function requestProvider()
+    public
+    returns (bool) {
         providers[msg.sender].requested = true;
         providers[msg.sender].exists = true;
         requestedProviderAddresses.push(msg.sender);
@@ -247,7 +245,8 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Accepted providers get results pushed into their games at end time.
     function acceptProvider(address _address)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         providers[_address].accepted = true;
         acceptedProviderAddresses.push(_address);
         LogNewAcceptedProvider(_address);
@@ -256,13 +255,14 @@ contract SportsOracle is SafeMath, TimeProvider {
     // Allows providers to pay to be accepted by the oracle.
     // Providers need to authorize oracles for the acceptance cost before calling this function.
     function payForAcceptance()
-    isPayableForProviderAcceptance {
+    isPayableForProviderAcceptance
+    public {
         // Provider should have authorized oracle to spend at least 'providerAcceptanceCost' in DBETs.
-        if (decentBetToken.allowance(msg.sender, address(this)) < providerAcceptanceCost) throw;
+        require (decentBetToken.allowance(msg.sender, address(this)) >= providerAcceptanceCost);
         providers[msg.sender].accepted = true;
         providers[msg.sender].exists = true;
         acceptedProviderAddresses.push(msg.sender);
-        if (!decentBetToken.transferFrom(msg.sender, address(this), providerAcceptanceCost)) throw;
+        if (!decentBetToken.transferFrom(msg.sender, address(this), providerAcceptanceCost)) revert();
         LogNewAcceptedProvider(msg.sender);
     }
 
@@ -272,9 +272,12 @@ contract SportsOracle is SafeMath, TimeProvider {
     function addProviderGameToUpdate(uint gameId, uint providerGameId)
     onlyAcceptedProvider
     isValidGame(gameId)
-    hasGameNotStarted(gameId) returns (bool) {
+    hasGameNotStarted(gameId)
+    public
+    returns (bool) {
         // Provider should have authorized oracle to spend at least 'gameUpdateCost' in DBETs.
-        if (gameUpdateCost > 0 && decentBetToken.allowance(msg.sender, address(this)) < gameUpdateCost) throw;
+        if (gameUpdateCost > 0)
+            require(decentBetToken.allowance(msg.sender, address(this)) >= gameUpdateCost);
         providerGamesToUpdate[gameId][msg.sender] = GameUpdate({
             gameId : providerGameId,
             updated : false,
@@ -282,14 +285,16 @@ contract SportsOracle is SafeMath, TimeProvider {
         });
         gameProvidersUpdateList[gameId].push(msg.sender);
         if(gameUpdateCost > 0)
-            if (!decentBetToken.transferFrom(msg.sender, address(this), gameUpdateCost)) throw;
+            if (!decentBetToken.transferFrom(msg.sender, address(this), gameUpdateCost))
+                revert();
         return true;
     }
 
     // Start time needs to be in advance of the actual game start time.
     function addGame(string refId, uint sportId, uint leagueId, uint startTime,
     uint endTime, uint[] availablePeriods, string ipfsHash)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         Game memory game = Game({
             id : gamesCount,
             refId : refId,
@@ -312,7 +317,8 @@ contract SportsOracle is SafeMath, TimeProvider {
     // Update swarm hash containing meta-data for the game.
     function updateGameDetails(uint id, string ipfsHash)
     isValidGame(id)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         games[id].ipfsHash = ipfsHash;
         LogGameDetailsUpdate(id, games[id].refId, games[id].ipfsHash);
     }
@@ -322,11 +328,12 @@ contract SportsOracle is SafeMath, TimeProvider {
     isValidGame(gameId)
     isValidResult(result)
     hasGameEnded(gameId)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         // Period should be valid to continue.
-        if (!gamePeriods[gameId][period].exists) throw;
+        require(gamePeriods[gameId][period].exists);
         // Reduce chances of invalid points input.
-        if (totalPoints != safeAdd(team1Points, team2Points)) throw;
+        require(totalPoints == safeAdd(team1Points, team2Points));
         gamePeriods[gameId][period] = Period({
             number : period,
             result : result,
@@ -342,10 +349,11 @@ contract SportsOracle is SafeMath, TimeProvider {
     function updateProviderOutcome(uint gameId, address provider, uint period)
     isValidGame(gameId)
     hasGameEnded(gameId)
-    onlyAuthorized {
-        if (!providers[provider].accepted) throw;
+    onlyAuthorized
+    public {
+        require(providers[provider].accepted);
         // Game period must exist and outcome needs to be published
-        if (!gamePeriods[gameId][period].exists || gamePeriods[gameId][period].settleTime == 0) throw;
+        require(gamePeriods[gameId][period].exists && gamePeriods[gameId][period].settleTime != 0);
 
         BettingProvider bettingProvider = BettingProvider(provider);
         providerGamesToUpdate[gameId][provider].updated = true;
@@ -355,7 +363,7 @@ contract SportsOracle is SafeMath, TimeProvider {
             period,
             gamePeriods[gameId][period].result,
             gamePeriods[gameId][period].team1Points,
-            gamePeriods[gameId][period].team2Points)) throw;
+            gamePeriods[gameId][period].team2Points)) revert();
 
         LogUpdatedProviderOutcome(gameId,
                                   provider,
@@ -369,19 +377,20 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Allows the owner of the oracle to withdraw DBETs deposited in the contract.
     function withdrawTokens()
-    onlyOwner {
+    onlyOwner
+    public {
         uint amount = decentBetToken.balanceOf(address(this));
-        if (!decentBetToken.transfer(msg.sender, amount)) throw;
+        if (!decentBetToken.transfer(msg.sender, amount)) revert();
         LogWithdrawal(amount);
     }
 
-    function getProviderGameId(uint gameId, address provider) constant returns (uint id) {
+    function getProviderGameId(uint gameId, address provider) public constant returns (uint id) {
         return providerGamesToUpdate[gameId][provider].gameId;
     }
 
     // Don't allow ETH to be sent to this contract.
-    function() {
-        throw;
+    function() public {
+        revert();
     }
 
 }

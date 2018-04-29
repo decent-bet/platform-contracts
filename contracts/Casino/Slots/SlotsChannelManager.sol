@@ -92,7 +92,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     /* Constructor */
 
     function SlotsChannelManager(address _house, address _token,
-        address _slotsHelper, address _slotsChannelFinalizer, address _kycManager) /* onlyHouse */ {
+        address _slotsHelper, address _slotsChannelFinalizer, address _kycManager) public {
         require(_house != 0x0);
         require(_token != 0x0);
         require(_slotsHelper != 0x0);
@@ -175,12 +175,6 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         _;
     }
 
-    // Allows only the house to proceed
-    modifier isHouse(uint id) {
-        require(msg.sender == players[id][true]);
-        _;
-    }
-
     // Allows only the player to proceed
     modifier isPlayer(uint id) {
         require(msg.sender == players[id][false]);
@@ -215,7 +209,8 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     function createChannel(uint initialDeposit)
     isSenderKycVerified
     isNotHouseEmergency
-    isSessionActive {
+    isSessionActive
+    public {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
         require(initialDeposit >= MIN_DEPOSIT && initialDeposit <= MAX_DEPOSIT);
         require(balanceOf(msg.sender, currentSession) >= initialDeposit);
@@ -227,7 +222,6 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
             finalUserHash: '',
             initialUserNumber: '',
             initialDeposit: initialDeposit,
-            initialHouseSeedHash: '',
             finalReelHash: '',
             finalSeedHash: '',
             finalNonce: 0,
@@ -244,6 +238,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     function houseDeposit(uint amount, uint session)
     isNotHouseEmergency
     onlyHouse
+    public
     returns (bool) {
         // House deposits are allowed only for this session or the next.
         require(session == currentSession || session == currentSession + 1);
@@ -260,7 +255,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     // Allows house to withdraw session tokens for the previous session.
     function withdrawPreviousSessionTokens()
-    onlyHouse returns (bool) {
+    onlyHouse public returns (bool) {
         uint previousSession = currentSession - 1;
         require(depositedTokens[address(this)][previousSession] > 0);
         uint previousSessionTokens = depositedTokens[address(this)][previousSession];
@@ -272,7 +267,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Allows house to withdraw current session tokens if the house is in an emergency pause state.
     function emergencyWithdrawCurrentSessionTokens()
     onlyHouse
-    isHouseEmergency returns (bool) {
+    isHouseEmergency public returns (bool) {
         require(depositedTokens[address(this)][currentSession] > 0);
         uint currentSessionTokens = depositedTokens[address(this)][currentSession];
         depositedTokens[address(this)][currentSession] = 0;
@@ -283,7 +278,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Deposits DBET to contract for the current session.
     // User needs to approve contract address for amount prior to calling this function.
     function deposit(uint amount)
-    isDbetsAvailable(amount) returns (bool) {
+    isDbetsAvailable(amount) public returns (bool) {
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
@@ -294,7 +289,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     // Withdraw DBETS from contract to sender address.
     function withdraw(uint amount, uint session)
     isValidPriorSession(session)
-    isTokensAvailable(amount, session) returns (bool) {
+    isTokensAvailable(amount, session) public returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
         if(!decentBetToken.transfer(msg.sender, amount)) revert();
         LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
@@ -303,6 +298,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
 
     function setSession(uint session)
         // Replace other functions with onlyAuthorized
+    public
     onlyHouse returns (bool) {
         currentSession = session;
         return true;
@@ -315,11 +311,11 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     isNotHouseEmergency
     isPlayer(id)
     isUserNotReady(id)
+    public
     returns (bool) {
         require(strLen(_finalUserHash) == 64);
         require(strLen(_initialUserNumber) == 64);
         require(balanceOf(msg.sender, channels[id].session) >= channels[id].initialDeposit);
-
         channels[id].initialUserNumber = _initialUserNumber;
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
@@ -334,18 +330,20 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     isSenderKycVerified
     isPlayer(id)
     isUserReady(id)
-    isNotActivated(id) {
-        uint deposit = channelDeposits[id][false];
+    isNotActivated(id)
+    public {
+        uint channelDeposit = channelDeposits[id][false];
         channelDeposits[id][false] = 0;
         depositedTokens[msg.sender][channels[id].session] =
-        safeAdd(depositedTokens[msg.sender][channels[id].session], channels[id].initialDeposit);
+            safeAdd(depositedTokens[msg.sender][channels[id].session], channelDeposit);
         channels[id].ready = false;
     }
 
     // House sends the final reel and seed hashes to activate the channel along with the initial house seed hash
     // to verify the blended seed after a channel is closed
-    function activateChannel(uint id, string _initialHouseSeedHash,
+    function activateChannel(uint id,
         string _finalSeedHash, string _finalReelHash) // 373k gas
+    public
     onlyAuthorized
     isNotActivated(id)
     isUserReady(id)
@@ -353,7 +351,6 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
         // The house will be unable to activate a channel IF it doesn't have enough tokens
         // in it's balance - which could happen organically or at the end of a session.
         require(balanceOf(address(this), channels[id].session) >= channels[id].initialDeposit);
-        channels[id].initialHouseSeedHash = _initialHouseSeedHash;
         channels[id].finalReelHash = _finalReelHash;
         channels[id].finalSeedHash = _finalSeedHash;
         channels[id].activated = true;
@@ -388,7 +385,7 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     }
 
     // Allows player/house to claim DBETs after the channel has closed
-    function claim(uint id) {
+    function claim(uint id) public {
         require(isParticipant(id, msg.sender));
 
         bool isHouse = (players[id][true] == msg.sender);
@@ -412,17 +409,17 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     }
 
     // Query balance of deposited tokens for a user.
-    function balanceOf(address _address, uint session) constant returns (uint) {
+    function balanceOf(address _address, uint session) public constant returns (uint) {
         return depositedTokens[_address][session];
     }
 
     // Query balance of channel tokens for either party
-    function channelBalanceOf(uint id, bool isHouse) constant returns (uint) {
+    function channelBalanceOf(uint id, bool isHouse) public constant returns (uint) {
         return finalBalances[id][isHouse];
     }
 
     // Checks the signature of a spin sent and verifies it's validity
-    function checkSig(uint id, bytes32 hash, bytes sig, bool turn) constant returns (bool) {
+    function checkSig(uint id, bytes32 hash, bytes sig, bool turn) public returns (bool) {
         //        bytes32 hash = sha3(reelHash, reel, reelSeedHash, prevReelSeedHash, userHash, prevUserHash,
         //        nonce, turn, userBalance, houseBalance, betSize);
         //        address player = players[turn];
@@ -430,17 +427,17 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     }
 
     // Returns the address for a signed spin
-    function getSigAddress(bytes32 msg, uint8 v, bytes32 r, bytes32 s) constant returns (address) {
-        return ecrecover(sha3(msg), v, r, s);
+    function getSigAddress(bytes32 _msg, uint8 v, bytes32 r, bytes32 s) public pure returns (address) {
+        return ecrecover(keccak256(_msg), v, r, s);
     }
 
     // Allows only the house and player to proceed
-    function isParticipant(uint id, address _address) constant returns (bool) {
+    function isParticipant(uint id, address _address) public constant returns (bool) {
         return (houseAuthorizedController.authorized(_address) || _address == players[id][false]);
     }
 
     // Helper function to return channel information for the frontend
-    function getChannelInfo(uint id) constant returns (address, bool, bool, bool, uint, uint, uint) {
+    function getChannelInfo(uint id) public constant returns (address, bool, bool, bool, uint, uint, uint) {
         return (players[id][false],
         channels[id].ready,
         channels[id].activated,
@@ -451,25 +448,24 @@ contract SlotsChannelManager is SlotsImplementation, TimeProvider, HouseOffering
     }
 
     // Helper function to return hashes used for the frontend/backend
-    function getChannelHashes(uint id) constant returns (string, string, string, string, string) {
+    function getChannelHashes(uint id) public constant returns (string, string, string, string) {
         return (channels[id].finalUserHash,
         channels[id].initialUserNumber,
-        channels[id].initialHouseSeedHash,
         channels[id].finalReelHash,
         channels[id].finalSeedHash);
     }
 
     // Helper function to return whether a channel has been finalized and it's final nonce
-    function getChannelFinalized(uint id) constant returns (bool, uint) {
+    function getChannelFinalized(uint id) public constant returns (bool, uint) {
         return (channels[id].finalized, channels[id].finalNonce);
     }
 
-    function getPlayer(uint id, bool isHouse) constant returns (address){
+    function getPlayer(uint id, bool isHouse) public constant returns (address){
         return players[id][isHouse];
     }
 
     // Utility function to check whether the channel has closed
-    function isChannelClosed(uint id) constant returns (bool) {
+    function isChannelClosed(uint id) public constant returns (bool) {
         return channels[id].finalized && getTime() > channels[id].endTime;
     }
 

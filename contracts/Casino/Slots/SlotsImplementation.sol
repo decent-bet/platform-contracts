@@ -67,9 +67,6 @@ contract SlotsImplementation {
         // Amount of DBETs to be deposited by the user
         uint initialDeposit;
 
-        // Initial house seed hash used to create blended seed
-        string initialHouseSeedHash;
-
         // Final reel hash submitted by the server
         string finalReelHash;
 

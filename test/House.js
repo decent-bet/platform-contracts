@@ -1599,19 +1599,20 @@ contract('House', accounts => {
 
             let previousSession = currentSession - 1
 
-            let winnerTokenBalancePreClaim = await token.balanceOf(nonFounder)
-            let houseTokenBalancePreClaim = await token.balanceOf(house.address)
-
             let winner = await houseLotteryController.getLotteryWinner(
                 previousSession
             )
+
+            let winnerTokenBalancePreClaim = await token.balanceOf(winner)
+            let houseTokenBalancePreClaim = await token.balanceOf(house.address)
+
             console.log('Lottery winner', winner)
 
             await house.claimLotteryWinnings(previousSession, {
                 from: winner
             })
 
-            let winnerTokenBalancePostClaim = await token.balanceOf(nonFounder)
+            let winnerTokenBalancePostClaim = await token.balanceOf(winner)
             let houseTokenBalancePostClaim = await token.balanceOf(
                 house.address
             )
@@ -1634,7 +1635,7 @@ contract('House', accounts => {
                 new BigNumber(winnerTokenBalancePreClaim)
                     .plus(payout)
                     .toFixed(),
-                'Invalid user token balance post claim after lottery payout'
+                'Invalid winner token balance post claim after lottery payout'
             )
         })
 

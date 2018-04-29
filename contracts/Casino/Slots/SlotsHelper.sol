@@ -36,7 +36,7 @@ contract SlotsHelper is SafeMath, Utils {
 
     uint8 symbolG = 7;
 
-    function SlotsHelper(){
+    function SlotsHelper() public {
         initReels();
         initPayTable();
     }
@@ -63,7 +63,7 @@ contract SlotsHelper is SafeMath, Utils {
 
     // Converts a string reel to a uint array
     // Example string reel = '0,1,2,3,4'
-    function convertReelToArray(string reel) returns (uint[5]){
+    function convertReelToArray(string reel) public pure returns (uint[5]){
         uint[5] memory reelArray;
         string memory temp = '';
         uint8 iterator = 0;
@@ -81,7 +81,7 @@ contract SlotsHelper is SafeMath, Utils {
         return reelArray;
     }
 
-    function getTotalReward(uint betSize, uint[5] reelArray) returns (uint) {
+    function getTotalReward(uint betSize, uint[5] reelArray) public view returns (uint) {
         uint totalReward = 0;
         uint adjustedBetSize = getAdjustedBetSize(betSize);
         for (uint8 i = 0; i < adjustedBetSize; i++) { //300k gas
@@ -91,7 +91,7 @@ contract SlotsHelper is SafeMath, Utils {
         return totalReward;
     }
 
-    function getAdjustedBetSize(uint betSize) returns (uint) {
+    function getAdjustedBetSize(uint betSize) public pure returns (uint) {
         if((betSize / 1 ether) <= 5 && (betSize / 1 ether) >= 1)
             return safeDiv(betSize, 1 ether);
         else if((betSize / 0.1 ether) <= 5 && (betSize / 0.1 ether) >= 1)
@@ -102,7 +102,7 @@ contract SlotsHelper is SafeMath, Utils {
             revert();
     }
 
-    function isValidBetSize(uint betSize) returns (bool) {
+    function isValidBetSize(uint betSize) public pure returns (bool) {
         return  ((betSize / 1 ether)    <= 5 && (betSize / 1 ether)    >= 1) ||
                 ((betSize / 0.1 ether)  <= 5 && (betSize / 0.1 ether)  >= 1) ||
                 ((betSize / 0.01 ether) <= 5 && (betSize / 0.01 ether) >= 1);
@@ -110,7 +110,7 @@ contract SlotsHelper is SafeMath, Utils {
 
     // Checks if a line is a winning line and returns the reward multiplier
     //uint8[NUMBER_OF_REELS] line
-    function getLineRewardMultiplier(uint[5] line) internal returns (uint) {
+    function getLineRewardMultiplier(uint[5] line) internal view returns (uint) {
         uint8 repetitions = 0;
         uint rewardMultiplier = 0;
         for (uint8 i = 1; i <= NUMBER_OF_REELS; i++) {
@@ -129,7 +129,7 @@ contract SlotsHelper is SafeMath, Utils {
 
     // Returns line for an index
     // uint8[NUMBER_OF_REELS]
-    function getLine(uint8 lineIndex, uint[5] reelArray) internal returns (uint[5]) {
+    function getLine(uint8 lineIndex, uint[5] reelArray) internal view returns (uint[5]) {
         // Example [0,1,2,3,20]
 
         // Top = [20,0,1,2,19]
@@ -144,20 +144,17 @@ contract SlotsHelper is SafeMath, Utils {
             for (i = 0; i < NUMBER_OF_REELS; i++) {
                 line[i] = getSymbol(i, (int) (reelArray[i]));
             }
-        }
-        else if (lineIndex == 1) {
+        } else if (lineIndex == 1) {
             // Top Line
             for (i = 0; i < NUMBER_OF_REELS; i++) {
                 line[i] = getSymbol(i, (int) (reelArray[i] - 1));
             }
-        }
-        else if (lineIndex == 2) {
+        } else if (lineIndex == 2) {
             // Bottom Line
             for (i = 0; i < NUMBER_OF_REELS; i++) {
                 line[i] = getSymbol(i, (int) (reelArray[i] + 1));
             }
-        }
-        else if (lineIndex == 3) {
+        } else if (lineIndex == 3) {
             // Top left to Bottom right to Top right
             for (i = 0; i < NUMBER_OF_REELS; i++) {
                 if (i == 0 || i == 4)
@@ -167,8 +164,7 @@ contract SlotsHelper is SafeMath, Utils {
                 else
                 line[i] = getSymbol(i, (int) (reelArray[i]));
             }
-        }
-        else if (lineIndex == 4) {
+        } else if (lineIndex == 4) {
             // Bottom left to Top right to Bottom right
             for (i = 0; i < NUMBER_OF_REELS; i++) {
                 if (i == 0 || i == 4)
@@ -178,14 +174,13 @@ contract SlotsHelper is SafeMath, Utils {
                 else
                 line[i] = getSymbol(i, (int) (reelArray[i]));
             }
-        }
-        else
-        throw;
+        } else
+            revert();
         return line;
     }
 
     // Returns the symbol for a reel at a position
-    function getSymbol(uint8 reel, int position) internal returns (uint8) {
+    function getSymbol(uint8 reel, int position) internal view returns (uint8) {
         if (position == - 1) position = 20;
         else if (position == 21) position = 0;
         // If position is 21, return 0

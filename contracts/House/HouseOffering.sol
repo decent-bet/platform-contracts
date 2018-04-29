@@ -8,14 +8,14 @@ contract HouseOffering {
     bytes32 public name;
     // For validating whether a contract is a house offering from the house contract.
     bool public isHouseOffering;
-    function houseDeposit(uint amount, uint session) returns (bool);
-    function withdrawPreviousSessionTokens() returns (bool);
-    function deposit(uint amount) returns (bool);
-    function withdraw(uint amount, uint session) returns (bool);
-    function balanceOf(address _address, uint session) constant returns (uint);
-    function setSession(uint session) returns (bool);
+    function houseDeposit(uint amount, uint session) public returns (bool);
+    function withdrawPreviousSessionTokens() public returns (bool);
+    function deposit(uint amount) public returns (bool);
+    function withdraw(uint amount, uint session) public returns (bool);
+    function balanceOf(address _address, uint session) public constant returns (uint);
+    function setSession(uint session) public returns (bool);
 
     // Emergency functions
-    function emergencyWithdrawCurrentSessionTokens() returns (bool);
+    function emergencyWithdrawCurrentSessionTokens() public returns (bool);
 
 }

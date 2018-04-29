@@ -27,31 +27,39 @@ contract EmergencyOptions {
         _;
     }
 
-    function EmergencyOptions() {
+    function EmergencyOptions() public {
         emergencyController = msg.sender;
     }
 
-    function setEmergencyController(address _emergencyController) onlyEmergencyController {
+    function setEmergencyController(address _emergencyController)
+    onlyEmergencyController
+    public {
         emergencyController = _emergencyController;
     }
 
-    function emergencyPause() onlyEmergencyController {
+    function emergencyPause()
+    onlyEmergencyController
+    public {
         emergencyPaused = true;
     }
 
-    function emergencyUnPause() onlyEmergencyController {
+    function emergencyUnPause()
+    onlyEmergencyController
+    public {
         emergencyPaused = false;
         emergencyWithdrawalsEnabled = false;
     }
 
     function enableEmergencyWithdrawals()
     isEmergencyPaused
-    onlyEmergencyController {
+    onlyEmergencyController
+    public {
         emergencyWithdrawalsEnabled = true;
     }
 
     function disableEmergencyWithdrawals()
-    onlyEmergencyController {
+    onlyEmergencyController
+    public {
         emergencyWithdrawalsEnabled = false;
     }
 

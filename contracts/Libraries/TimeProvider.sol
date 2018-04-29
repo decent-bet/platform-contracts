@@ -12,15 +12,20 @@ contract TimeProvider {
     event LogUpdatedTime(uint time);
 
     modifier onlyTimeController() {
-        if(msg.sender != timeController) throw;
+        require(msg.sender == timeController);
         _;
     }
 
-    function getTime() constant returns (uint) {
+    function getTime()
+    public
+    constant
+    returns (uint) {
         return isMock ? mockTime : now;
     }
 
-    function setTime(uint time) onlyTimeController {
+    function setTime(uint time)
+    onlyTimeController
+    public {
         mockTime = time;
         LogUpdatedTime(time);
     }
@@ -29,7 +34,9 @@ contract TimeProvider {
         timeController = _timeController;
     }
 
-    function toggleMockTime(bool _isMock) onlyTimeController {
+    function toggleMockTime(bool _isMock)
+    onlyTimeController
+    public {
         isMock = _isMock;
     }
 

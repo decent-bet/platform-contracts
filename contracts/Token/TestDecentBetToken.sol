@@ -36,8 +36,8 @@ contract TestDecentBetVault is SafeMath, TimeProvider {
 
     /// @notice Constructor function sets the DecentBet Multisig address and
     /// total number of locked tokens to transfer
-    function TestDecentBetVault(address _decentBetMultisig) /** internal */ {
-        if (_decentBetMultisig == 0x0) throw;
+    function TestDecentBetVault(address _decentBetMultisig) public /** internal */ {
+        if (_decentBetMultisig == 0x0) revert();
         decentBetToken = TestDecentBetToken(msg.sender);
         decentBetMultisig = _decentBetMultisig;
         isDecentBetVault = true;
@@ -53,16 +53,16 @@ contract TestDecentBetVault is SafeMath, TimeProvider {
     /// @notice Transfer locked tokens to Decent.bet's multisig wallet
     function unlock() external {
         // Wait your turn!
-        if (getTime() < unlockedAtTime) throw;
+        if (getTime() < unlockedAtTime) revert();
         // Will fail if allocation (and therefore toTransfer) is 0.
-        if (!decentBetToken.transfer(decentBetMultisig, decentBetToken.balanceOf(this))) throw;
+        if (!decentBetToken.transfer(decentBetMultisig, decentBetToken.balanceOf(this))) revert();
         // Otherwise ether are trapped here, we could disallow payable instead...
-        if (!decentBetMultisig.send(this.balance)) throw;
+        if (!decentBetMultisig.send(this.balance)) revert();
     }
 
     // disallow ETH payments to TimeVault
-    function() payable {
-        throw;
+    function() public payable {
+        revert();
     }
 
 }
@@ -134,27 +134,27 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
 
     // Allow only the team address to continue
     modifier onlyTeam() {
-        if(msg.sender != team) throw;
+        if(msg.sender != team) revert();
         _;
     }
 
     function TestDecentBetToken(address _decentBetMultisig,
     address _upgradeMaster, address _team,
     uint256 _baseTokensPerEther, uint256 _fundingStartTime,
-    uint256 _fundingEndTime) {
+    uint256 _fundingEndTime) public {
 
-        if (_decentBetMultisig == 0) throw;
-        if (_team == 0) throw;
-        if (_upgradeMaster == 0) throw;
-        if (_baseTokensPerEther == 0) throw;
+        if (_decentBetMultisig == 0) revert();
+        if (_team == 0) revert();
+        if (_upgradeMaster == 0) revert();
+        if (_baseTokensPerEther == 0) revert();
 
         // If on local testRPC/testnet and need mock times
         isMock = true;
         setTimeController(msg.sender);
 
         // Crowdsale can only officially start after the current block timestamp.
-        if (_fundingStartTime <= getTime()) throw;
-        if (_fundingEndTime <= _fundingStartTime) throw;
+        if (_fundingStartTime <= getTime()) revert();
+        if (_fundingEndTime <= _fundingStartTime) revert();
 
         isDecentBetToken = true;
 
@@ -165,24 +165,24 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
         baseTokensPerEther = _baseTokensPerEther;
 
         timeVault = new TestDecentBetVault(_decentBetMultisig);
-        if (!timeVault.isDecentBetVault()) throw;
+        if (!timeVault.isDecentBetVault()) revert();
 
         decentBetMultisig = _decentBetMultisig;
-        if (!MultiSigWallet(decentBetMultisig).isMultiSigWallet()) throw;
+        if (!MultiSigWallet(decentBetMultisig).isMultiSigWallet()) revert();
     }
 
-    function faucet() {
+    function faucet() public {
         balances[msg.sender] = 10000 ether;
         Transfer(0, msg.sender, 10000 ether);
     }
 
-    function ownerFaucet() {
+    function ownerFaucet() public {
         if(msg.sender != owner) revert();
         balances[msg.sender] = 100000000 ether;
         Transfer(0, msg.sender, 100000000 ether);
     }
 
-    function balanceOf(address who) constant returns (uint) {
+    function balanceOf(address who) public constant returns (uint) {
         return balances[who];
     }
 
@@ -193,7 +193,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     /// @param to The address of the recipient
     /// @param value The number of DBETs to transfer
     /// @return Whether the transfer was successful or not
-    function transfer(address to, uint256 value) returns (bool ok) {
+    function transfer(address to, uint256 value) public returns (bool ok) {
         // Abort if crowdfunding was not a success.
         uint256 senderBalance = balances[msg.sender];
         if (senderBalance >= value && value > 0) {
@@ -214,7 +214,7 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     /// @param to The address of the recipient
     /// @param value The number of DBETs to transfer
     /// @return Whether the transfer was successful or not
-    function transferFrom(address from, address to, uint256 value) returns (bool ok) {
+    function transferFrom(address from, address to, uint256 value) public returns (bool ok) {
         // Abort if not in Success state.
         // protect against wrapping uints
         if (balances[from] >= value &&
@@ -234,18 +234,18 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     /// @param spender The address of the account able to transfer the tokens
     /// @param value The amount of wei to be approved for transfer
     /// @return Whether the approval was successful or not
-    function approve(address spender, uint256 value) returns (bool ok) {
+    function approve(address spender, uint256 value) public returns (bool ok) {
         // Abort if not in Success state.
         allowed[msg.sender][spender] = value;
         Approval(msg.sender, spender, value);
         return true;
     }
 
-    /// @param owner The address of the account owning tokens
+    /// @param _owner The address of the account owning tokens
     /// @param spender The address of the account able to transfer the tokens
     /// @return Amount of remaining tokens allowed to spent
-    function allowance(address owner, address spender) constant returns (uint) {
-        return allowed[owner][spender];
+    function allowance(address _owner, address spender) public constant returns (uint) {
+        return allowed[_owner][spender];
     }
 
     // Token upgrade functionality
@@ -255,14 +255,14 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     /// @param value The number of tokens to upgrade
     function upgrade(uint256 value) external {
         // Abort if not in Success state.
-        if (upgradeAgent.owner() == 0x0) throw;
+        if (upgradeAgent.owner() == 0x0) revert();
         // need a real upgradeAgent address
-        if (finalizedUpgrade) throw;
+        if (finalizedUpgrade) revert();
         // cannot upgrade if finalized
 
         // Validate input value.
-        if (value == 0) throw;
-        if (value > balances[msg.sender]) throw;
+        if (value == 0) revert();
+        if (value > balances[msg.sender]) revert();
 
         // update the balances here first before calling out (reentrancy)
         balances[msg.sender] = safeSub(balances[msg.sender], value);
@@ -278,12 +278,12 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     /// @param agent The address of the UpgradeAgent contract
     function setUpgradeAgent(address agent) external {
         // Abort if not in Success state.
-        if (agent == 0x0) throw;
+        if (agent == 0x0) revert();
         // don't set agent to nothing
-        if (msg.sender != upgradeMaster) throw;
+        if (msg.sender != upgradeMaster) revert();
         // Only a master can designate the next agent
         upgradeAgent = TestUpgradeAgent(agent);
-        if (!upgradeAgent.isUpgradeAgent()) throw;
+        if (!upgradeAgent.isUpgradeAgent()) revert();
         // this needs to be called in success condition to guarantee the invariant is true
         upgradeAgent.setOriginalSupply();
         UpgradeAgentSet(upgradeAgent);
@@ -295,8 +295,8 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     /// @param master The address that will manage upgrades, not the upgradeAgent contract address
     function setUpgradeMaster(address master) external {
         // Abort if not in Success state.
-        if (master == 0x0) throw;
-        if (msg.sender != upgradeMaster) throw;
+        if (master == 0x0) revert();
+        if (msg.sender != upgradeMaster) revert();
         // Only a master can designate the next master
         upgradeMaster = master;
     }
@@ -305,11 +305,11 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     /// @dev Required state: Success
     function finalizeUpgrade() external {
         // Abort if not in Success state.
-        if (upgradeAgent.owner() == 0x0) throw;
+        if (upgradeAgent.owner() == 0x0) revert();
         // we need a valid upgrade agent
-        if (msg.sender != upgradeMaster) throw;
+        if (msg.sender != upgradeMaster) revert();
         // only upgradeMaster can finalize
-        if (finalizedUpgrade) throw;
+        if (finalizedUpgrade) revert();
         // can't finalize twice
 
         finalizedUpgrade = true;
@@ -323,8 +323,8 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     // Crowdfunding:
 
     // don't just send ether to the contract expecting to get tokens
-    function() payable {
-        throw;
+    function() public payable {
+        revert();
     }
 
 }

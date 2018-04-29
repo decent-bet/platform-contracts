@@ -309,7 +309,6 @@ contract('SlotsChannelManager', accounts => {
         await utils.assertFail(
             slotsChannelManager.activateChannel.sendTransaction(
                 channelId,
-                initialHouseSeedHash,
                 finalSeedHash,
                 finalReelHash,
                 { from: nonFounder }
@@ -358,14 +357,12 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('disallows unauthorized addresses from activating a channel', async () => {
-        initialHouseSeedHash = '1'
         finalSeedHash = 'abc'
         finalReelHash = 'def'
 
         await utils.assertFail(
             slotsChannelManager.activateChannel.sendTransaction(
                 channelId,
-                initialHouseSeedHash,
                 finalSeedHash,
                 finalReelHash,
                 { from: nonFounder }
@@ -417,7 +414,6 @@ contract('SlotsChannelManager', accounts => {
 
             await slotsChannelManager.activateChannel.sendTransaction(
                 channelId,
-                initialHouseSeedHash,
                 finalSeedHash,
                 finalReelHash,
                 { from: founder }
@@ -462,7 +458,6 @@ contract('SlotsChannelManager', accounts => {
         await utils.assertFail(
             slotsChannelManager.activateChannel.sendTransaction(
                 channelId,
-                initialHouseSeedHash,
                 finalSeedHash,
                 finalReelHash,
                 { from: founder }

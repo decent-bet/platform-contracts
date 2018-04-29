@@ -35,55 +35,56 @@ contract MultiSigWallet {
     }
 
     modifier onlyWallet() {
-        if (msg.sender != address(this)) throw;
+        require(msg.sender == address(this));
         _;
     }
 
     modifier ownerDoesNotExist(address owner) {
-        if (isOwner[owner]) throw;
+        require(!isOwner[owner]);
         _;
     }
 
     modifier ownerExists(address owner) {
-        if (!isOwner[owner]) throw;
+        require(isOwner[owner]);
         _;
     }
 
     modifier transactionExists(uint transactionId) {
-        if (transactions[transactionId].destination == 0) throw;
+        require(transactions[transactionId].destination != 0);
         _;
     }
 
     modifier confirmed(uint transactionId, address owner) {
-        if (!confirmations[transactionId][owner]) throw;
+        require(confirmations[transactionId][owner]);
         _;
     }
 
     modifier notConfirmed(uint transactionId, address owner) {
-        if (confirmations[transactionId][owner]) throw;
+        require(!confirmations[transactionId][owner]);
         _;
     }
 
     modifier notExecuted(uint transactionId) {
-        if (transactions[transactionId].executed) throw;
+        require(!transactions[transactionId].executed);
         _;
     }
 
     modifier notNull(address _address) {
-        if (_address == 0) throw;
+        require(_address != 0);
         _;
     }
 
     modifier validRequirement(uint ownerCount, uint _required) {
-        if (ownerCount > MAX_OWNER_COUNT) throw;
-        if (_required > ownerCount) throw;
-        if (_required == 0) throw;
-        if (ownerCount == 0) throw;
+        require(ownerCount <= MAX_OWNER_COUNT);
+        require(_required <= ownerCount);
+        require(_required != 0);
+        require(ownerCount != 0);
         _;
     }
 
     /// @dev Fallback function allows to deposit ether.
     function()
+    public
     payable
     {
         if (msg.value > 0)
@@ -101,7 +102,7 @@ contract MultiSigWallet {
     validRequirement(_owners.length, _required)
     {
         for (uint i=0; i<_owners.length; i++) {
-            if (isOwner[_owners[i]] || _owners[i] == 0) throw;
+            if (isOwner[_owners[i]] || _owners[i] == 0) revert();
             isOwner[_owners[i]] = true;
         }
         isMultiSigWallet = true;
@@ -152,7 +153,7 @@ contract MultiSigWallet {
     ownerExists(owner)
     ownerDoesNotExist(newOwner)
     {
-        if (owners[index] != owner) throw;
+        require(owners[index] == owner);
         owners[index] = newOwner;
         isOwner[owner] = false;
         isOwner[newOwner] = true;
@@ -238,13 +239,13 @@ contract MultiSigWallet {
     notExecuted(transactionId)
     {
         if (isConfirmed(transactionId)) {
-            Transaction tx = transactions[transactionId];
-            tx.executed = true;
-            if (tx.destination.call.value(tx.value)(tx.data))
+            Transaction storage txn = transactions[transactionId];
+            txn.executed = true;
+            if (txn.destination.call.value(txn.value)(txn.data))
             Execution(transactionId);
             else {
                 ExecutionFailure(transactionId);
-                tx.executed = false;
+                txn.executed = false;
             }
         }
     }

@@ -43,12 +43,12 @@ contract HouseLotteryController is SafeMath, usingOraclize {
 
     // Modifiers
     modifier onlyOwner() {
-        if (msg.sender != owner) throw;
+        require(msg.sender == owner);
         _;
     }
 
     modifier onlyHouse() {
-        if (msg.sender != house) throw;
+        require(msg.sender == house);
         _;
     }
 
@@ -61,13 +61,13 @@ contract HouseLotteryController is SafeMath, usingOraclize {
 
     event oraclizePricingError(uint price);
 
-    function HouseLotteryController() {
+    function HouseLotteryController() public {
         owner = msg.sender;
         // TODO: Replace with oraclize address.
         OAR = OraclizeAddrResolverI(0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475);
     }
 
-    function setHouse(address _house) onlyOwner {
+    function setHouse(address _house) onlyOwner public {
         house = _house;
     }
 
@@ -94,7 +94,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     function pickWinner(uint session) payable
     onlyHouse external returns (bool) {
         // Throw if session passed from the house is less than currentSession set in the lottery contract
-        if (session == 0 || session <= currentSession) throw;
+        if (session == 0 || session <= currentSession) revert();
 
         // Should only work if the winning number has not been finalized.
         require(!isLotteryFinalized(session));
@@ -102,7 +102,6 @@ contract HouseLotteryController is SafeMath, usingOraclize {
         // This is where currentSession is initialized in the contract.
         // It will only be set when the house would like to pick a winner for a session
         currentSession = session;
-        uint ticketCount = lotteries[session].ticketCount;
 
         // Sufficient ETH needs to be sent with this transaction.
         if (oraclize_getPrice("WolframAlpha") > this.balance) {
@@ -120,7 +119,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
         return true;
     }
 
-    function __callback(bytes32 myid, string _result) {
+    function __callback(bytes32 id, string _result) public {
         callback("callback received");
         require(msg.sender == oraclize_cbAddress());
         uint number = parseOraclizeResult(_result);
@@ -135,7 +134,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
                   lotteryTicketHolders[previousSession][randomNumber]);
     }
 
-    function parseOraclizeResult(string _result) returns (uint) {
+    function parseOraclizeResult(string _result) public pure returns (uint) {
         uint number;
         string memory temp = '';
         bytes memory result = bytes(_result);
@@ -167,7 +166,7 @@ contract HouseLotteryController is SafeMath, usingOraclize {
 
     // Number = 7 digit random number from random.org
     // Participants = Number of participants in this session
-    function randomInRange(uint number, uint tickets) returns (uint) {
+    function randomInRange(uint number, uint tickets) public pure returns (uint) {
         uint range = 8999999;
         uint numberInRange = safeDiv(safeMul(safeSub(number, 1000000), tickets), range);
         // ((2995848 - 1000000) * (5)/8999999)
@@ -176,26 +175,26 @@ contract HouseLotteryController is SafeMath, usingOraclize {
         return numberInRange;
     }
 
-    function isLotteryFinalized(uint session) constant returns (bool) {
+    function isLotteryFinalized(uint session) public constant returns (bool) {
         return lotteries[session].finalized;
     }
 
-    function isLotteryClaimed(uint session) constant returns (bool) {
+    function isLotteryClaimed(uint session) public constant returns (bool) {
         return lotteries[session].claimed;
     }
 
-    function getUserTicketCount(uint session, address _address) constant returns (uint) {
+    function getUserTicketCount(uint session, address _address) public constant returns (uint) {
         return lotteryUserTickets[session][_address].length;
     }
 
-    function getLotteryWinner(uint session) constant returns (address) {
+    function getLotteryWinner(uint session) public constant returns (address) {
         require(lotteries[session].finalized);
         return lotteryTicketHolders[session][lotteries[session].winningTicket];
     }
 
     // Do not accept payments in ETH
-    function() {
-        throw;
+    function() public {
+        revert();
     }
 
 }

@@ -52,7 +52,7 @@ contract HouseFundsController is SafeMath {
     mapping (uint => HouseFunds) public houseFunds;
 
     // Constructor
-    function HouseFundsController(address _house){
+    function HouseFundsController(address _house) public {
         require(_house != 0x0);
         house = House(_house);
         decentBetToken = ERC20(house.decentBetToken());
@@ -88,8 +88,9 @@ contract HouseFundsController is SafeMath {
     // House contract must be approved to transfer amount from msg.sender to house.
     function purchaseCredits(address _address, uint amount)
     areTokensAvailable(_address, amount)
-    onlyHouse returns (uint)
-    {
+    onlyHouse
+    public
+    returns (uint) {
         // The minimum credit purchase needs to be 1000 DBETs
         require(amount >= MIN_CREDIT_PURCHASE);
         require(decentBetToken.allowance(_address, address(house)) >= amount);
@@ -121,7 +122,9 @@ contract HouseFundsController is SafeMath {
     // next session.
     function rollOverCredits(address _address, uint amount)
     areCreditsAvailable(_address, house.currentSession(), amount)
-    onlyHouse returns (bool) {
+    onlyHouse
+    public
+    returns (bool) {
         uint currentSession = house.currentSession();
         require(currentSession > 0);
 
@@ -148,7 +151,10 @@ contract HouseFundsController is SafeMath {
     }
 
     // Allows users to return credits and receive tokens along with profit in return.
-    function liquidateCredits(address _address, uint session) onlyHouse returns (uint, uint) {
+    function liquidateCredits(address _address, uint session)
+    onlyHouse
+    public
+    returns (uint, uint) {
         require(houseFunds[session].userCredits[_address].amount > 0);
 
         // Payout variables
@@ -178,7 +184,9 @@ contract HouseFundsController is SafeMath {
     // payout per credit for the previous session.
     function claimRolledOverCredits(address _address)
     areRolledOverCreditsAvailable(_address)
-    onlyHouse returns (uint, uint, uint) {
+    onlyHouse
+    public
+    returns (uint, uint, uint) {
         uint currentSession = house.currentSession();
         uint previousSession = currentSession - 1;
         uint rolledOverFromPreviousSession = houseFunds[currentSession].userCredits[_address]
@@ -217,7 +225,10 @@ contract HouseFundsController is SafeMath {
 
     // Returns the payout per credit based on the total profit generated (Total funds collected from offerings/total purchased user credits)
     // If the session was profitable, 5% of the profit generated is excluded to be deposited in the house lottery.
-    function getPayoutPerCredit(uint session) constant returns (uint) {
+    function getPayoutPerCredit(uint session)
+    public
+    constant
+    returns (uint) {
         uint totalWithdrawn = houseFunds[session].totalWithdrawn;
         uint totalUnregisteredOfferingProfits = houseFunds[session].totalUnregisteredOfferingProfits;
         int totalProfit = houseFunds[session].profit;
@@ -240,9 +251,12 @@ contract HouseFundsController is SafeMath {
 
     // Profits from house offerings deployed independent of the house, can be deposited into the
     // House contract using this function.
-    function addToSessionProfitsFromUnregisteredHouseOffering(address unregisteredOffering,
+    function addToSessionProfitsFromUnregisteredHouseOffering(
         uint session,
-        uint amount) onlyHouse returns (bool) {
+        uint amount)
+    onlyHouse
+    public
+    returns (bool) {
         // Add to totalUnregisteredOfferingProfits for the session
         houseFunds[session].totalUnregisteredOfferingProfits =
         safeAdd(houseFunds[session].totalUnregisteredOfferingProfits, amount);
@@ -254,9 +268,11 @@ contract HouseFundsController is SafeMath {
     }
 
     // Withdraws session tokens for the previously ended session from a house offering.
-    function withdrawPreviousSessionTokensFromHouseOffering(address houseOffering, uint previousSessionTokens,
+    function withdrawPreviousSessionTokensFromHouseOffering(uint previousSessionTokens,
         bool allOfferingsWithdrawn)
-    onlyHouse returns (bool) {
+    onlyHouse
+    public
+    returns (bool) {
         uint previousSession = house.currentSession() - 1;
         houseFunds[previousSession].totalWithdrawn =
         safeAdd(houseFunds[previousSession].totalWithdrawn, previousSessionTokens);
@@ -270,9 +286,11 @@ contract HouseFundsController is SafeMath {
 
     // Allow authorized addresses to add profits for offerings that haven't been registered
     // with the house for the current session.
-    function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering,
-        uint currentSessionTokens, bool allOfferingsWithdrawn)
-    onlyHouse returns (bool) {
+    function emergencyWithdrawCurrentSessionTokensFromHouseOffering(uint currentSessionTokens,
+        bool allOfferingsWithdrawn)
+    onlyHouse
+    public
+    returns (bool) {
         uint currentSession = house.currentSession();
         houseFunds[currentSession].totalWithdrawn =
             safeAdd(houseFunds[currentSession].totalWithdrawn, currentSessionTokens);
@@ -285,7 +303,10 @@ contract HouseFundsController is SafeMath {
     }
 
     // Allows users to withdraw their funds if the house is in an emergencyPaused state.
-    function emergencyWithdraw(address _address) onlyHouse returns (uint, uint) {
+    function emergencyWithdraw(address _address)
+    onlyHouse
+    public
+    returns (uint, uint) {
         uint session = house.currentSession();
         require(houseFunds[session].userCredits[_address].amount > 0);
 
@@ -315,7 +336,7 @@ contract HouseFundsController is SafeMath {
     // Utility functions for front-end purposes.
 
     // Returns house funds and user specific credit info for a session.
-    function getUserCreditsForSession(uint session, address _address) constant
+    function getUserCreditsForSession(uint session, address _address) public constant
     returns (uint amount, uint liquidated, uint rolledOverToNextSession, uint claimedFromPreviousSession,
         uint totalFunds, uint totalUserCredits) {
         return (houseFunds[session].userCredits[_address].amount,
@@ -326,12 +347,12 @@ contract HouseFundsController is SafeMath {
         houseFunds[session].totalUserCredits);
     }
 
-    function getProfitForSession(uint session) constant returns (int) {
+    function getProfitForSession(uint session) public constant returns (int) {
         return houseFunds[session].profit;
     }
 
     // Returns a user address for a session.
-    function getUserForSession(uint session, uint index) constant returns (address _address) {
+    function getUserForSession(uint session, uint index) public constant returns (address _address) {
         return houseFunds[session].users[index];
     }
 

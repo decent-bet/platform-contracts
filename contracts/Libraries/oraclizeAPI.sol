@@ -28,27 +28,258 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-pragma solidity ^0.4.19;//please import oraclizeAPI_pre0.4.sol when solidity < 0.4.0
+// This api is currently targeted at 0.4.18, please import oraclizeAPI_pre0.4.sol or oraclizeAPI_0.4 where necessary
+pragma solidity ^0.4.18;
 
 contract OraclizeI {
     address public cbAddress;
-    function query(uint _timestamp, string _datasource, string _arg) payable returns (bytes32 _id);
-    function query_withGasLimit(uint _timestamp, string _datasource, string _arg, uint _gaslimit) payable returns (bytes32 _id);
-    function query2(uint _timestamp, string _datasource, string _arg1, string _arg2) payable returns (bytes32 _id);
-    function query2_withGasLimit(uint _timestamp, string _datasource, string _arg1, string _arg2, uint _gaslimit) payable returns (bytes32 _id);
-    function queryN(uint _timestamp, string _datasource, bytes _argN) payable returns (bytes32 _id);
-    function queryN_withGasLimit(uint _timestamp, string _datasource, bytes _argN, uint _gaslimit) payable returns (bytes32 _id);
-    function getPrice(string _datasource) returns (uint _dsprice);
-    function getPrice(string _datasource, uint gaslimit) returns (uint _dsprice);
-    function useCoupon(string _coupon);
-    function setProofType(byte _proofType);
-    function setConfig(bytes32 _config);
-    function setCustomGasPrice(uint _gasPrice);
-    function randomDS_getSessionPubKeyHash() returns(bytes32);
+    function query(uint _timestamp, string _datasource, string _arg) external payable returns (bytes32 _id);
+    function query_withGasLimit(uint _timestamp, string _datasource, string _arg, uint _gaslimit) external payable returns (bytes32 _id);
+    function query2(uint _timestamp, string _datasource, string _arg1, string _arg2) public payable returns (bytes32 _id);
+    function query2_withGasLimit(uint _timestamp, string _datasource, string _arg1, string _arg2, uint _gaslimit) external payable returns (bytes32 _id);
+    function queryN(uint _timestamp, string _datasource, bytes _argN) public payable returns (bytes32 _id);
+    function queryN_withGasLimit(uint _timestamp, string _datasource, bytes _argN, uint _gaslimit) external payable returns (bytes32 _id);
+    function getPrice(string _datasource) public returns (uint _dsprice);
+    function getPrice(string _datasource, uint gaslimit) public returns (uint _dsprice);
+    function setProofType(byte _proofType) external;
+    function setCustomGasPrice(uint _gasPrice) external;
+    function randomDS_getSessionPubKeyHash() external constant returns(bytes32);
 }
+
 contract OraclizeAddrResolverI {
-    function getAddress() returns (address _addr);
+    function getAddress() public returns (address _addr);
 }
+
+/*
+Begin solidity-cborutils
+
+https://github.com/smartcontractkit/solidity-cborutils
+
+MIT License
+
+Copyright (c) 2018 SmartContract ChainLink, Ltd.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+ */
+
+library Buffer {
+    struct buffer {
+        bytes buf;
+        uint capacity;
+    }
+
+    function init(buffer memory buf, uint capacity) internal pure {
+        if(capacity % 32 != 0) capacity += 32 - (capacity % 32);
+        // Allocate space for the buffer data
+        buf.capacity = capacity;
+        assembly {
+            let ptr := mload(0x40)
+            mstore(buf, ptr)
+            mstore(0x40, add(ptr, capacity))
+        }
+    }
+
+    function resize(buffer memory buf, uint capacity) private pure {
+        bytes memory oldbuf = buf.buf;
+        init(buf, capacity);
+        append(buf, oldbuf);
+    }
+
+    function max(uint a, uint b) private pure returns(uint) {
+        if(a > b) {
+            return a;
+        }
+        return b;
+    }
+
+    /**
+     * @dev Appends a byte array to the end of the buffer. Reverts if doing so
+     *      would exceed the capacity of the buffer.
+     * @param buf The buffer to append to.
+     * @param data The data to append.
+     * @return The original buffer.
+     */
+    function append(buffer memory buf, bytes data) internal pure returns(buffer memory) {
+        if(data.length + buf.buf.length > buf.capacity) {
+            resize(buf, max(buf.capacity, data.length) * 2);
+        }
+
+        uint dest;
+        uint src;
+        uint len = data.length;
+        assembly {
+        // Memory address of the buffer data
+            let bufptr := mload(buf)
+        // Length of existing buffer data
+            let buflen := mload(bufptr)
+        // Start address = buffer address + buffer length + sizeof(buffer length)
+            dest := add(add(bufptr, buflen), 32)
+        // Update buffer length
+            mstore(bufptr, add(buflen, mload(data)))
+            src := add(data, 32)
+        }
+
+        // Copy word-length chunks while possible
+        for(; len >= 32; len -= 32) {
+            assembly {
+                mstore(dest, mload(src))
+            }
+            dest += 32;
+            src += 32;
+        }
+
+        // Copy remaining bytes
+        uint mask = 256 ** (32 - len) - 1;
+        assembly {
+            let srcpart := and(mload(src), not(mask))
+            let destpart := and(mload(dest), mask)
+            mstore(dest, or(destpart, srcpart))
+        }
+
+        return buf;
+    }
+
+    /**
+     * @dev Appends a byte to the end of the buffer. Reverts if doing so would
+     * exceed the capacity of the buffer.
+     * @param buf The buffer to append to.
+     * @param data The data to append.
+     * @return The original buffer.
+     */
+    function append(buffer memory buf, uint8 data) internal pure {
+        if(buf.buf.length + 1 > buf.capacity) {
+            resize(buf, buf.capacity * 2);
+        }
+
+        assembly {
+        // Memory address of the buffer data
+            let bufptr := mload(buf)
+        // Length of existing buffer data
+            let buflen := mload(bufptr)
+        // Address = buffer address + buffer length + sizeof(buffer length)
+            let dest := add(add(bufptr, buflen), 32)
+            mstore8(dest, data)
+        // Update buffer length
+            mstore(bufptr, add(buflen, 1))
+        }
+    }
+
+    /**
+     * @dev Appends a byte to the end of the buffer. Reverts if doing so would
+     * exceed the capacity of the buffer.
+     * @param buf The buffer to append to.
+     * @param data The data to append.
+     * @return The original buffer.
+     */
+    function appendInt(buffer memory buf, uint data, uint len) internal pure returns(buffer memory) {
+        if(len + buf.buf.length > buf.capacity) {
+            resize(buf, max(buf.capacity, len) * 2);
+        }
+
+        uint mask = 256 ** len - 1;
+        assembly {
+        // Memory address of the buffer data
+            let bufptr := mload(buf)
+        // Length of existing buffer data
+            let buflen := mload(bufptr)
+        // Address = buffer address + buffer length + sizeof(buffer length) + len
+            let dest := add(add(bufptr, buflen), len)
+            mstore(dest, or(and(mload(dest), not(mask)), data))
+        // Update buffer length
+            mstore(bufptr, add(buflen, len))
+        }
+        return buf;
+    }
+}
+
+library CBOR {
+    using Buffer for Buffer.buffer;
+
+    uint8 private constant MAJOR_TYPE_INT = 0;
+    uint8 private constant MAJOR_TYPE_NEGATIVE_INT = 1;
+    uint8 private constant MAJOR_TYPE_BYTES = 2;
+    uint8 private constant MAJOR_TYPE_STRING = 3;
+    uint8 private constant MAJOR_TYPE_ARRAY = 4;
+    uint8 private constant MAJOR_TYPE_MAP = 5;
+    uint8 private constant MAJOR_TYPE_CONTENT_FREE = 7;
+
+    function encodeType(Buffer.buffer memory buf, uint8 major, uint value) private pure {
+        if(value <= 23) {
+            buf.append(uint8((major << 5) | value));
+        } else if(value <= 0xFF) {
+            buf.append(uint8((major << 5) | 24));
+            buf.appendInt(value, 1);
+        } else if(value <= 0xFFFF) {
+            buf.append(uint8((major << 5) | 25));
+            buf.appendInt(value, 2);
+        } else if(value <= 0xFFFFFFFF) {
+            buf.append(uint8((major << 5) | 26));
+            buf.appendInt(value, 4);
+        } else if(value <= 0xFFFFFFFFFFFFFFFF) {
+            buf.append(uint8((major << 5) | 27));
+            buf.appendInt(value, 8);
+        }
+    }
+
+    function encodeIndefiniteLengthType(Buffer.buffer memory buf, uint8 major) private pure {
+        buf.append(uint8((major << 5) | 31));
+    }
+
+    function encodeUInt(Buffer.buffer memory buf, uint value) internal pure {
+        encodeType(buf, MAJOR_TYPE_INT, value);
+    }
+
+    function encodeInt(Buffer.buffer memory buf, int value) internal pure {
+        if(value >= 0) {
+            encodeType(buf, MAJOR_TYPE_INT, uint(value));
+        } else {
+            encodeType(buf, MAJOR_TYPE_NEGATIVE_INT, uint(-1 - value));
+        }
+    }
+
+    function encodeBytes(Buffer.buffer memory buf, bytes value) internal pure {
+        encodeType(buf, MAJOR_TYPE_BYTES, value.length);
+        buf.append(value);
+    }
+
+    function encodeString(Buffer.buffer memory buf, string value) internal pure {
+        encodeType(buf, MAJOR_TYPE_STRING, bytes(value).length);
+        buf.append(bytes(value));
+    }
+
+    function startArray(Buffer.buffer memory buf) internal pure {
+        encodeIndefiniteLengthType(buf, MAJOR_TYPE_ARRAY);
+    }
+
+    function startMap(Buffer.buffer memory buf) internal pure {
+        encodeIndefiniteLengthType(buf, MAJOR_TYPE_MAP);
+    }
+
+    function endSequence(Buffer.buffer memory buf) internal pure {
+        encodeIndefiniteLengthType(buf, MAJOR_TYPE_CONTENT_FREE);
+    }
+}
+
+/*
+End solidity-cborutils
+ */
+
 contract usingOraclize {
     uint constant day = 60*60*24;
     uint constant week = 60*60*24*7;
@@ -69,17 +300,24 @@ contract usingOraclize {
 
     OraclizeI oraclize;
     modifier oraclizeAPI {
-        if((address(OAR)==0)||(getCodeSize(address(OAR))==0)) oraclize_setNetwork(networkID_auto);
-        oraclize = OraclizeI(OAR.getAddress());
+        if((address(OAR)==0)||(getCodeSize(address(OAR))==0))
+            oraclize_setNetwork(networkID_auto);
+
+        if(address(oraclize) != OAR.getAddress())
+            oraclize = OraclizeI(OAR.getAddress());
+
         _;
     }
     modifier coupon(string code){
         oraclize = OraclizeI(OAR.getAddress());
-        oraclize.useCoupon(code);
         _;
     }
 
     function oraclize_setNetwork(uint8 networkID) internal returns(bool){
+        return oraclize_setNetwork();
+        networkID; // silence the warning and remain backwards compatible
+    }
+    function oraclize_setNetwork() internal returns(bool){
         if (getCodeSize(0x1d3B2638a7cC9f2CB3D298A3DA7a90B67E5506ed)>0){ //mainnet
             OAR = OraclizeAddrResolverI(0x1d3B2638a7cC9f2CB3D298A3DA7a90B67E5506ed);
             oraclize_setNetworkName("eth_mainnet");
@@ -115,14 +353,12 @@ contract usingOraclize {
         return false;
     }
 
-    function __callback(bytes32 myid, string result) {
+    function __callback(bytes32 myid, string result) public {
         __callback(myid, result, new bytes(0));
     }
-    function __callback(bytes32 myid, string result, bytes proof) {
-    }
-
-    function oraclize_useCoupon(string code) oraclizeAPI internal {
-        oraclize.useCoupon(code);
+    function __callback(bytes32 myid, string result, bytes proof) public {
+        return;
+        myid; result; proof; // Silence compiler warnings
     }
 
     function oraclize_getPrice(string datasource) oraclizeAPI internal returns (uint){
@@ -515,9 +751,6 @@ contract usingOraclize {
     function oraclize_setCustomGasPrice(uint gasPrice) oraclizeAPI internal {
         return oraclize.setCustomGasPrice(gasPrice);
     }
-    function oraclize_setConfig(bytes32 config) oraclizeAPI internal {
-        return oraclize.setConfig(config);
-    }
 
     function oraclize_randomDS_getSessionPubKeyHash() oraclizeAPI internal returns (bytes32){
         return oraclize.randomDS_getSessionPubKeyHash();
@@ -529,7 +762,7 @@ contract usingOraclize {
         }
     }
 
-    function parseAddr(string _a) internal returns (address){
+    function parseAddr(string _a) internal pure returns (address){
         bytes memory tmp = bytes(_a);
         uint160 iaddr = 0;
         uint160 b1;
@@ -549,7 +782,7 @@ contract usingOraclize {
         return address(iaddr);
     }
 
-    function strCompare(string _a, string _b) internal returns (int) {
+    function strCompare(string _a, string _b) internal pure returns (int) {
         bytes memory a = bytes(_a);
         bytes memory b = bytes(_b);
         uint minLength = a.length;
@@ -567,7 +800,7 @@ contract usingOraclize {
             return 0;
     }
 
-    function indexOf(string _haystack, string _needle) internal returns (int) {
+    function indexOf(string _haystack, string _needle) internal pure returns (int) {
         bytes memory h = bytes(_haystack);
         bytes memory n = bytes(_needle);
         if(h.length < 1 || n.length < 1 || (n.length > h.length))
@@ -594,7 +827,7 @@ contract usingOraclize {
         }
     }
 
-    function strConcat(string _a, string _b, string _c, string _d, string _e) internal returns (string) {
+    function strConcat(string _a, string _b, string _c, string _d, string _e) internal pure returns (string) {
         bytes memory _ba = bytes(_a);
         bytes memory _bb = bytes(_b);
         bytes memory _bc = bytes(_c);
@@ -611,32 +844,32 @@ contract usingOraclize {
         return string(babcde);
     }
 
-    function strConcat(string _a, string _b, string _c, string _d) internal returns (string) {
+    function strConcat(string _a, string _b, string _c, string _d) internal pure returns (string) {
         return strConcat(_a, _b, _c, _d, "");
     }
 
-    function strConcat(string _a, string _b, string _c) internal returns (string) {
+    function strConcat(string _a, string _b, string _c) internal pure returns (string) {
         return strConcat(_a, _b, _c, "", "");
     }
 
-    function strConcat(string _a, string _b) internal returns (string) {
+    function strConcat(string _a, string _b) internal pure returns (string) {
         return strConcat(_a, _b, "", "", "");
     }
 
     // parseInt
-    function parseInt(string _a) internal returns (uint) {
+    function parseInt(string _a) internal pure returns (uint) {
         return parseInt(_a, 0);
     }
 
     // parseInt(parseFloat*10^_b)
-    function parseInt(string _a, uint _b) internal returns (uint) {
+    function parseInt(string _a, uint _b) internal pure returns (uint) {
         bytes memory bresult = bytes(_a);
         uint mint = 0;
         bool decimals = false;
         for (uint i=0; i<bresult.length; i++){
             if ((bresult[i] >= 48)&&(bresult[i] <= 57)){
                 if (decimals){
-                   if (_b == 0) break;
+                    if (_b == 0) break;
                     else _b--;
                 }
                 mint *= 10;
@@ -647,7 +880,7 @@ contract usingOraclize {
         return mint;
     }
 
-    function uint2str(uint i) internal returns (string){
+    function uint2str(uint i) internal pure returns (string){
         if (i == 0) return "0";
         uint j = i;
         uint len;
@@ -664,106 +897,46 @@ contract usingOraclize {
         return string(bstr);
     }
 
-    function stra2cbor(string[] arr) internal returns (bytes) {
-            uint arrlen = arr.length;
-
-            // get correct cbor output length
-            uint outputlen = 0;
-            bytes[] memory elemArray = new bytes[](arrlen);
-            for (uint i = 0; i < arrlen; i++) {
-                elemArray[i] = (bytes(arr[i]));
-                outputlen += elemArray[i].length + (elemArray[i].length - 1)/23 + 3; //+3 accounts for paired identifier types
-            }
-            uint ctr = 0;
-            uint cborlen = arrlen + 0x80;
-            outputlen += byte(cborlen).length;
-            bytes memory res = new bytes(outputlen);
-
-            while (byte(cborlen).length > ctr) {
-                res[ctr] = byte(cborlen)[ctr];
-                ctr++;
-            }
-            for (i = 0; i < arrlen; i++) {
-                res[ctr] = 0x5F;
-                ctr++;
-                for (uint x = 0; x < elemArray[i].length; x++) {
-                    // if there's a bug with larger strings, this may be the culprit
-                    if (x % 23 == 0) {
-                        uint elemcborlen = elemArray[i].length - x >= 24 ? 23 : elemArray[i].length - x;
-                        elemcborlen += 0x40;
-                        uint lctr = ctr;
-                        while (byte(elemcborlen).length > ctr - lctr) {
-                            res[ctr] = byte(elemcborlen)[ctr - lctr];
-                            ctr++;
-                        }
-                    }
-                    res[ctr] = elemArray[i][x];
-                    ctr++;
-                }
-                res[ctr] = 0xFF;
-                ctr++;
-            }
-            return res;
+    using CBOR for Buffer.buffer;
+    function stra2cbor(string[] arr) internal pure returns (bytes) {
+        Buffer.buffer memory buf;
+        Buffer.init(buf, 1024);
+        buf.startArray();
+        for (uint i = 0; i < arr.length; i++) {
+            buf.encodeString(arr[i]);
         }
+        buf.endSequence();
+        return buf.buf;
+    }
 
-    function ba2cbor(bytes[] arr) internal returns (bytes) {
-            uint arrlen = arr.length;
-
-            // get correct cbor output length
-            uint outputlen = 0;
-            bytes[] memory elemArray = new bytes[](arrlen);
-            for (uint i = 0; i < arrlen; i++) {
-                elemArray[i] = (bytes(arr[i]));
-                outputlen += elemArray[i].length + (elemArray[i].length - 1)/23 + 3; //+3 accounts for paired identifier types
-            }
-            uint ctr = 0;
-            uint cborlen = arrlen + 0x80;
-            outputlen += byte(cborlen).length;
-            bytes memory res = new bytes(outputlen);
-
-            while (byte(cborlen).length > ctr) {
-                res[ctr] = byte(cborlen)[ctr];
-                ctr++;
-            }
-            for (i = 0; i < arrlen; i++) {
-                res[ctr] = 0x5F;
-                ctr++;
-                for (uint x = 0; x < elemArray[i].length; x++) {
-                    // if there's a bug with larger strings, this may be the culprit
-                    if (x % 23 == 0) {
-                        uint elemcborlen = elemArray[i].length - x >= 24 ? 23 : elemArray[i].length - x;
-                        elemcborlen += 0x40;
-                        uint lctr = ctr;
-                        while (byte(elemcborlen).length > ctr - lctr) {
-                            res[ctr] = byte(elemcborlen)[ctr - lctr];
-                            ctr++;
-                        }
-                    }
-                    res[ctr] = elemArray[i][x];
-                    ctr++;
-                }
-                res[ctr] = 0xFF;
-                ctr++;
-            }
-            return res;
+    function ba2cbor(bytes[] arr) internal pure returns (bytes) {
+        Buffer.buffer memory buf;
+        Buffer.init(buf, 1024);
+        buf.startArray();
+        for (uint i = 0; i < arr.length; i++) {
+            buf.encodeBytes(arr[i]);
         }
-
+        buf.endSequence();
+        return buf.buf;
+    }
 
     string oraclize_network_name;
     function oraclize_setNetworkName(string _network_name) internal {
         oraclize_network_name = _network_name;
     }
 
-    function oraclize_getNetworkName() internal returns (string) {
+    function oraclize_getNetworkName() internal view returns (string) {
         return oraclize_network_name;
     }
 
     function oraclize_newRandomDSQuery(uint _delay, uint _nbytes, uint _customGasLimit) internal returns (bytes32){
-        if ((_nbytes == 0)||(_nbytes > 32)) throw;
+        require((_nbytes > 0) && (_nbytes <= 32));
+        // Convert from seconds to ledger timer ticks
+        _delay *= 10;
         bytes memory nbytes = new bytes(1);
         nbytes[0] = byte(_nbytes);
-        bytes memory unonce;
-        bytes memory sessionKeyHash;
+        bytes memory unonce = new bytes(32);
+        bytes memory sessionKeyHash = new bytes(32);
         bytes32 sessionKeyHash_bytes32 = oraclize_randomDS_getSessionPubKeyHash();
         assembly {
             mstore(unonce, 0x20)
@@ -771,9 +944,33 @@ contract usingOraclize {
             mstore(sessionKeyHash, 0x20)
             mstore(add(sessionKeyHash, 0x20), sessionKeyHash_bytes32)
         }
-        bytes[3] memory args = [unonce, nbytes, sessionKeyHash];
-        bytes32 queryId = oraclize_query(_delay, "random", args, _customGasLimit);
-        oraclize_randomDS_setCommitment(queryId, sha3(bytes8(_delay), args[1], sha256(args[0]), args[2]));
+        bytes memory delay = new bytes(32);
+        assembly {
+            mstore(add(delay, 0x20), _delay)
+        }
+
+        bytes memory delay_bytes8 = new bytes(8);
+        copyBytes(delay, 24, 8, delay_bytes8, 0);
+
+        bytes[4] memory args = [unonce, nbytes, sessionKeyHash, delay];
+        bytes32 queryId = oraclize_query("random", args, _customGasLimit);
+
+        bytes memory delay_bytes8_left = new bytes(8);
+
+        assembly {
+            let x := mload(add(delay_bytes8, 0x20))
+            mstore8(add(delay_bytes8_left, 0x27), div(x, 0x100000000000000000000000000000000000000000000000000000000000000))
+            mstore8(add(delay_bytes8_left, 0x26), div(x, 0x1000000000000000000000000000000000000000000000000000000000000))
+            mstore8(add(delay_bytes8_left, 0x25), div(x, 0x10000000000000000000000000000000000000000000000000000000000))
+            mstore8(add(delay_bytes8_left, 0x24), div(x, 0x100000000000000000000000000000000000000000000000000000000))
+            mstore8(add(delay_bytes8_left, 0x23), div(x, 0x1000000000000000000000000000000000000000000000000000000))
+            mstore8(add(delay_bytes8_left, 0x22), div(x, 0x10000000000000000000000000000000000000000000000000000))
+            mstore8(add(delay_bytes8_left, 0x21), div(x, 0x100000000000000000000000000000000000000000000000000))
+            mstore8(add(delay_bytes8_left, 0x20), div(x, 0x1000000000000000000000000000000000000000000000000))
+
+        }
+
+        oraclize_randomDS_setCommitment(queryId, keccak256(delay_bytes8_left, args[1], sha256(args[0]), args[2]));
         return queryId;
     }
 
@@ -805,10 +1002,10 @@ contract usingOraclize {
 
 
         (sigok, signer) = safer_ecrecover(tosignh, 27, sigr, sigs);
-        if (address(sha3(pubkey)) == signer) return true;
+        if (address(keccak256(pubkey)) == signer) return true;
         else {
             (sigok, signer) = safer_ecrecover(tosignh, 28, sigr, sigs);
-            return (address(sha3(pubkey)) == signer);
+            return (address(keccak256(pubkey)) == signer);
         }
     }
 
@@ -823,7 +1020,7 @@ contract usingOraclize {
         copyBytes(proof, 3+1, 64, appkey1_pubkey, 0);
 
         bytes memory tosign2 = new bytes(1+65+32);
-        tosign2[0] = 1; //role
+        tosign2[0] = byte(1); //role
         copyBytes(proof, sig2offset-65, 65, tosign2, 1);
         bytes memory CODEHASH = hex"fd94fa71bc0ba10d39d464d0d8f465efeef0a2764e3887fcc9df41ded20f505c";
         copyBytes(CODEHASH, 0, 32, tosign2, 1+65);
@@ -849,18 +1046,30 @@ contract usingOraclize {
 
     modifier oraclize_randomDS_proofVerify(bytes32 _queryId, string _result, bytes _proof) {
         // Step 1: the prefix has to match 'LP\x01' (Ledger Proof version 1)
-        if ((_proof[0] != "L")||(_proof[1] != "P")||(_proof[2] != 1)) throw;
+        require((_proof[0] == "L") && (_proof[1] == "P") && (_proof[2] == 1));
 
         bool proofVerified = oraclize_randomDS_proofVerify__main(_proof, _queryId, bytes(_result), oraclize_getNetworkName());
-        if (proofVerified == false) throw;
+        require(proofVerified);
 
         _;
     }
 
-    function matchBytes32Prefix(bytes32 content, bytes prefix) internal returns (bool){
+    function oraclize_randomDS_proofVerify__returnCode(bytes32 _queryId, string _result, bytes _proof) internal returns (uint8){
+        // Step 1: the prefix has to match 'LP\x01' (Ledger Proof version 1)
+        if ((_proof[0] != "L")||(_proof[1] != "P")||(_proof[2] != 1)) return 1;
+
+        bool proofVerified = oraclize_randomDS_proofVerify__main(_proof, _queryId, bytes(_result), oraclize_getNetworkName());
+        if (proofVerified == false) return 2;
+
+        return 0;
+    }
+
+    function matchBytes32Prefix(bytes32 content, bytes prefix, uint n_random_bytes) internal pure returns (bool){
         bool match_ = true;
 
-        for (var i=0; i<prefix.length; i++){
+        require(prefix.length == n_random_bytes);
+
+        for (uint256 i=0; i< n_random_bytes; i++) {
             if (content[i] != prefix[i]) match_ = false;
         }
 
@@ -868,26 +1077,20 @@ contract usingOraclize {
     }
 
     function oraclize_randomDS_proofVerify__main(bytes proof, bytes32 queryId, bytes result, string context_name) internal returns (bool){
-        bool checkok;
-
 
         // Step 2: the unique keyhash has to match with the sha256 of (context name + queryId)
         uint ledgerProofLength = 3+65+(uint(proof[3+65+1])+2)+32;
         bytes memory keyhash = new bytes(32);
         copyBytes(proof, ledgerProofLength, 32, keyhash, 0);
-        checkok = (sha3(keyhash) == sha3(sha256(context_name, queryId)));
-        if (checkok == false) return false;
+        if (!(keccak256(keyhash) == keccak256(sha256(context_name, queryId)))) return false;
 
         bytes memory sig1 = new bytes(uint(proof[ledgerProofLength+(32+8+1+32)+1])+2);
         copyBytes(proof, ledgerProofLength+(32+8+1+32), sig1.length, sig1, 0);
 
-
         // Step 3: we assume sig1 is valid (it will be verified during step 5) and we verify if 'result' is the prefix of sha256(sig1)
-        checkok = matchBytes32Prefix(sha256(sig1), result);
-        if (checkok == false) return false;
+        if (!matchBytes32Prefix(sha256(sig1), result, uint(proof[ledgerProofLength+32+8]))) return false;
 
-
-        // Step 4: commitment match verification, sha3(delay, nbytes, unonce, sessionKeyHash) == commitment in storage.
+        // Step 4: commitment match verification, keccak256(delay, nbytes, unonce, sessionKeyHash) == commitment in storage.
         // This is to verify that the computed args match with the ones specified in the query.
         bytes memory commitmentSlice1 = new bytes(8+1+32);
         copyBytes(proof, ledgerProofLength+32, 8+1+32, commitmentSlice1, 0);
@@ -897,7 +1100,7 @@ contract usingOraclize {
         copyBytes(proof, sig2offset-64, 64, sessionPubkey, 0);
 
         bytes32 sessionPubkeyHash = sha256(sessionPubkey);
-        if (oraclize_randomDS_args[queryId] == sha3(commitmentSlice1, sessionPubkeyHash)){ //unonce, nbytes and sessionKeyHash match
+        if (oraclize_randomDS_args[queryId] == keccak256(commitmentSlice1, sessionPubkeyHash)){ //unonce, nbytes and sessionKeyHash match
             delete oraclize_randomDS_args[queryId];
         } else return false;
 
@@ -905,8 +1108,7 @@ contract usingOraclize {
         // Step 5: validity verification for sig1 (keyhash and args signed with the sessionKey)
         bytes memory tosign1 = new bytes(32+8+1+32);
         copyBytes(proof, ledgerProofLength, 32+8+1+32, tosign1, 0);
-        checkok = verifySig(sha256(tosign1), sig1, sessionPubkey);
-        if (checkok == false) return false;
+        if (!verifySig(sha256(tosign1), sig1, sessionPubkey)) return false;
 
         // verify if sessionPubkeyHash was verified already, if not.. let's do it!
         if (oraclize_randomDS_sessionKeysHashVerified[sessionPubkeyHash] == false){
@@ -916,15 +1118,12 @@ contract usingOraclize {
         return oraclize_randomDS_sessionKeysHashVerified[sessionPubkeyHash];
     }
 
-
     // the following function has been written by Alex Beregszaszi (@axic), use it under the terms of the MIT license
-    function copyBytes(bytes from, uint fromOffset, uint length, bytes to, uint toOffset) internal returns (bytes) {
+    function copyBytes(bytes from, uint fromOffset, uint length, bytes to, uint toOffset) internal pure returns (bytes) {
         uint minLength = length + toOffset;
 
-        if (to.length < minLength) {
-            // Buffer too small
-            throw; // Should be a better way?
-        }
+        // Buffer too small
+        require(to.length >= minLength); // Should be a better way?
 
         // NOTE: the offset 32 is added to skip the `size` field of both bytes variables
         uint i = 32 + fromOffset;
@@ -962,8 +1161,8 @@ contract usingOraclize {
             mstore(add(size, 64), r)
             mstore(add(size, 96), s)
 
-            // NOTE: we can reuse the request memory because we deal with
-            //       the return code
+        // NOTE: we can reuse the request memory because we deal with
+        //       the return code
             ret := call(3000, 1, 0, size, 128, size, 32)
             addr := mload(size)
         }
@@ -978,7 +1177,7 @@ contract usingOraclize {
         uint8 v;
 
         if (sig.length != 65)
-          return (false, 0);
+            return (false, 0);
 
         // The signature format is a compact form of:
         //   {bytes32 r}{bytes32 s}{uint8 v}
@@ -987,15 +1186,15 @@ contract usingOraclize {
             r := mload(add(sig, 32))
             s := mload(add(sig, 64))
 
-            // Here we are loading the last 32 bytes. We exploit the fact that
-            // 'mload' will pad with zeroes if we overread.
-            // There is no 'mload8' to do this, but that would be nicer.
+        // Here we are loading the last 32 bytes. We exploit the fact that
+        // 'mload' will pad with zeroes if we overread.
+        // There is no 'mload8' to do this, but that would be nicer.
             v := byte(0, mload(add(sig, 96)))
 
-            // Alternative solution:
-            // 'byte' is not working due to the Solidity parser, so lets
-            // use the second best option, 'and'
-            // v := and(mload(add(sig, 65)), 255)
+        // Alternative solution:
+        // 'byte' is not working due to the Solidity parser, so lets
+        // use the second best option, 'and'
+        // v := and(mload(add(sig, 65)), 255)
         }
 
         // albeit non-transactional signatures are not specified by the YP, one would expect it
@@ -1004,7 +1203,7 @@ contract usingOraclize {
         // geth uses [0, 1] and some clients have followed. This might change, see:
         //  https://github.com/ethereum/go-ethereum/issues/2053
         if (v < 27)
-          v += 27;
+            v += 27;
 
         if (v != 27 && v != 28)
             return (false, 0);

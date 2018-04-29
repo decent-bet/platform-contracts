@@ -46,7 +46,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         _;
     }
 
-    function SlotsChannelFinalizer(address _slotsHelper, address _kycManager) {
+    function SlotsChannelFinalizer(address _slotsHelper, address _kycManager) public {
         owner = msg.sender;
         require(_slotsHelper != 0x0);
         require(_kycManager != 0x0);
@@ -54,12 +54,14 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         kycManager  = KycManager(_kycManager);
     }
 
-    function setSlotsChannelManager(address _slotsChannelManager) onlyOwner {
+    function setSlotsChannelManager(address _slotsChannelManager)
+    onlyOwner
+    public {
         slotsChannelManager = SlotsChannelManager(_slotsChannelManager);
     }
 
     // Check reel array for winning lines (Currently 5 lines)
-    function getTotalSpinReward(Spin spin) private returns (uint) {
+    function getTotalSpinReward(Spin spin) private view returns (uint) {
         uint[5] memory reelArray = slotsHelper.convertReelToArray(spin.reel);
         //300k gas
         bool isValid = true;
@@ -71,21 +73,21 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
                 break;
             }
         }
-        if (isValid == false) throw;
+        require(isValid);
 
         return slotsHelper.getTotalReward(spin.betSize, reelArray);
     }
 
     // Checks the signature of a spin sent and verifies it's validity
-    function checkSigPrivate(uint id, Spin s) private returns (bool) {
-        bytes32 hash = sha3(s.reelHash, s.reel, s.reelSeedHash, s.prevReelSeedHash, s.userHash, s.prevUserHash,
+    function checkSigPrivate(uint id, Spin s) private view returns (bool) {
+        bytes32 hash = keccak256(s.reelHash, s.reel, s.reelSeedHash, s.prevReelSeedHash, s.userHash, s.prevUserHash,
         uintToString(s.nonce), boolToString(s.turn), uintToString(s.userBalance), uintToString(s.houseBalance),
         uintToString(s.betSize));
         address player = slotsChannelManager.getPlayer(id, s.turn);
         return player == ecrecover(hash, s.v, s.r, s.s);
     }
 
-    function checkSpinHashes(Spin curr, Spin prior) private returns (bool) {
+    function checkSpinHashes(Spin curr, Spin prior) private pure returns (bool) {
         // During a player's turn, the spin would have the reel hash and
         // seed hash which were sent from the server.
 
@@ -105,7 +107,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     }
 
     // Verifies last two spins and returns their validity
-    function checkPair(Spin curr, Spin prior) private returns (bool) {
+    function checkPair(Spin curr, Spin prior) private view returns (bool) {
         // If Player's turn
         if (curr.turn == false) {
 
@@ -136,7 +138,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     }
 
     // Compare reel hashes for spins
-    function compareReelHashes(Spin curr, Spin prior) private returns (bool) {
+    function compareReelHashes(Spin curr, Spin prior) private pure returns (bool) {
         string memory hashSeed = (prior.reelSeedHash.toSlice()
         .concat(prior.reel.toSlice()));
         return toBytes32(prior.reelHash, 0) == sha256(hashSeed);
@@ -144,7 +146,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     // Compares two spins and checks whether balances reflect user winnings
     // Works only for user turns
-    function isAccurateBalances(Spin curr, Spin prior, uint totalSpinReward) private returns (bool) {
+    function isAccurateBalances(Spin curr, Spin prior, uint totalSpinReward) private pure returns (bool) {
 
         if(curr.turn) {
             // House turn
@@ -169,7 +171,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     function finalize(uint id, string _curr, string _prior,
     bytes32 currR, bytes32 currS, bytes32 priorR, bytes32 priorS)
     isSenderKycVerified
-    isSlotsChannelManagerSet returns (bool) {
+    isSlotsChannelManagerSet public returns (bool) {
 
         require(slotsChannelManager.isParticipant(id, msg.sender));
 
@@ -205,7 +207,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         return true;
     }
 
-    function shouldFinalizeChannel(uint id, uint nonce) private returns (bool) {
+    function shouldFinalizeChannel(uint id, uint nonce) private view returns (bool) {
         bool finalized;
         uint finalNonce;
         (finalized, finalNonce) = slotsChannelManager.getChannelFinalized(id);
