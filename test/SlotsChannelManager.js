@@ -50,6 +50,23 @@ let channelAesKey
 let dbChannel
 let spins = []
 
+let isMockTime
+
+const timeTravel = async (timeDiff) => {
+    await utils.timeTravel(timeDiff)
+    await mockTimeTravel(timeDiff)
+}
+
+const mockTimeTravel = async (timeDiff) => {
+    if(isMockTime) {
+        let time = await house.getTime()
+        let newTime = time.plus(timeDiff).toNumber()
+
+        return house.setTime(newTime)
+    } else
+        return null
+}
+
 contract('SlotsChannelManager', accounts => {
     it('initializes house contract', async () => {
         founder = accounts[0]
@@ -67,6 +84,8 @@ contract('SlotsChannelManager', accounts => {
         sportsOracle = await contracts.SportsOracle.deployed()
         slotsChannelManager = await contracts.SlotsChannelManager.deployed()
         slotsChannelFinalizer = await contracts.SlotsChannelFinalizer.deployed()
+
+        isMockTime = await house.isMock()
 
         // Check if house founder is valid
         let _founder = await house.founder()
@@ -102,7 +121,8 @@ contract('SlotsChannelManager', accounts => {
         await house.purchaseCredits(houseCreditsAmount, { from: founder })
 
         // Deposit allocated tokens in the final week of session zero
-        await utils.timeTravel( 7 * 24 * 60 * 60 + 1)
+        const oneWeek = 7 * 24 * 60 * 60
+        await timeTravel(oneWeek)
 
         await house.depositAllocatedTokensToHouseOffering(
             bettingProvider.address,
@@ -114,7 +134,7 @@ contract('SlotsChannelManager', accounts => {
         )
 
         // Begin session one
-        await utils.timeTravel(14 * 24 * 60 * 60 + 1)
+        await timeTravel(oneWeek * 2)
         await house.beginNextSession()
 
         // Check if house session is one
@@ -783,7 +803,8 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows non participants from claiming a channel after it closes', async () => {
         // Channel end time is 24 hours. Forward the time to 24 hours after a channel has been finalized
-        await utils.timeTravel(24 * 60 * 60 + 1)
+        const oneDay = 24 * 60 * 60
+        await timeTravel(oneDay)
         await utils.assertFail(
             slotsChannelManager.claim.sendTransaction(channelId, {
                 from: nonParticipant

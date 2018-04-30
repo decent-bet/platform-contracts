@@ -3,6 +3,7 @@ pragma solidity 0.4.21;
 import '../Libraries/SafeMath.sol';
 import '../Token/ERC20.sol';
 import '../Libraries/EmergencyOptions.sol';
+import '../Libraries/TimeProvider.sol';
 
 import './HouseOffering.sol';
 
@@ -15,7 +16,7 @@ import '../Kyc/KycManager.sol';
 
 // Decent.bet House Contract.
 // All credits and payouts are in DBETs and are 18 decimal places in length.
-contract House is SafeMath, EmergencyOptions {
+contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     // Variables
     address public founder;
@@ -42,6 +43,12 @@ contract House is SafeMath, EmergencyOptions {
         founder = msg.sender;
         decentBetToken = ERC20(decentBetTokenAddress);
         kycManager = KycManager(kycManagerAddress);
+
+        // If on local testRPC/testnet and need to set mock times
+        // Leave this here for development purposes.
+        // TODO: Remove TimeProvider before publishing to mainnet.
+        isMock = true;
+        setTimeController(msg.sender);
     }
 
     // Modifiers //
@@ -461,13 +468,6 @@ contract House is SafeMath, EmergencyOptions {
     view
     returns (address, address, address) {
         return (address(houseAuthorizedController), address(houseFundsController), address(houseSessionsController));
-    }
-
-    function getTime()
-    public
-    view
-    returns (uint) {
-        return now;
     }
 
     // Do not accept ETH sent to this contract.
