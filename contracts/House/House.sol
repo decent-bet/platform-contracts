@@ -325,7 +325,7 @@ contract House is SafeMath, EmergencyOptions {
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     public
     isCreditBuyingPeriod
-    onlyAuthorizedx {
+    onlyAuthorized {
         if(!houseSessionsController.allocateTokensForHouseOffering(percentage, houseOffering)) revert();
         emit LogOfferingAllocation((currentSession + 1), houseOffering, percentage);
     }
