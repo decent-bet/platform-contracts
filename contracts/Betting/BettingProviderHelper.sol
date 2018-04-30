@@ -1,4 +1,4 @@
-pragma solidity ^0.4.11;
+pragma solidity 0.4.21;
 
 import '../Libraries/SafeMath.sol';
 
@@ -20,8 +20,12 @@ contract BettingProviderHelper is SafeMath {
 
     uint constant BET_CHOICE_TEAM2 = 3;
 
-    function getSpreadOutcome(int handicap, uint team1Points,
-    uint team2Points, uint choice)
+    function getSpreadOutcome(
+        int handicap,
+        uint team1Points,
+        uint team2Points,
+        uint choice
+    )
     public
     pure
     returns (uint) {
@@ -104,10 +108,17 @@ contract BettingProviderHelper is SafeMath {
         return SPREAD_OUTCOME_LOSS;
     }
 
-    function getSpreadReturns(uint amount, int handicap,
-    uint team1Points, uint team2Points, uint choice, int odds)
+    function getSpreadReturns(
+        uint amount,
+        int handicap,
+        uint team1Points,
+        uint team2Points,
+        uint choice,
+        int odds
+    )
     public
-    pure returns (uint) {
+    pure
+    returns (uint) {
         uint spreadOutcome =
         getSpreadOutcome(handicap, team1Points, team2Points,
         choice);

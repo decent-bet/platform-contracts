@@ -1,4 +1,4 @@
-pragma solidity ^0.4.8;
+pragma solidity 0.4.21;
 
 // KYC manager contract allowing authorized addresses to add/update/remove approved addresses
 // Approved addresses can be accessed from House/Gaming contracts
@@ -71,9 +71,9 @@ contract KycManager {
 
     // Allows authorized addresses to add a KYC enabled contract
     function addKycEnabledContract(address _address)
+    public
     isContract(_address)
-    onlyAuthorized
-    public {
+    onlyAuthorized {
         require(!kycEnabledContracts[_address].exists);
         kycEnabledContractList.push(_address);
         kycEnabledContracts[_address].exists = true;
@@ -81,9 +81,12 @@ contract KycManager {
     }
 
     // Allows authorized addresses to remove a KYC enabled contract
-    function removeKycEnabledContract(address _address, uint index)
-    onlyAuthorized
-    public {
+    function removeKycEnabledContract(
+        address _address,
+        uint index
+    )
+    public
+    onlyAuthorized {
         require(kycEnabledContracts[_address].exists);
         require(kycEnabledContractList[index] == _address);
         delete kycEnabledContractList[index];
@@ -92,9 +95,11 @@ contract KycManager {
     }
 
     // Adds an authorized address
-    function addAuthorizedAddress(address _address)
-    onlyFounder
-    public {
+    function addAuthorizedAddress(
+        address _address
+    )
+    public
+    onlyFounder {
         require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddressList.push(_address);
@@ -102,9 +107,12 @@ contract KycManager {
     }
 
     // Removes an authorized address
-    function removeAuthorizedAddress(address _address, uint index)
-    onlyFounder
-    public {
+    function removeAuthorizedAddress(
+        address _address,
+        uint index
+    )
+    public
+    onlyFounder {
         require(authorized[_address]);
         require(authorizedAddressList[index] == _address);
         authorized[_address] = false;
@@ -115,10 +123,17 @@ contract KycManager {
     // Approves a user address after KYC checks from onfido backend
     // checkId would be the checkId for a successful verification from the onfido backend
     // Signed message would be of the format sgn(sha3(applicantId))
-    function approveAddress(address _contract, address _address, string applicantId,
-        string checkId, uint8 v, bytes32 r, bytes32 s)
-    onlyAuthorized
-    public {
+    function approveAddress(
+        address _contract,
+        address _address,
+        string applicantId,
+        string checkId,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
+    public
+    onlyAuthorized {
         require(kycEnabledContracts[_contract].exists);
         require(!kycEnabledContracts[_contract].users[_address].approved);
         bytes32 hash = keccak256(applicantId);
@@ -137,9 +152,13 @@ contract KycManager {
     }
 
     // Removes an address from the KYC approved list
-    function removeApprovedAddress(address _contract, address _address, uint index)
-    onlyAuthorized
-    public {
+    function removeApprovedAddress(
+        address _contract,
+        address _address,
+        uint index
+    )
+    public
+    onlyAuthorized {
         require(kycEnabledContracts[_contract].exists);
         require(kycEnabledContracts[_contract].users[_address].approved);
         require(kycEnabledContracts[_contract].approvedAddressList[index] == _address);
@@ -151,7 +170,10 @@ contract KycManager {
 
     // Returns whether an address has been verified for a contract.
     // Works even if KYC enabled contract has been removed from this contract.
-    function isVerified(address _contract, address _address)
+    function isVerified(
+        address _contract,
+        address _address
+    )
     public
     view
     returns (bool) {
@@ -159,7 +181,10 @@ contract KycManager {
     }
 
     // Returns a KYC enabled contract user.
-    function getKYCEnabledContractUser(address _contract, address _address)
+    function getKYCEnabledContractUser(
+        address _contract,
+        address _address
+    )
     public
     view
     returns (bool, string, string, uint8, bytes32, bytes32) {

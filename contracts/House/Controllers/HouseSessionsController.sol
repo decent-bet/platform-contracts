@@ -81,8 +81,8 @@ contract HouseSessionsController is SafeMath {
 
     // Adds a new offering to the house.
     function addHouseOffering(address houseOfferingAddress)
-    onlyFounder
-    public {
+    public
+    onlyFounder {
         // Empty address, invalid input
         require(houseOfferingAddress != 0x0);
         // Not a house offering
@@ -98,18 +98,18 @@ contract HouseSessionsController is SafeMath {
 
     // Adds a house offering to the next session
     function addOfferingToNextSession(address houseOfferingAddress)
+    internal
     isValidHouseOffering(houseOfferingAddress)
-    onlyFounder
-    internal {
+    onlyFounder {
         uint nextSession = house.currentSession() + 1;
         sessions[nextSession].offerings.push(houseOfferingAddress);
     }
 
     // Remove an offering from the next session
     function removeOfferingFromNextSession(address houseOfferingAddress)
+    public
     isValidHouseOffering(houseOfferingAddress)
-    onlyFounder
-    public {
+    onlyFounder {
         // TODO: Look into support for current session - freeze contract, allow token withdrawals etc.
         uint nextSession = house.currentSession() + 1;
         for(uint i = 0; i < sessions[nextSession].offerings.length; i++) {
@@ -121,9 +121,9 @@ contract HouseSessionsController is SafeMath {
 
     // Withdraws session tokens for the previously ended session from a house offering.
     function withdrawPreviousSessionTokensFromHouseOffering(address houseOffering)
+    public
     isValidHouseOffering(houseOffering)
     onlyHouse
-    public
     returns (uint, bool) {
         uint currentSession = house.currentSession();
         uint previousSession = safeSub(currentSession, 1);
@@ -151,9 +151,9 @@ contract HouseSessionsController is SafeMath {
 
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
+    public
     isValidHouseOffering(houseOffering)
     onlyHouse
-    public
     returns (bool) {
         uint nextSession = house.currentSession() + 1;
 
@@ -173,9 +173,9 @@ contract HouseSessionsController is SafeMath {
     }
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
+    public
     isValidHouseOffering(houseOffering)
     onlyHouse
-    public
     returns (bool) {
         uint nextSession = house.currentSession() + 1;
 
@@ -189,9 +189,9 @@ contract HouseSessionsController is SafeMath {
     }
 
     function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering)
+    public
     isValidHouseOffering(houseOffering)
     onlyHouse
-    public
     returns (uint, bool) {
         uint currentSession = house.currentSession();
         uint sessionTokens = offerings[houseOffering].houseOffering.balanceOf(houseOffering, currentSession);
@@ -209,8 +209,8 @@ contract HouseSessionsController is SafeMath {
     // Starts the next session.
     // Call this function once after setting up the house to begin the initial credit buying period.
     function beginNextSession(uint startTime, uint endTime, uint sessionZeroStartTime)
-    onlyHouse
     public
+    onlyHouse
     returns (bool) {
         uint currentSession = house.currentSession();
 

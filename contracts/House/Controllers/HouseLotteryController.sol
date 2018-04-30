@@ -68,14 +68,14 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     }
 
     function setHouse(address _house)
-    onlyOwner
-    public {
+    public
+    onlyOwner {
         house = _house;
     }
 
     function allotLotteryTickets (uint session, address _address, uint tokenAmount)
-    onlyHouse
     external
+    onlyHouse
     returns (bool) {
         uint numberOfTickets = safeDiv(tokenAmount, 1000 ether);
         uint userTicketCount = lotteryUserTickets[session][_address].length;
@@ -96,8 +96,8 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     }
 
     function pickWinner(uint session) payable
-    onlyHouse
     external
+    onlyHouse
     returns (bool) {
         // Throw if session passed from the house is less than currentSession set in the lottery contract
         if (session == 0 || session <= currentSession) revert();
@@ -163,8 +163,8 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     }
 
     function updateLotteryPayout(uint session, address sender, uint payout)
-    onlyHouse
     external
+    onlyHouse
     returns (bool) {
         // Should only work after the winning number has been finalized.
         require(isLotteryFinalized(session));

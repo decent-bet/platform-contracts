@@ -1,4 +1,4 @@
-pragma solidity ^0.4.11;
+pragma solidity 0.4.21;
 
 import '../Token/ERC20.sol';
 import './BettingProvider.sol';
@@ -139,7 +139,8 @@ contract SportsOracle is SafeMath, TimeProvider {
     event LogNewProviderAcceptanceCost(uint cost);
 
     // Constructor
-    function SportsOracle(address decentBetTokenAddress) public {
+    function SportsOracle(address decentBetTokenAddress)
+    public {
         owner = msg.sender;
         addAuthorizedAddress(msg.sender);
         decentBetToken = ERC20(decentBetTokenAddress);
@@ -202,8 +203,8 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Add a new authorized address.
     function addAuthorizedAddress(address _address)
-    onlyOwner
-    public {
+    public
+    onlyOwner {
         require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddresses.push(_address);
@@ -212,23 +213,23 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Allow oracle to accept new providers via payment.
     function togglePayForProviderAcceptance(bool enabled)
-    onlyOwner
-    public {
+    public
+    onlyOwner {
         payForProviderAcceptance = enabled;
     }
 
     // Set a price for game updates to be pushed to providers.
     function changeGameUpdateCost(uint cost)
-    onlyOwner
-    public {
+    public
+    onlyOwner {
         gameUpdateCost = cost;
         emit LogNewGameUpdateCost(cost);
     }
 
     // Set a price to accept new providers if it has been toggled on.
     function changeProviderAcceptanceCost(uint cost)
-    onlyOwner
-    public {
+    public
+    onlyOwner {
         providerAcceptanceCost = cost;
         emit LogNewProviderAcceptanceCost(cost);
     }
@@ -245,8 +246,8 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Accepted providers get results pushed into their games at end time.
     function acceptProvider(address _address)
-    onlyAuthorized
-    public {
+    public
+    onlyAuthorized {
         providers[_address].accepted = true;
         acceptedProviderAddresses.push(_address);
         emit LogNewAcceptedProvider(_address);
@@ -255,8 +256,8 @@ contract SportsOracle is SafeMath, TimeProvider {
     // Allows providers to pay to be accepted by the oracle.
     // Providers need to authorize oracles for the acceptance cost before calling this function.
     function payForAcceptance()
-    isPayableForProviderAcceptance
-    public {
+    public
+    isPayableForProviderAcceptance {
         // Provider should have authorized oracle to spend at least 'providerAcceptanceCost' in DBETs.
         require (decentBetToken.allowance(msg.sender, address(this)) >= providerAcceptanceCost);
         providers[msg.sender].accepted = true;
@@ -270,10 +271,10 @@ contract SportsOracle is SafeMath, TimeProvider {
     // providerGameId - ID in provider contract
     // Reference for oracle to update betting provider with gameId's result
     function addProviderGameToUpdate(uint gameId, uint providerGameId)
+    public
     onlyAcceptedProvider
     isValidGame(gameId)
     hasGameNotStarted(gameId)
-    public
     returns (bool) {
         // Provider should have authorized oracle to spend at least 'gameUpdateCost' in DBETs.
         if (gameUpdateCost > 0)
@@ -291,10 +292,17 @@ contract SportsOracle is SafeMath, TimeProvider {
     }
 
     // Start time needs to be in advance of the actual game start time.
-    function addGame(string refId, uint sportId, uint leagueId, uint startTime,
-    uint endTime, uint[] availablePeriods, string ipfsHash)
-    onlyAuthorized
-    public {
+    function addGame(
+        string refId,
+        uint sportId,
+        uint leagueId,
+        uint startTime,
+        uint endTime,
+        uint[] availablePeriods,
+        string ipfsHash
+    )
+    public
+    onlyAuthorized {
         Game memory game = Game({
             id : gamesCount,
             refId : refId,
@@ -316,20 +324,27 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Update swarm hash containing meta-data for the game.
     function updateGameDetails(uint id, string ipfsHash)
+    public
     isValidGame(id)
-    onlyAuthorized
-    public {
+    onlyAuthorized {
         games[id].ipfsHash = ipfsHash;
         emit LogGameDetailsUpdate(id, games[id].refId, games[id].ipfsHash);
     }
 
     // Push outcome for a game.
-    function pushOutcome(uint gameId, uint period, int result, uint totalPoints, uint team1Points, uint team2Points)
+    function pushOutcome(
+        uint gameId,
+        uint period,
+        int result,
+        uint totalPoints,
+        uint team1Points,
+        uint team2Points
+    )
+    public
     isValidGame(gameId)
     isValidResult(result)
     hasGameEnded(gameId)
-    onlyAuthorized
-    public {
+    onlyAuthorized {
         // Period should be valid to continue.
         require(gamePeriods[gameId][period].exists);
         // Reduce chances of invalid points input.
@@ -347,10 +362,10 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Update the outcome in a provider contract.
     function updateProviderOutcome(uint gameId, address provider, uint period)
+    public
     isValidGame(gameId)
     hasGameEnded(gameId)
-    onlyAuthorized
-    public {
+    onlyAuthorized {
         require(providers[provider].accepted);
         // Game period must exist and outcome needs to be published
         require(gamePeriods[gameId][period].exists && gamePeriods[gameId][period].settleTime != 0);
@@ -377,8 +392,8 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     // Allows the owner of the oracle to withdraw DBETs deposited in the contract.
     function withdrawTokens()
-    onlyOwner
-    public {
+    public
+    onlyOwner {
         uint amount = decentBetToken.balanceOf(address(this));
         if (!decentBetToken.transfer(msg.sender, amount)) revert();
         emit LogWithdrawal(amount);

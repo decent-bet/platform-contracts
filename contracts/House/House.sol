@@ -149,8 +149,8 @@ contract House is SafeMath, EmergencyOptions {
 
     // Sets the house funds controller address.
     function setHouseAuthorizedControllerAddress(address _address)
-    onlyFounder
-    public {
+    public
+    onlyFounder {
         if(_address == 0x0) revert();
         if(!HouseAuthorizedController(_address).isHouseAuthorizedController()) revert();
         houseAuthorizedController = HouseAuthorizedController(_address);
@@ -158,8 +158,8 @@ contract House is SafeMath, EmergencyOptions {
 
     // Sets the house funds controller address.
     function setHouseFundsControllerAddress(address _address)
-    onlyFounder
-    public {
+    public
+    onlyFounder {
         if(_address == 0x0) revert();
         if(!HouseFundsController(_address).isHouseFundsController()) revert();
         houseFundsController = HouseFundsController(_address);
@@ -167,8 +167,8 @@ contract House is SafeMath, EmergencyOptions {
 
     // Sets the house sessions controller address.
     function setHouseSessionsControllerAddress(address _address)
-    onlyFounder
-    public {
+    public
+    onlyFounder {
         if(_address == 0x0) revert();
         if(!HouseSessionsController(_address).isHouseSessionsController()) revert();
         houseSessionsController = HouseSessionsController(_address);
@@ -176,8 +176,8 @@ contract House is SafeMath, EmergencyOptions {
 
     // Sets the lottery address.
     function setHouseLotteryControllerAddress(address _address)
-    onlyFounder
-    public {
+    public
+    onlyFounder {
         if(_address == 0x0) revert();
         if(!HouseLotteryController(_address).isHouseLotteryController()) revert();
         houseLotteryController = HouseLotteryController(_address);
@@ -186,10 +186,9 @@ contract House is SafeMath, EmergencyOptions {
     // Transfers DBETs from users to house contract address and generates credits in return.
     // House contract must be approved to transfer amount from msg.sender to house.
     function purchaseCredits(uint amount)
-    isSenderKycVerified
-    isNotEmergencyPaused
     public
-    {
+    isSenderKycVerified
+    isNotEmergencyPaused {
         uint userCredits = houseFundsController.purchaseCredits(msg.sender, amount);
         uint nextSession = currentSession + 1;
 
@@ -203,10 +202,10 @@ contract House is SafeMath, EmergencyOptions {
 
     // Allows users to return credits and receive tokens along with profit in return.
     function liquidateCredits(uint session)
+    public
     isSenderKycVerified
     isNotEmergencyPaused
-    isProfitDistributionPeriod(session)
-    public {
+    isProfitDistributionPeriod(session) {
         uint payout;
         uint amount;
 
@@ -230,10 +229,10 @@ contract House is SafeMath, EmergencyOptions {
     // Allows users holding credits in the current session to roll over their credits to the
     // next session.
     function rollOverCredits(uint amount)
+    public
     isSenderKycVerified
     isNotEmergencyPaused
-    isCreditBuyingPeriod
-    public {
+    isCreditBuyingPeriod {
         if(!houseFundsController.rollOverCredits(msg.sender, amount)) revert();
 
         emit LogRolledOverCredits(msg.sender, currentSession, amount);
@@ -242,9 +241,9 @@ contract House is SafeMath, EmergencyOptions {
     // Allows users who've rolled over credits from a session to claim credits in the next session based on the
     // payout per credit for the previous session.
     function claimRolledOverCredits()
+    public
     isNotEmergencyPaused
-    isSessionActivePeriod
-    public {
+    isSessionActivePeriod {
         uint adjustedCredits;
         uint rolledOverFromPreviousSession;
         uint creditsForCurrentSession;
@@ -275,8 +274,8 @@ contract House is SafeMath, EmergencyOptions {
 
     // Withdraws session tokens for the previously ended session from a house offering.
     function withdrawPreviousSessionTokensFromHouseOffering(address houseOffering)
-    onlyAuthorized
-    public {
+    public
+    onlyAuthorized {
         uint previousSessionTokens;
         bool allOfferingsWithdrawn;
 
@@ -294,16 +293,18 @@ contract House is SafeMath, EmergencyOptions {
 
     // Allow authorized addresses to add profits for offerings that haven't been registered
     // with the house for the current session.
-    function addToSessionProfitsFromUnregisteredHouseOffering(address unregisteredOffering,
-                                                              uint session,
-                                                              uint amount)
-    onlyAuthorized
-    public {
+    function addToSessionProfitsFromUnregisteredHouseOffering(
+        address unregisteredOffering,
+        uint session,
+        uint amount
+    )
+    public
+    onlyAuthorized {
         // Session zero doesn't have profits
         if(currentSession == 0) revert();
 
         // Can only be for current and previous sessions
-        if( session != currentSession &&
+        if(session != currentSession &&
             session != (safeSub(currentSession, 1)))
             revert();
 
@@ -322,17 +323,17 @@ contract House is SafeMath, EmergencyOptions {
 
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
+    public
     isCreditBuyingPeriod
-    onlyAuthorized
-    public {
+    onlyAuthorizedx {
         if(!houseSessionsController.allocateTokensForHouseOffering(percentage, houseOffering)) revert();
         emit LogOfferingAllocation((currentSession + 1), houseOffering, percentage);
     }
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
+    public
     isLastWeekForSession
-    onlyAuthorized
-    public {
+    onlyAuthorized {
         uint nextSession = currentSession + 1;
 
         uint totalSessionFunds;
@@ -357,10 +358,10 @@ contract House is SafeMath, EmergencyOptions {
 
     // Get house lottery to retrieve random ticket winner using oraclize as RNG.
     function pickLotteryWinner(uint session)
-    onlyAuthorized
-    isProfitDistributionPeriod(session)
     public
     payable
+    onlyAuthorized
+    isProfitDistributionPeriod(session)
     returns (bool) {
         if(!houseLotteryController.pickWinner(currentSession)) revert();
         emit LogPickLotteryWinner(currentSession);
@@ -369,9 +370,9 @@ contract House is SafeMath, EmergencyOptions {
 
     // Allows a winner to withdraw lottery winnings.
     function claimLotteryWinnings(uint session)
+    public
     isSenderKycVerified
     isProfitDistributionPeriod(session)
-    public
     returns (uint, uint){
         int sessionProfit = houseFundsController.getProfitForSession(session);
 
@@ -391,9 +392,9 @@ contract House is SafeMath, EmergencyOptions {
     // Starts the next session.
     // Call this function once after setting up the house to begin the initial credit buying period.
     function beginNextSession()
+    public
     isEndOfSession
-    onlyAuthorized
-    public {
+    onlyAuthorized {
         uint nextSession = safeAdd(currentSession, 1);
         uint startTime;
         uint endTime;
@@ -419,9 +420,9 @@ contract House is SafeMath, EmergencyOptions {
     // Emergency features
     // Emergency withdraws current session tokens from a house offering.
     function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering)
+    public
     isEmergencyPaused
-    onlyFounder
-    public {
+    onlyFounder {
         // If offering has already been withdrawn, revert.
         require(!houseSessionsController.isOfferingWithdrawn(currentSession, houseOffering));
 
@@ -444,9 +445,9 @@ contract House is SafeMath, EmergencyOptions {
 
     // Allows users to withdraw tokens if the contract is in an emergencyPaused state.
     function emergencyWithdraw()
+    public
     isEmergencyPaused
-    isEmergencyWithdrawalsEnabled
-    public {
+    isEmergencyWithdrawalsEnabled {
         uint payout;
         uint amount;
 

@@ -90,8 +90,13 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     /* Constructor */
 
-    function SlotsChannelManager(address _house, address _token,
-        address _slotsHelper, address _slotsChannelFinalizer, address _kycManager)
+    function SlotsChannelManager(
+        address _house,
+        address _token,
+        address _slotsHelper,
+        address _slotsChannelFinalizer,
+        address _kycManager
+    )
     public {
         require(_house != 0x0);
         require(_token != 0x0);
@@ -203,10 +208,10 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     /* Functions */
     function createChannel(uint initialDeposit)
+    public
     isSenderKycVerified
     isNotHouseEmergency
-    isSessionActive
-    public {
+    isSessionActive {
         // Deposit in DBETs. Use ether since 1 DBET = 18 Decimals i.e same as ether decimals.
         require(initialDeposit >= MIN_DEPOSIT && initialDeposit <= MAX_DEPOSIT);
         require(balanceOf(msg.sender, currentSession) >= initialDeposit);
@@ -233,9 +238,9 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // Allows the house to add funds to the provider for this session or the next.
     function houseDeposit(uint amount, uint session)
+    public
     isNotHouseEmergency
     onlyHouse
-    public
     returns (bool) {
         // House deposits are allowed only for this session or the next.
         require(session == currentSession || session == currentSession + 1);
@@ -252,7 +257,9 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // Allows house to withdraw session tokens for the previous session.
     function withdrawPreviousSessionTokens()
-    onlyHouse public returns (bool) {
+    public
+    onlyHouse
+    returns (bool) {
         uint previousSession = safeSub(currentSession, 1);
         require(depositedTokens[address(this)][previousSession] > 0);
         uint previousSessionTokens = depositedTokens[address(this)][previousSession];
@@ -263,8 +270,10 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // Allows house to withdraw current session tokens if the house is in an emergency pause state.
     function emergencyWithdrawCurrentSessionTokens()
+    public
     onlyHouse
-    isHouseEmergency public returns (bool) {
+    isHouseEmergency
+    returns (bool) {
         require(depositedTokens[address(this)][currentSession] > 0);
         uint currentSessionTokens = depositedTokens[address(this)][currentSession];
         depositedTokens[address(this)][currentSession] = 0;
@@ -275,7 +284,9 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // Deposits DBET to contract for the current session.
     // User needs to approve contract address for amount prior to calling this function.
     function deposit(uint amount)
-    isDbetsAvailable(amount) public returns (bool) {
+    public
+    isDbetsAvailable(amount)
+    returns (bool) {
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
@@ -285,8 +296,10 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // Withdraw DBETS from contract to sender address.
     function withdraw(uint amount, uint session)
+    public
     isValidPriorSession(session)
-    isTokensAvailable(amount, session) public returns (bool) {
+    isTokensAvailable(amount, session)
+    returns (bool) {
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
         if(!decentBetToken.transfer(msg.sender, amount)) revert();
         emit LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
@@ -294,7 +307,6 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     function setSession(uint session)
-        // Replace other functions with onlyAuthorized
     public
     onlyHouse returns (bool) {
         currentSession = session;
@@ -338,7 +350,11 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // House sends the final reel and seed hashes to activate the channel along with the initial house seed hash
     // to verify the blended seed after a channel is closed
-    function activateChannel(bytes32 id, string _finalSeedHash, string _finalReelHash) // 373k gas
+    function activateChannel(
+        bytes32 id,
+        string _finalSeedHash,
+        string _finalReelHash
+    ) // 373k gas
     public
     onlyAuthorized
     isNotActivated(id)
@@ -368,7 +384,13 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Sets the final spin for the channel
-    function setFinal(bytes32 id, uint userBalance, uint houseBalance, uint nonce, bool turn)
+    function setFinal(
+        bytes32 id,
+        uint userBalance,
+        uint houseBalance,
+        uint nonce,
+        bool turn
+    )
     external {
         require(msg.sender == address(slotsChannelFinalizer));
 
@@ -424,7 +446,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Checks the signature of a spin sent and verifies it's validity
-    function checkSig(bytes32 id, bytes32 hash, bytes sig, bool turn)
+    function checkSig(
+        bytes32 id,
+        bytes32 hash,
+        bytes sig,
+        bool turn
+    )
     public
     view
     returns (bool) {
@@ -435,7 +462,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     }
 
     // Returns the address for a signed spin
-    function getSigAddress(bytes32 _msg, uint8 v, bytes32 r, bytes32 s)
+    function getSigAddress(
+        bytes32 _msg,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
     public
     pure
     returns (address) {
