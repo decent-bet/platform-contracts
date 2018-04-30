@@ -151,8 +151,8 @@ contract House is SafeMath, EmergencyOptions {
     function setHouseAuthorizedControllerAddress(address _address)
     public
     onlyFounder {
-        if(_address == 0x0) revert();
-        if(!HouseAuthorizedController(_address).isHouseAuthorizedController()) revert();
+        require(_address != 0x0);
+        require(HouseAuthorizedController(_address).isHouseAuthorizedController());
         houseAuthorizedController = HouseAuthorizedController(_address);
     }
 
@@ -160,8 +160,8 @@ contract House is SafeMath, EmergencyOptions {
     function setHouseFundsControllerAddress(address _address)
     public
     onlyFounder {
-        if(_address == 0x0) revert();
-        if(!HouseFundsController(_address).isHouseFundsController()) revert();
+        require(_address != 0x0);
+        require(HouseFundsController(_address).isHouseFundsController());
         houseFundsController = HouseFundsController(_address);
     }
 
@@ -169,8 +169,8 @@ contract House is SafeMath, EmergencyOptions {
     function setHouseSessionsControllerAddress(address _address)
     public
     onlyFounder {
-        if(_address == 0x0) revert();
-        if(!HouseSessionsController(_address).isHouseSessionsController()) revert();
+        require(_address != 0x0);
+        require(HouseSessionsController(_address).isHouseSessionsController());
         houseSessionsController = HouseSessionsController(_address);
     }
 
@@ -178,8 +178,8 @@ contract House is SafeMath, EmergencyOptions {
     function setHouseLotteryControllerAddress(address _address)
     public
     onlyFounder {
-        if(_address == 0x0) revert();
-        if(!HouseLotteryController(_address).isHouseLotteryController()) revert();
+        require(_address != 0x0);
+        require(HouseLotteryController(_address).isHouseLotteryController());
         houseLotteryController = HouseLotteryController(_address);
     }
 
@@ -301,17 +301,15 @@ contract House is SafeMath, EmergencyOptions {
     public
     onlyAuthorized {
         // Session zero doesn't have profits
-        if(currentSession == 0) revert();
+        require(currentSession != 0);
 
         // Can only be for current and previous sessions
-        if(session != currentSession &&
-            session != (safeSub(currentSession, 1)))
-            revert();
+        require(session == currentSession || session == (safeSub(currentSession, 1)));
 
         // Check if a balance is available with offering
-        if(decentBetToken.balanceOf(msg.sender) < amount) revert();
+        require(decentBetToken.balanceOf(msg.sender) >= amount);
 
-        if(decentBetToken.allowance(msg.sender, address(this)) < amount) revert();
+        require(decentBetToken.allowance(msg.sender, address(this)) >= amount);
 
         houseFundsController
             .addToSessionProfitsFromUnregisteredHouseOffering(session, amount);
@@ -376,7 +374,7 @@ contract House is SafeMath, EmergencyOptions {
     returns (uint, uint){
         int sessionProfit = houseFundsController.getProfitForSession(session);
 
-        if(sessionProfit <= 0) revert();
+        require(sessionProfit > 0);
 
         uint uSessionProfit = (uint) (sessionProfit);
 
