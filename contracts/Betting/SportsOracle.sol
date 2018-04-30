@@ -123,14 +123,39 @@ contract SportsOracle is SafeMath, TimeProvider {
 
     event LogNewAcceptedProvider(address _address);
 
-    event LogGameAdded(uint id, string refId, uint sportId, uint leagueId, string ipfsHash);
+    event LogGameAdded(
+        uint id,
+        string refId,
+        uint sportId,
+        uint leagueId,
+        string ipfsHash
+    );
 
-    event LogGameDetailsUpdate(uint id, string refId, string ipfsHash);
+    event LogGameDetailsUpdate(
+        uint id,
+        string refId,
+        string ipfsHash
+    );
 
-    event LogGameResult(uint id, string refId, uint period, int result, uint team1Points, uint team2Points);
+    event LogGameResult(
+        uint id,
+        string refId,
+        uint period,
+        int result,
+        uint team1Points,
+        uint team2Points
+    );
 
-    event LogUpdatedProviderOutcome(uint id, address provider, uint providerGameId, string refId, uint period, int result,
-        uint team1Points, uint team2Points);
+    event LogUpdatedProviderOutcome(
+        uint id,
+        address provider,
+        uint providerGameId,
+        string refId,
+        uint period,
+        int result,
+        uint team1Points,
+        uint team2Points
+    );
 
     event LogWithdrawal(uint amount);
 

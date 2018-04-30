@@ -129,30 +129,80 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     }
 
     // Events
-    event LogPurchasedCredits(address creditHolder, uint session, uint amount, uint balance);
+    event LogPurchasedCredits(
+        address creditHolder,
+        uint session,
+        uint amount,
+        uint balance
+    );
 
-    event LogLiquidateCredits(address creditHolder, uint session, uint amount, uint payout);
+    event LogLiquidateCredits(
+        address creditHolder,
+        uint session,
+        uint amount,
+        uint payout
+    );
 
-    event LogRolledOverCredits(address creditHolder, uint session, uint amount);
+    event LogRolledOverCredits(
+        address creditHolder,
+        uint session,
+        uint amount
+    );
 
-    event LogClaimRolledOverCredits(address creditHolder, uint session, uint rolledOver, uint adjusted,
-                                    uint creditsForCurrentSession);
+    event LogClaimRolledOverCredits(
+        address creditHolder,
+        uint session,
+        uint rolledOver,
+        uint adjusted,
+        uint creditsForCurrentSession
+    );
 
-    event LogNewSession(uint session, uint startTimestamp, uint startBlockNumber, uint endTimestamp, uint endBlockNumber);
+    event LogNewSession(
+        uint session,
+        uint startTimestamp,
+        uint startBlockNumber,
+        uint endTimestamp,
+        uint endBlockNumber
+    );
 
-    event LogNewHouseOffering(address offeringAddress, bytes32 name);
+    event LogNewHouseOffering(
+        address offeringAddress,
+        bytes32 name
+    );
 
     event LogPickLotteryWinner(uint session);
 
-    event LogWinningTicket(uint session, uint ticketNumber, address _address);
+    event LogWinningTicket(
+        uint session,
+        uint ticketNumber,
+        address _address
+    );
 
-    event LogOfferingAllocation(uint session, address offering, uint percentage);
+    event LogOfferingAllocation(
+        uint session,
+        address offering,
+        uint percentage
+    );
 
-    event LogOfferingDeposit(uint session, address offering, uint percentage, uint amount);
+    event LogOfferingDeposit(
+        uint session,
+        address offering,
+        uint percentage,
+        uint amount
+    );
 
-    event LogAddToSessionProfitsFromUnregisteredHouseOffering(uint session, address offering, uint amount);
+    event LogAddToSessionProfitsFromUnregisteredHouseOffering(
+        uint session,
+        address offering,
+        uint amount
+    );
 
-    event LogEmergencyWithdraw(address creditHolder, uint session, uint amount, uint payout);
+    event LogEmergencyWithdraw(
+        address creditHolder,
+        uint session,
+        uint amount,
+        uint payout
+    );
 
     // Sets the house funds controller address.
     function setHouseAuthorizedControllerAddress(address _address)
@@ -467,7 +517,11 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     public
     view
     returns (address, address, address) {
-        return (address(houseAuthorizedController), address(houseFundsController), address(houseSessionsController));
+        return (
+            address(houseAuthorizedController),
+            address(houseFundsController),
+            address(houseSessionsController)
+        );
     }
 
     // Do not accept ETH sent to this contract.

@@ -34,14 +34,30 @@ contract KycManager {
     address[] public kycEnabledContractList;
 
     // Events
-    event LogNewKycEnabledContract    (address _address, address authorized);
-    event LogRemovedKycEnabledContract(address _address, address authorized);
+    event LogNewKycEnabledContract (
+        address _address,
+        address authorized
+    );
 
-    event LogNewAuthorizedAddress     (address _address);
-    event LogRemoveAuthorizedAddress  (address _address);
+    event LogRemovedKycEnabledContract(
+        address _address,
+        address authorized
+    );
 
-    event LogNewApprovedAddress       (address _contract, address _address, uint index);
-    event LogRemoveApprovedAddress    (address _contract, address _address);
+    event LogNewAuthorizedAddress (address _address);
+
+    event LogRemoveAuthorizedAddress (address _address);
+
+    event LogNewApprovedAddress (
+        address _contract,
+        address _address,
+        uint index
+    );
+
+    event LogRemoveApprovedAddress (
+        address _contract,
+        address _address
+    );
 
     function KycManager()
     public {

@@ -231,24 +231,60 @@ contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
     // Events
     event LogNewOracleRequest(address _address);
 
-    event LogNewGame(uint id, uint oracleId, uint cutOffTime, uint endTime);
+    event LogNewGame(
+        uint id,
+        uint oracleId,
+        uint cutOffTime,
+        uint endTime
+    );
 
-    event LogNewGameOdds(uint id, uint oddsId);
+    event LogNewGameOdds(
+        uint id,
+        uint oddsId
+    );
 
-    event LogUpdatedGameOdds(uint id, uint oddsId);
+    event LogUpdatedGameOdds(
+        uint id,
+        uint oddsId
+    );
 
-    event LogUpdatedBetLimits(uint id, uint period);
+    event LogUpdatedBetLimits(
+        uint id,
+        uint period
+    );
 
     event LogUpdatedMaxBet(uint id);
 
-    event LogNewBet(uint gameId, uint oddsId, address bettor, uint betId);
+    event LogNewBet(
+        uint gameId,
+        uint oddsId,
+        address bettor,
+        uint betId
+    );
 
-    event LogClaimedBet(uint gameId, uint oddsId, uint session, address bettor,
-        address assistedClaimant, uint betId, uint payout);
+    event LogClaimedBet(
+        uint gameId,
+        uint oddsId,
+        uint session,
+        address bettor,
+        address assistedClaimant,
+        uint betId,
+        uint payout
+    );
 
-    event LogDeposit(address _address, uint amount, uint session, uint balance);
+    event LogDeposit(
+        address _address,
+        uint amount,
+        uint session,
+        uint balance
+    );
 
-    event LogWithdraw(address _address, uint amount, uint session, uint balance);
+    event LogWithdraw(
+        address _address,
+        uint amount,
+        uint session,
+        uint balance
+    );
 
     // Constructor.
     function BettingProvider(

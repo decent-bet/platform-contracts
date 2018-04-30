@@ -74,19 +74,50 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     mapping (address => mapping (uint => uint)) public depositedTokens;
 
     /* Events */
-    event LogNewChannel(bytes32 id, address indexed user, uint initialDeposit, uint timestamp);
+    event LogNewChannel(
+        bytes32 id,
+        address indexed user,
+        uint initialDeposit,
+        uint timestamp
+    );
 
-    event LogChannelFinalized(bytes32 indexed id, bool isHouse);
+    event LogChannelFinalized(
+        bytes32 indexed id,
+        bool isHouse
+    );
 
-    event LogChannelDeposit(bytes32 indexed id, address user, string finalUserHash);
+    event LogChannelDeposit(
+        bytes32 indexed id,
+        address user,
+        string finalUserHash
+    );
 
-    event LogChannelActivate(bytes32 indexed id, address user, string finalSeedHash, string finalReelHash);
+    event LogChannelActivate(
+        bytes32 indexed id,
+        address user,
+        string finalSeedHash,
+        string finalReelHash
+    );
 
-    event LogClaimChannelTokens(bytes32 indexed id, bool isHouse, uint timestamp);
+    event LogClaimChannelTokens(
+        bytes32 indexed id,
+        bool isHouse,
+        uint timestamp
+    );
 
-    event LogDeposit(address _address, uint amount, uint session, uint balance);
+    event LogDeposit(
+        address _address,
+        uint amount,
+        uint session,
+        uint balance
+    );
 
-    event LogWithdraw(address _address, uint amount, uint session, uint balance);
+    event LogWithdraw(
+        address _address,
+        uint amount,
+        uint session,
+        uint balance
+    );
 
     /* Constructor */
 

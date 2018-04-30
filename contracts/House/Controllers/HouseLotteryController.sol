@@ -55,7 +55,13 @@ contract HouseLotteryController is SafeMath, usingOraclize {
     }
 
     // Events
-    event LogWinner(uint session, uint number, uint randomInRange, uint ticketCount, address winner);
+    event LogWinner(
+        uint session,
+        uint number,
+        uint randomInRange,
+        uint ticketCount,
+        address winner
+    );
 
     event LogCallback(string message);
 
