@@ -257,7 +257,7 @@ let processSpin = async (
         let nonSignatureSpin = JSON.parse(JSON.stringify(spin))
         delete nonSignatureSpin.sign
 
-        let id = parseInt(dbChannel.id)
+        let id = dbChannel.id
         let msg = _getTightlyPackedSpin(nonSignatureSpin)
         let msgHash = utils.getWeb3().utils.sha3(msg)
         let sign = spin.sign
