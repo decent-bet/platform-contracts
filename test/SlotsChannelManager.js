@@ -67,6 +67,30 @@ const mockTimeTravel = async (timeDiff) => {
         return null
 }
 
+// Resets channel specific variables to default state
+const clearChannelState = () => {
+    channelId = ''
+
+    initialUserNumber = ''
+    finalUserHash = ''
+
+    initialHouseSeed = ''
+    initialHouseSeedHash = ''
+    finalSeedHash = ''
+    finalReelHash = ''
+    reelsAndHashes = ''
+
+    houseSpins = []
+    userSpins = []
+    userHashes = []
+    nonce = 1
+    initialDeposit = 0
+    channelAesKey = ''
+
+    dbChannel = {}
+    spins = []
+}
+
 contract('SlotsChannelManager', accounts => {
     it('initializes house contract', async () => {
         founder = accounts[0]
@@ -679,7 +703,8 @@ contract('SlotsChannelManager', accounts => {
             initialDeposit,
             betSize,
             nonParticipant,
-            constants.privateKeys.nonParticipant
+            constants.privateKeys.nonParticipant,
+            true
         )
 
         let lastHouseSpin = houseSpins[houseSpins.length - 1]
@@ -720,7 +745,8 @@ contract('SlotsChannelManager', accounts => {
             initialDeposit,
             betSize,
             nonFounder,
-            constants.privateKeys.nonFounder
+            constants.privateKeys.nonFounder,
+            true
         )
 
         // Update userSpin to use invalid data
@@ -771,7 +797,8 @@ contract('SlotsChannelManager', accounts => {
             initialDeposit,
             betSize,
             nonFounder,
-            constants.privateKeys.nonFounder
+            constants.privateKeys.nonFounder,
+            true
         )
 
         let lastHouseSpin = houseSpins[houseSpins.length - 1]
@@ -981,4 +1008,175 @@ contract('SlotsChannelManager', accounts => {
             'Invalid user channel balance post claim'
         )
     })
+
+    it('allows players to finalize channel with a 0 nonce', async () => {
+        clearChannelState()
+
+        // Create a channel
+        let initialDeposit = '500000000000000000000'
+
+        let receipt = await slotsChannelManager.createChannel(
+            initialDeposit,
+            {
+                from: nonFounder
+            }
+        )
+
+        channelId = receipt.logs[0].args.id
+
+        // Deposit to channel
+        let depositParams = await handler.getChannelDepositParams(
+            channelId,
+            constants.privateKeys.nonFounder
+        )
+
+        channelAesKey = depositParams.channelAesKey
+        initialUserNumber = depositParams.initialUserNumber
+        userHashes = depositParams.userHashes
+        finalUserHash = depositParams.finalUserHash
+
+        console.log('Channel deposit params', initialUserNumber, finalUserHash)
+        await slotsChannelManager.depositChannel.sendTransaction(
+            channelId,
+            initialUserNumber,
+            finalUserHash,
+            { from: nonFounder }
+        )
+
+        let channelInfo = await slotsChannelManager.getChannelInfo(channelId)
+        let ready = channelInfo[1]
+
+        assert.equal(
+            ready,
+            true,
+            'Player is not ready after depositing in channel'
+        )
+
+        // Activate channel
+        try {
+            initialHouseSeed = await handler.getAesKey(
+                finalUserHash,
+                constants.privateKeys.house
+            )
+            reelsAndHashes = handler.generateReelsAndHashes(
+                initialHouseSeed,
+                channelId
+            )
+
+            finalSeedHash =
+                reelsAndHashes.reelSeedHashes[
+                reelsAndHashes.reelSeedHashes.length - 1
+                    ]
+            finalReelHash =
+                reelsAndHashes.reelHashes[reelsAndHashes.reelHashes.length - 1]
+
+            console.log('Reels and hashes', finalSeedHash, finalReelHash)
+            initialHouseSeedHash = SHA256(initialHouseSeed).toString()
+
+            console.log(
+                'Activating channel',
+                channelId,
+                initialHouseSeedHash,
+                finalSeedHash,
+                finalReelHash
+            )
+
+            let currentSession = await slotsChannelManager.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let contractBalancePreActivation = await slotsChannelManager.balanceOf(
+                slotsChannelManager.address,
+                currentSession
+            )
+
+            let isAuthorized = await houseAuthorizedController.authorized(
+                founder
+            )
+            console.log('Activate channel - isAuthorized', isAuthorized)
+
+            await slotsChannelManager.activateChannel.sendTransaction(
+                channelId,
+                finalSeedHash,
+                finalReelHash,
+                { from: founder }
+            )
+            console.log('Sent activateChannel tx')
+
+            let channelInfo = await slotsChannelManager.getChannelInfo(
+                channelId
+            )
+            let activated = channelInfo[2]
+            initialDeposit = channelInfo[4].toFixed()
+
+            let contractBalancePostActivation = await slotsChannelManager.balanceOf(
+                slotsChannelManager.address,
+                currentSession
+            )
+
+            console.log(
+                'Contract balances',
+                contractBalancePreActivation.toFixed(),
+                contractBalancePostActivation.toFixed(),
+                initialDeposit
+            )
+
+            assert.equal(
+                activated,
+                true,
+                'House is not activated after calling activateChannel()'
+            )
+
+            assert.equal(
+                contractBalancePreActivation.minus(initialDeposit).toFixed(),
+                contractBalancePostActivation.toFixed(),
+                'Invalid balance after activating channel'
+            )
+        } catch (e) {
+            throw e
+        }
+
+        // Finalize channel
+        // Max number of lines
+        let betSize = '5000000000000000000'
+
+        // User spin
+        let userSpin = await handler.getSpin(
+            houseSpins,
+            nonce,
+            finalReelHash,
+            finalSeedHash,
+            userHashes,
+            initialDeposit,
+            betSize,
+            nonFounder,
+            constants.privateKeys.nonFounder,
+            true
+        )
+
+        userSpin = handler.getSpinParts(userSpin)
+
+        const emptyBytes32 = '0x0000000000000000000000000000000000000000000000000000000000000000'
+
+        await slotsChannelFinalizer.finalize.sendTransaction(
+            channelId,
+            userSpin.parts,
+            '',
+            userSpin.r,
+            userSpin.s,
+            emptyBytes32,
+            emptyBytes32,
+            {
+                from: nonFounder,
+                gas: 6700000
+            }
+        )
+
+        channelInfo = await slotsChannelManager.getChannelInfo(channelId)
+        let finalized = channelInfo[3]
+
+        console.log('Finalized', channelId, finalized)
+
+        assert.equal(finalized, true, 'Channel was not finalized')
+    })
+
 })
