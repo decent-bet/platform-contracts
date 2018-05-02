@@ -638,8 +638,8 @@ const _generateReels = reelSeedHashes => {
     for (let i = 0; i < reelSeedHashes.length; i++) {
         let hash = reelSeedHashes[i]
         let reel = []
+        let rng = seedRandom(hash)
         for (let j = 0; j < constants.NUMBER_OF_REELS; j++) {
-            let rng = seedRandom(hash + j)
             reel.push(Math.floor(rng() * 21))
         }
         reels.push(reel)
