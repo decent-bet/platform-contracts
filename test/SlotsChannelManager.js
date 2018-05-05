@@ -17,6 +17,7 @@ let houseSessionsController
 
 let slotsChannelManager
 let slotsChannelFinalizer
+let slotsHelper
 let bettingProvider
 let sportsOracle
 
@@ -52,19 +53,18 @@ let spins = []
 
 let isMockTime
 
-const timeTravel = async (timeDiff) => {
+const timeTravel = async timeDiff => {
     await utils.timeTravel(timeDiff)
     await mockTimeTravel(timeDiff)
 }
 
-const mockTimeTravel = async (timeDiff) => {
-    if(isMockTime) {
+const mockTimeTravel = async timeDiff => {
+    if (isMockTime) {
         let time = await house.getTime()
         let newTime = time.plus(timeDiff).toNumber()
 
         return house.setTime(newTime)
-    } else
-        return null
+    } else return null
 }
 
 // Resets channel specific variables to default state
@@ -108,6 +108,7 @@ contract('SlotsChannelManager', accounts => {
         sportsOracle = await contracts.SportsOracle.deployed()
         slotsChannelManager = await contracts.SlotsChannelManager.deployed()
         slotsChannelFinalizer = await contracts.SlotsChannelFinalizer.deployed()
+        slotsHelper = await contracts.SlotsHelper.deployed()
 
         isMockTime = await house.isMock()
 
@@ -228,12 +229,9 @@ contract('SlotsChannelManager', accounts => {
         let tokenBalance = await token.balanceOf(nonFounder)
 
         await utils.assertFail(
-            slotsChannelManager.deposit.sendTransaction(
-                tokenBalance.toFixed() + 1,
-                {
-                    from: nonFounder
-                }
-            )
+            slotsChannelManager.deposit(tokenBalance.toFixed() + 1, {
+                from: nonFounder
+            })
         )
     })
 
@@ -246,12 +244,9 @@ contract('SlotsChannelManager', accounts => {
             { from: nonFounder }
         )
 
-        await slotsChannelManager.deposit.sendTransaction(
-            tokenBalance.toFixed(),
-            {
-                from: nonFounder
-            }
-        )
+        await slotsChannelManager.deposit(tokenBalance.toFixed(), {
+            from: nonFounder
+        })
     })
 
     it('disallows users from creating channels out of hardcoded initial deposit range', async () => {
@@ -259,16 +254,13 @@ contract('SlotsChannelManager', accounts => {
         let outOfLowerRange = '4900000000000000000'
 
         await utils.assertFail(
-            slotsChannelManager.createChannel.sendTransaction(
-                outOfHigherRange,
-                {
-                    from: nonFounder
-                }
-            )
+            slotsChannelManager.createChannel(outOfHigherRange, {
+                from: nonFounder
+            })
         )
 
         await utils.assertFail(
-            slotsChannelManager.createChannel.sendTransaction(outOfLowerRange, {
+            slotsChannelManager.createChannel(outOfLowerRange, {
                 from: nonFounder
             })
         )
@@ -278,7 +270,7 @@ contract('SlotsChannelManager', accounts => {
         let initialDeposit = '500000000000000000000'
 
         await utils.assertFail(
-            slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
+            slotsChannelManager.createChannel(initialDeposit, {
                 from: nonParticipant
             })
         )
@@ -288,7 +280,7 @@ contract('SlotsChannelManager', accounts => {
         let initialDeposit = '500000000000000000000'
 
         await utils.assertFail(
-            slotsChannelManager.createChannel.sendTransaction(initialDeposit, {
+            slotsChannelManager.createChannel(initialDeposit, {
                 from: nonKycVerified
             })
         )
@@ -297,21 +289,14 @@ contract('SlotsChannelManager', accounts => {
     it('allows users to create channels with a sufficient balance', async () => {
         let initialDeposit = '500000000000000000000'
 
-        let receipt = await slotsChannelManager.createChannel(
-            initialDeposit,
-            {
-                from: nonFounder
-            }
-        )
+        let receipt = await slotsChannelManager.createChannel(initialDeposit, {
+            from: nonFounder
+        })
 
         channelId = receipt.logs[0].args.id
 
         let loggedEvent = receipt.logs[0].event
-        assert.equal(
-            loggedEvent,
-            'LogNewChannel',
-            'New channel not created'
-        )
+        assert.equal(loggedEvent, 'LogNewChannel', 'New channel not created')
     })
 
     it('disallows transferTokensToChannel call from outside contract', async () => {
@@ -326,7 +311,7 @@ contract('SlotsChannelManager', accounts => {
         let initialUserNumber = 1
         let finalUserHash = 'abc'
         await utils.assertFail(
-            slotsChannelManager.depositChannel.sendTransaction(
+            slotsChannelManager.depositChannel(
                 channelId,
                 initialUserNumber,
                 finalUserHash,
@@ -339,7 +324,7 @@ contract('SlotsChannelManager', accounts => {
         initialUserNumber = 1
         finalUserHash = 'abc'
         await utils.assertFail(
-            slotsChannelManager.depositChannel.sendTransaction(
+            slotsChannelManager.depositChannel(
                 channelId,
                 initialUserNumber,
                 finalUserHash,
@@ -354,7 +339,7 @@ contract('SlotsChannelManager', accounts => {
         finalReelHash = 'def'
 
         await utils.assertFail(
-            slotsChannelManager.activateChannel.sendTransaction(
+            slotsChannelManager.activateChannel(
                 channelId,
                 finalSeedHash,
                 finalReelHash,
@@ -375,7 +360,7 @@ contract('SlotsChannelManager', accounts => {
         finalUserHash = depositParams.finalUserHash
 
         console.log('Channel deposit params', initialUserNumber, finalUserHash)
-        await slotsChannelManager.depositChannel.sendTransaction(
+        await slotsChannelManager.depositChannel(
             channelId,
             initialUserNumber,
             finalUserHash,
@@ -394,7 +379,7 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows players from depositing in channels if ready', async () => {
         await utils.assertFail(
-            slotsChannelManager.depositChannel.sendTransaction(
+            slotsChannelManager.depositChannel(
                 channelId,
                 initialUserNumber,
                 finalUserHash,
@@ -408,7 +393,7 @@ contract('SlotsChannelManager', accounts => {
         finalReelHash = 'def'
 
         await utils.assertFail(
-            slotsChannelManager.activateChannel.sendTransaction(
+            slotsChannelManager.activateChannel(
                 channelId,
                 finalSeedHash,
                 finalReelHash,
@@ -459,7 +444,7 @@ contract('SlotsChannelManager', accounts => {
             )
             console.log('Activate channel - isAuthorized', isAuthorized)
 
-            await slotsChannelManager.activateChannel.sendTransaction(
+            await slotsChannelManager.activateChannel(
                 channelId,
                 finalSeedHash,
                 finalReelHash,
@@ -503,7 +488,7 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows authorized addresses from activating a channel if already activated', async () => {
         await utils.assertFail(
-            slotsChannelManager.activateChannel.sendTransaction(
+            slotsChannelManager.activateChannel(
                 channelId,
                 finalSeedHash,
                 finalReelHash,
@@ -715,7 +700,7 @@ contract('SlotsChannelManager', accounts => {
         let houseSpin = handler.getSpinParts(lastHouseSpin)
 
         await utils.assertFail(
-            slotsChannelFinalizer.finalize.sendTransaction(
+            slotsChannelFinalizer.finalize(
                 channelId,
                 userSpin.parts,
                 houseSpin.parts,
@@ -759,7 +744,7 @@ contract('SlotsChannelManager', accounts => {
         let houseSpin = handler.getSpinParts(lastHouseSpin)
 
         await utils.assertFail(
-            slotsChannelFinalizer.finalize.sendTransaction(
+            slotsChannelFinalizer.finalize(
                 channelId,
                 userSpin.parts,
                 houseSpin.parts,
@@ -777,7 +762,7 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows participants from claiming a channel before it closes', async () => {
         await utils.assertFail(
-            slotsChannelManager.claim.sendTransaction(channelId, {
+            slotsChannelManager.claim(channelId, {
                 from: nonFounder
             })
         )
@@ -808,7 +793,7 @@ contract('SlotsChannelManager', accounts => {
         userSpin = handler.getSpinParts(userSpin)
         let houseSpin = handler.getSpinParts(lastHouseSpin)
 
-        await slotsChannelFinalizer.finalize.sendTransaction(
+        await slotsChannelFinalizer.finalize(
             channelId,
             userSpin.parts,
             houseSpin.parts,
@@ -833,7 +818,7 @@ contract('SlotsChannelManager', accounts => {
         const oneDay = 24 * 60 * 60
         await timeTravel(oneDay)
         await utils.assertFail(
-            slotsChannelManager.claim.sendTransaction(channelId, {
+            slotsChannelManager.claim(channelId, {
                 from: nonParticipant
             })
         )
@@ -877,7 +862,7 @@ contract('SlotsChannelManager', accounts => {
             houseBalancePreClaim.toFixed()
         )
 
-        await slotsChannelManager.claim.sendTransaction(channelId, {
+        await slotsChannelManager.claim(channelId, {
             from: nonFounder
         })
 
@@ -958,7 +943,7 @@ contract('SlotsChannelManager', accounts => {
             houseBalancePreClaim.toFixed()
         )
 
-        await slotsChannelManager.claim.sendTransaction(channelId, {
+        await slotsChannelManager.claim(channelId, {
             from: founder
         })
 
@@ -1015,12 +1000,9 @@ contract('SlotsChannelManager', accounts => {
         // Create a channel
         let initialDeposit = '500000000000000000000'
 
-        let receipt = await slotsChannelManager.createChannel(
-            initialDeposit,
-            {
-                from: nonFounder
-            }
-        )
+        let receipt = await slotsChannelManager.createChannel(initialDeposit, {
+            from: nonFounder
+        })
 
         channelId = receipt.logs[0].args.id
 
@@ -1036,7 +1018,7 @@ contract('SlotsChannelManager', accounts => {
         finalUserHash = depositParams.finalUserHash
 
         console.log('Channel deposit params', initialUserNumber, finalUserHash)
-        await slotsChannelManager.depositChannel.sendTransaction(
+        await slotsChannelManager.depositChannel(
             channelId,
             initialUserNumber,
             finalUserHash,
@@ -1065,8 +1047,8 @@ contract('SlotsChannelManager', accounts => {
 
             finalSeedHash =
                 reelsAndHashes.reelSeedHashes[
-                reelsAndHashes.reelSeedHashes.length - 1
-                    ]
+                    reelsAndHashes.reelSeedHashes.length - 1
+                ]
             finalReelHash =
                 reelsAndHashes.reelHashes[reelsAndHashes.reelHashes.length - 1]
 
@@ -1094,7 +1076,7 @@ contract('SlotsChannelManager', accounts => {
             )
             console.log('Activate channel - isAuthorized', isAuthorized)
 
-            await slotsChannelManager.activateChannel.sendTransaction(
+            await slotsChannelManager.activateChannel(
                 channelId,
                 finalSeedHash,
                 finalReelHash,
@@ -1155,9 +1137,10 @@ contract('SlotsChannelManager', accounts => {
 
         userSpin = handler.getSpinParts(userSpin)
 
-        const emptyBytes32 = '0x0000000000000000000000000000000000000000000000000000000000000000'
+        const emptyBytes32 =
+            '0x0000000000000000000000000000000000000000000000000000000000000000'
 
-        await slotsChannelFinalizer.finalize.sendTransaction(
+        await slotsChannelFinalizer.finalize(
             channelId,
             userSpin.parts,
             '',
@@ -1179,4 +1162,47 @@ contract('SlotsChannelManager', accounts => {
         assert.equal(finalized, true, 'Channel was not finalized')
     })
 
+    it('Returns correct line reward multipliers', async () => {
+        const symbolA = 1
+        const symbolB = 2
+        const symbolC = 3
+        const symbolD = 4
+        const symbolE = 5
+        const symbolF = 6
+        const symbolG = 7
+
+        let paytable = {}
+        paytable[symbolA] = 10
+        paytable[symbolB] = 20
+        paytable[symbolC] = 40
+        paytable[symbolD] = 50
+        paytable[symbolE] = 75
+        paytable[symbolF] = 150
+        paytable[symbolG] = 300
+
+        let reel
+
+        for (let i = symbolA; i <= symbolG; i++) {
+            for (let j = 1; j <= 5; j++) {
+                reel = Array(5)
+                    .fill(0)
+                    .fill(i, 0, j)
+                    .fill(0, j, 5)
+
+                let expectedRewardMultiplier =
+                    j >= 3 ? paytable[i] * (j - 2) : 0
+
+                let rewardMultiplier = await slotsHelper.getLineRewardMultiplier(
+                    reel
+                )
+                rewardMultiplier = rewardMultiplier.toNumber()
+
+                assert.equal(
+                    expectedRewardMultiplier,
+                    rewardMultiplier,
+                    'Incorrect expected reward multiplier'
+                )
+            }
+        }
+    })
 })
