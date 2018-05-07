@@ -499,7 +499,9 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
             if(!houseSessionsController.beginNextSession(startTime, endTime, sessionZeroStartTime))
                 revert();
             for(uint i = 0; i < houseSessionsController.getOfferingAddressesLength(); i++)
-                HouseOffering(houseSessionsController.offeringAddresses(i)).setSession(nextSession);
+            // Offerings may be deleted from the next session i.e return 0x0. Ignore deleted offerings.
+                if(houseSessionsController.offeringAddresses(i) != 0x0)
+                    HouseOffering(houseSessionsController.offeringAddresses(i)).setSession(nextSession);
 
             emit LogNewSession(nextSession, startTime, 0, endTime, 0);
         }
