@@ -133,16 +133,17 @@ contract HouseFundsController is SafeMath {
         uint available = houseFunds[currentSession].userCredits[_address].amount;
         uint rolledOverToNextSession = houseFunds[currentSession].userCredits[_address]
                                         .rolledOverToNextSession;
-        uint rolledOverFromPreviousSession = houseFunds[currentSession].userCredits[_address]
-                                        .rolledOverFromPreviousSession;
-
-        // Next session variables.
-        uint nextSession = safeAdd(currentSession, 1);
 
         // Rollover credits from current session to next.
         houseFunds[currentSession].userCredits[_address].amount = safeSub(available, amount);
         houseFunds[currentSession].userCredits[_address].rolledOverToNextSession =
         safeAdd(rolledOverToNextSession, amount);
+
+        // Next session variables.
+        uint nextSession = safeAdd(currentSession, 1);
+
+        uint rolledOverFromPreviousSession = houseFunds[nextSession].userCredits[_address]
+                                             .rolledOverFromPreviousSession;
 
         // Add to credits for next session.
         houseFunds[nextSession].userCredits[_address].rolledOverFromPreviousSession =
@@ -190,38 +191,45 @@ contract HouseFundsController is SafeMath {
     returns (uint, uint, uint) {
         uint currentSession = house.currentSession();
         uint previousSession = safeSub(currentSession, 1);
-        uint rolledOverFromPreviousSession = houseFunds[currentSession].userCredits[_address]
-        .rolledOverFromPreviousSession;
+        uint rolledOverFromPreviousSession =
+            houseFunds[currentSession].userCredits[_address].rolledOverFromPreviousSession;
 
         // Payout variables
-        uint payoutPerCredit = getPayoutPerCredit(previousSession);
+        uint payoutPerCredit =
+            getPayoutPerCredit(previousSession);
         // (Payout per credit * amount of credits)
-        uint adjustedCredits = safeDiv(safeMul(payoutPerCredit, rolledOverFromPreviousSession), 1 ether);
-        uint userSessionCredits = houseFunds[currentSession].userCredits[_address].amount;
+        uint adjustedCredits =
+            safeDiv(safeMul(payoutPerCredit, rolledOverFromPreviousSession), 1 ether);
+        uint userSessionCredits =
+            houseFunds[currentSession].userCredits[_address].amount;
 
         houseFunds[currentSession].userCredits[_address].claimedFromPreviousSession = adjustedCredits;
         houseFunds[currentSession].userCredits[_address].rolledOverFromPreviousSession = 0;
+        houseFunds[currentSession].userCredits[_address].amount =
+            safeAdd(userSessionCredits, adjustedCredits);
 
-        houseFunds[currentSession].userCredits[_address].amount = safeAdd(userSessionCredits, adjustedCredits);
         if (houseFunds[currentSession].userCredits[_address].exists == false) {
             houseFunds[currentSession].users.push(_address);
             houseFunds[currentSession].userCredits[_address].exists = true;
         }
-        houseFunds[currentSession].totalUserCredits = safeAdd(houseFunds[currentSession].totalUserCredits,
-            adjustedCredits);
-        houseFunds[currentSession].totalPurchasedUserCredits = safeAdd(houseFunds[currentSession].totalPurchasedUserCredits,
-            adjustedCredits);
-        houseFunds[currentSession].totalFunds = safeAdd(houseFunds[currentSession].totalFunds,
-            adjustedCredits);
 
-        houseFunds[previousSession].totalUserCredits = safeSub(houseFunds[previousSession].totalUserCredits,
-            rolledOverFromPreviousSession);
-        houseFunds[previousSession].totalFunds = safeSub(houseFunds[previousSession].totalFunds,
-            rolledOverFromPreviousSession);
+        houseFunds[currentSession].totalUserCredits =
+            safeAdd(houseFunds[currentSession].totalUserCredits, adjustedCredits);
+        houseFunds[currentSession].totalPurchasedUserCredits =
+            safeAdd(houseFunds[currentSession].totalPurchasedUserCredits, adjustedCredits);
+        houseFunds[currentSession].totalFunds =
+            safeAdd(houseFunds[currentSession].totalFunds, adjustedCredits);
 
-        return (adjustedCredits,
-                rolledOverFromPreviousSession,
-                houseFunds[currentSession].userCredits[_address].amount);
+        houseFunds[previousSession].totalUserCredits =
+            safeSub(houseFunds[previousSession].totalUserCredits, rolledOverFromPreviousSession);
+        houseFunds[previousSession].totalFunds =
+            safeSub(houseFunds[previousSession].totalFunds, rolledOverFromPreviousSession);
+
+        return (
+            adjustedCredits,
+            rolledOverFromPreviousSession,
+            houseFunds[currentSession].userCredits[_address].amount
+        );
     }
 
     // Returns the payout per credit based on the total profit generated (Total funds collected from offerings/total purchased user credits)
@@ -261,10 +269,11 @@ contract HouseFundsController is SafeMath {
     returns (bool) {
         // Add to totalUnregisteredOfferingProfits for the session
         houseFunds[session].totalUnregisteredOfferingProfits =
-        safeAdd(houseFunds[session].totalUnregisteredOfferingProfits, amount);
+            safeAdd(houseFunds[session].totalUnregisteredOfferingProfits, amount);
 
         // Add to profit for the session
-        houseFunds[session].profit = houseFunds[session].profit + (int) (amount);
+        houseFunds[session].profit =
+            houseFunds[session].profit + (int) (amount);
 
         return true;
     }
@@ -277,7 +286,7 @@ contract HouseFundsController is SafeMath {
     returns (bool) {
         uint previousSession = safeSub(house.currentSession(), 1);
         houseFunds[previousSession].totalWithdrawn =
-        safeAdd(houseFunds[previousSession].totalWithdrawn, previousSessionTokens);
+            safeAdd(houseFunds[previousSession].totalWithdrawn, previousSessionTokens);
 
         if(allOfferingsWithdrawn)
             houseFunds[previousSession].profit = (int)(houseFunds[previousSession].profit +

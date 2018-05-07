@@ -102,13 +102,6 @@ contract('SlotsChannelManager', accounts => {
         // Begin session zero
         await house.beginNextSession()
 
-        // Allocate 50% of tokens to both offerings
-        await house.allocateTokensForHouseOffering(50, bettingProvider.address)
-        await house.allocateTokensForHouseOffering(
-            50,
-            slotsChannelManager.address
-        )
-
         // Redeem the owner faucet
         await token.ownerFaucet()
 
@@ -124,6 +117,20 @@ contract('SlotsChannelManager', accounts => {
         const oneWeek = 7 * 24 * 60 * 60
         await timeTravel(oneWeek)
 
+        // Allocate 50% of tokens to both offerings
+        await house.allocateTokensForHouseOffering(
+            50,
+            bettingProvider.address
+        )
+        await house.allocateTokensForHouseOffering(
+            50,
+            slotsChannelManager.address
+        )
+
+        // Finalize Token allocations
+        await house.finalizeTokenAllocations()
+
+        // Deposit allocated tokens to offerings
         await house.depositAllocatedTokensToHouseOffering(
             bettingProvider.address,
             { from: founder }
@@ -134,7 +141,7 @@ contract('SlotsChannelManager', accounts => {
         )
 
         // Begin session one
-        await timeTravel(oneWeek * 2)
+        await timeTravel(oneWeek)
         await house.beginNextSession()
 
         // Check if house session is one

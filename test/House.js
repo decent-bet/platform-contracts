@@ -219,7 +219,7 @@ contract('House', accounts => {
         })
 
         it('disallows users from purchasing house credits if they try to purchase under 1000 DBETs', async () => {
-            const creditsToPurchase = '100000000000000000000'
+            const creditsToPurchase = '100000000000000000000' // 100 DBETs
             await token.faucet({ from: nonFounder })
             await token.approve(house.address, creditsToPurchase, {
                 from: nonFounder
@@ -386,86 +386,20 @@ contract('House', accounts => {
             )
         })
 
-        it('disallows unauthorized addresses from allocating tokens for house offerings', async () => {
-            const percentageAllocation = 50
-            await utils.assertFail(
-                house.allocateTokensForHouseOffering(
-                    percentageAllocation,
-                    bettingProvider.address,
-                    { from: nonFounder }
+        it(
+            'disallows authorized addresses from allocating tokens to house offerings ' +
+                'before the last week of session zero',
+            async () => {
+                const percentageAllocation = 40
+                await utils.assertFail(
+                    house.allocateTokensForHouseOffering(
+                        percentageAllocation,
+                        bettingProvider.address,
+                        { from: founder }
+                    )
                 )
-            )
-        })
-
-        it('disallows authorized addresses from allocating more than 100% of tokens to house offerings', async () => {
-            const percentageAllocation = 101
-            await utils.assertFail(
-                house.allocateTokensForHouseOffering(
-                    percentageAllocation,
-                    bettingProvider.address,
-                    { from: nonFounder }
-                )
-            )
-        })
-
-        it('allows authorized addresses to allocate tokens for house offerings', async () => {
-            const providerPercentageAllocation = 40
-            await house.allocateTokensForHouseOffering(
-                providerPercentageAllocation,
-                bettingProvider.address,
-                { from: founder }
-            )
-            await house.allocateTokensForHouseOffering(
-                providerPercentageAllocation,
-                newBettingProvider.address,
-                { from: founder }
-            )
-
-            const slotsPercentageAllocation = 20
-            slotsChannelManager = await contracts.SlotsChannelManager.deployed()
-            await house.allocateTokensForHouseOffering(
-                slotsPercentageAllocation,
-                slotsChannelManager.address,
-                { from: founder }
-            )
-
-            let currentSession = await house.currentSession()
-            currentSession = currentSession.toNumber()
-            let nextSession = currentSession + 1
-
-            let providerTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
-                nextSession,
-                bettingProvider.address
-            )
-            let providerAllocation = providerTokenAllocation[0].toNumber()
-            assert.equal(
-                providerAllocation,
-                providerPercentageAllocation,
-                'Authorized addresses should be able to allocate tokens for house offerings'
-            )
-
-            let newProviderTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
-                nextSession,
-                newBettingProvider.address
-            )
-            let newProviderAllocation = newProviderTokenAllocation[0].toNumber()
-            assert.equal(
-                newProviderAllocation,
-                providerPercentageAllocation,
-                'Authorized addresses should be able to allocate tokens for house offerings'
-            )
-
-            let slotsTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
-                nextSession,
-                slotsChannelManager.address
-            )
-            let slotsProviderAllocation = slotsTokenAllocation[0].toNumber()
-            assert.equal(
-                slotsPercentageAllocation,
-                slotsProviderAllocation,
-                'Authorized addresses should be able to allocate tokens for house offerings'
-            )
-        })
+            }
+        )
 
         it(
             'disallows authorized addresses from depositing allocated tokens to house offerings ' +
@@ -480,10 +414,133 @@ contract('House', accounts => {
             }
         )
 
-        it('disallows unauthorized addresses from depositing allocated tokens to house offerings', async () => {
+        it('disallows unauthorized addresses from allocating tokens for house offerings', async () => {
             const oneWeek = 7 * 24 * 60 * 60
             await timeTravel(oneWeek)
+            const percentageAllocation = 50
+            await utils.assertFail(
+                house.allocateTokensForHouseOffering(
+                    percentageAllocation,
+                    bettingProvider.address,
+                    { from: nonFounder }
+                )
+            )
+        })
 
+        it('disallows authorized addresses from allocating more than 100% of tokens to house offerings',
+            async () => {
+                const percentageAllocation = 101
+                await utils.assertFail(
+                    house.allocateTokensForHouseOffering(
+                        percentageAllocation,
+                        bettingProvider.address,
+                        { from: founder }
+                    )
+                )
+        })
+
+        it('allows authorized addresses to allocate tokens for house offerings', async () => {
+            const providerPercentageAllocation = 40
+
+            await house.allocateTokensForHouseOffering(
+                providerPercentageAllocation,
+                bettingProvider.address,
+                { from: founder }
+            )
+            await house.allocateTokensForHouseOffering(
+                providerPercentageAllocation,
+                newBettingProvider.address,
+                { from: founder }
+            )
+
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+            let nextSession = currentSession + 1
+
+            let providerTokenAllocation = await houseSessionsController.getOfferingDetails(
+                nextSession,
+                bettingProvider.address
+            )
+            let providerAllocation = providerTokenAllocation[0].toNumber()
+            assert.equal(
+                providerAllocation,
+                providerPercentageAllocation,
+                'Authorized addresses should be able to allocate tokens for house offerings'
+            )
+
+            let newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
+                nextSession,
+                newBettingProvider.address
+            )
+            let newProviderAllocation = newProviderTokenAllocation[0].toNumber()
+            assert.equal(
+                newProviderAllocation,
+                providerPercentageAllocation,
+                'Authorized addresses should be able to allocate tokens for house offerings'
+            )
+        })
+
+        it('disallows authorized addresses from finalizing token allocations before total allocation is equal to 100',
+            async () => {
+                await utils.assertFail(
+                    house.finalizeTokenAllocations({ from: founder })
+                )
+        })
+
+        it('disallows authorized addresses from depositing allocated tokens before token allocation is finalized',
+            async () => {
+                await utils.assertFail(
+                    house.depositAllocatedTokensToHouseOffering(
+                        bettingProvider.address,
+                        { from: founder }
+                    )
+            )
+        })
+
+        it('disallows unauthorized addresses from finalizing token allocations', async () => {
+            await utils.assertFail(
+                house.finalizeTokenAllocations({ from: nonFounder })
+            )
+        })
+
+        it('allows authorized addresses to finalize token allocations', async () => {
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+            let nextSession = currentSession + 1
+
+            const slotsPercentageAllocation = 20
+            slotsChannelManager = await contracts.SlotsChannelManager.deployed()
+            await house.allocateTokensForHouseOffering(
+                slotsPercentageAllocation,
+                slotsChannelManager.address,
+                { from: founder }
+            )
+
+            let slotsTokenAllocation = await houseSessionsController.getOfferingDetails(
+                nextSession,
+                slotsChannelManager.address
+            )
+            let slotsProviderAllocation = slotsTokenAllocation[0].toNumber()
+            assert.equal(
+                slotsPercentageAllocation,
+                slotsProviderAllocation,
+                'Authorized addresses should be able to allocate tokens for house offerings'
+            )
+
+            await house.finalizeTokenAllocations({ from: founder })
+
+            let finalizedTokenAllocation = await houseSessionsController.areSessionTokenAllocationsFinalized(
+                nextSession
+            )
+
+            assert.equal(
+                finalizedTokenAllocation,
+                true,
+                'Token allocation should be finalized'
+            )
+        })
+
+        it('disallows unauthorized addresses from depositing allocated tokens to house offerings', async () => {
             await utils.assertFail(
                 house.depositAllocatedTokensToHouseOffering(
                     bettingProvider.address,
@@ -514,7 +571,7 @@ contract('House', accounts => {
             currentSession = currentSession.toNumber()
             let nextSession = currentSession + 1
 
-            let providerTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+            let providerTokenAllocation = await houseSessionsController.getOfferingDetails(
                 nextSession,
                 bettingProvider.address
             )
@@ -525,7 +582,7 @@ contract('House', accounts => {
                 'Allocated tokens not deposited to betting provider'
             )
 
-            let newProviderTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+            let newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
                 nextSession,
                 newBettingProvider.address
             )
@@ -536,7 +593,7 @@ contract('House', accounts => {
                 'Allocated tokens not deposited to new betting provider'
             )
 
-            let slotsTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+            let slotsTokenAllocation = await houseSessionsController.getOfferingDetails(
                 nextSession,
                 slotsChannelManager.address
             )
@@ -659,7 +716,7 @@ contract('House', accounts => {
     })
 
     describe('during session one', () => {
-        it('disallowing users from rolling over credits', async () => {
+        it('disallows users from rolling over credits', async () => {
             const creditsToRollOver = '1000000000000000000000'
             await utils.assertFail(
                 house.rollOverCredits(creditsToRollOver, { from: nonFounder })
@@ -793,9 +850,70 @@ contract('House', accounts => {
             )
         })
 
+        it('disallows authorized addresses from allocating tokens for house offerings during ' +
+            'last week of session before being added to the next session', async () => {
+            const oneWeek = 7 * 24 * 60 * 60
+            await timeTravel(oneWeek)
+
+            let providerPercentageAllocation = 25
+            await utils.assertFail(
+                house.allocateTokensForHouseOffering(
+                    providerPercentageAllocation,
+                    bettingProvider.address,
+                    { from: founder }
+                )
+            )
+        })
+
+        it('allows founders to add offerings to next session', async () => {
+            await houseSessionsController.addOfferingToNextSession(
+                bettingProvider.address
+            )
+            await houseSessionsController.addOfferingToNextSession(
+                newBettingProvider.address
+            )
+            await houseSessionsController.addOfferingToNextSession(
+                slotsChannelManager.address
+            )
+
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let nextSession = currentSession + 1
+
+            let providerOffering = await houseSessionsController.getSessionOffering(
+                nextSession,
+                0
+            )
+            let newProviderOffering = await houseSessionsController.getSessionOffering(
+                nextSession,
+                1
+            )
+            let slotsChannelManagerOffering = await houseSessionsController.getSessionOffering(
+                nextSession,
+                2
+            )
+
+            assert.equal(
+                providerOffering,
+                bettingProvider.address,
+                'Invalid provider address'
+            )
+            assert.equal(
+                newProviderOffering,
+                newBettingProvider.address,
+                'Invalid new provider address'
+            )
+            assert.equal(
+                slotsChannelManagerOffering,
+                slotsChannelManager.address,
+                'Invalid slots channel manager address'
+            )
+        })
+
         it(
             'allows authorized addresses to allocate tokens for house offerings ' +
-                'during credit buying period',
+                'during last week of session',
             async () => {
                 const providerPercentageAllocation = 40
                 await house.allocateTokensForHouseOffering(
@@ -821,7 +939,7 @@ contract('House', accounts => {
                 currentSession = currentSession.toNumber()
                 let nextSession = currentSession + 1
 
-                let providerTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                let providerTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     bettingProvider.address
                 )
@@ -832,7 +950,7 @@ contract('House', accounts => {
                     'Authorized addresses should be able to allocate tokens for house offerings'
                 )
 
-                let newProviderTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                let newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     newBettingProvider.address
                 )
@@ -843,7 +961,7 @@ contract('House', accounts => {
                     'Authorized addresses should be able to allocate tokens for house offerings'
                 )
 
-                let slotsTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                let slotsTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     slotsChannelManager.address
                 )
@@ -856,13 +974,35 @@ contract('House', accounts => {
             }
         )
 
+        it('allows authorized addresses to finalize allocated tokens after tokens are allocated during ' +
+            'last week of session', async () => {
+            await house.finalizeTokenAllocations({ from: founder })
+
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let nextSession = currentSession + 1
+
+            let finalizedTokenAllocation = await houseSessionsController.areSessionTokenAllocationsFinalized(
+                nextSession
+            )
+            console.log(
+                'finalizedTokenAllocation',
+                finalizedTokenAllocation,
+                nextSession
+            )
+
+            assert.equal(
+                finalizedTokenAllocation,
+                true,
+                'Token allocation should be finalized'
+            )
+        })
+
         it(
             'allows authorized addresses to deposit allocated tokens for house offerings ' +
                 'during last week for session',
             async () => {
-                const oneWeek = 7 * 24 * 60 * 60
-                await timeTravel(oneWeek)
-
                 let houseBalance = await token.balanceOf(house.address)
                 let initialHouseBalance = houseBalance
 
@@ -876,19 +1016,19 @@ contract('House', accounts => {
                 currentSession = currentSession.toNumber()
                 let nextSession = currentSession + 1
 
-                let providerTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                let providerTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     bettingProvider.address
                 )
                 let providerAllocation = providerTokenAllocation[0].toNumber()
 
-                let newProviderTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                let newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     newBettingProvider.address
                 )
                 let newProviderAllocation = newProviderTokenAllocation[0].toNumber()
 
-                let slotsTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                let slotsTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     slotsChannelManager.address
                 )
@@ -957,7 +1097,7 @@ contract('House', accounts => {
                     'Invalid amount deposited to betting provider'
                 )
 
-                providerTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                providerTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     bettingProvider.address
                 )
@@ -968,7 +1108,7 @@ contract('House', accounts => {
                     'Tokens not deposited to betting provider'
                 )
 
-                newProviderTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     newBettingProvider.address
                 )
@@ -979,7 +1119,7 @@ contract('House', accounts => {
                     'Tokens not deposited to betting new betting provider'
                 )
 
-                slotsTokenAllocation = await houseSessionsController.getOfferingTokenAllocations(
+                slotsTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     slotsChannelManager.address
                 )
@@ -991,52 +1131,6 @@ contract('House', accounts => {
                 )
             }
         )
-
-        it('allows founders to add offerings to next session', async () => {
-            await houseSessionsController.addHouseOffering(
-                bettingProvider.address
-            )
-            await houseSessionsController.addHouseOffering(
-                newBettingProvider.address
-            )
-            await houseSessionsController.addHouseOffering(
-                slotsChannelManager.address
-            )
-
-            let currentSession = await house.currentSession()
-            currentSession = currentSession.toNumber()
-
-            let nextSession = currentSession + 1
-
-            let providerOffering = await houseSessionsController.getSessionOffering(
-                nextSession,
-                0
-            )
-            let newProviderOffering = await houseSessionsController.getSessionOffering(
-                nextSession,
-                1
-            )
-            let slotsChannelManagerOffering = await houseSessionsController.getSessionOffering(
-                nextSession,
-                2
-            )
-
-            assert.equal(
-                providerOffering,
-                bettingProvider.address,
-                'Invalid provider address'
-            )
-            assert.equal(
-                newProviderOffering,
-                newBettingProvider.address,
-                'Invalid new provider address'
-            )
-            assert.equal(
-                slotsChannelManagerOffering,
-                slotsChannelManager.address,
-                'Invalid slots channel manager address'
-            )
-        })
 
         it('disallows unauthorized addresses from adding profits from unregistered house offerings', async () => {
             let currentSession = await house.currentSession()
@@ -1106,7 +1200,8 @@ contract('House', accounts => {
     })
 
     describe('after session one', () => {
-        it('disallows authorized addresses from withdrawing previous session tokens from house offerings before withdrawal time', async () => {
+        it('disallows authorized addresses from withdrawing previous session tokens from house offerings ' +
+            'before withdrawal time', async () => {
             await utils.assertFail(
                 house.withdrawPreviousSessionTokensFromHouseOffering.sendTransaction(
                     bettingProvider.address,
@@ -1115,7 +1210,8 @@ contract('House', accounts => {
             )
         })
 
-        it('disallows non-authorized addresses from withdrawing previous session tokens from house offerings', async () => {
+        it('disallows non-authorized addresses from withdrawing previous session tokens from house offerings',
+            async () => {
             let oneDay = 24 * 60 * 60
             await timeTravel(oneDay * 2)
 
@@ -1127,7 +1223,8 @@ contract('House', accounts => {
             )
         })
 
-        it('allows authorized addresses to withdraw previous session tokens from house offerings', async () => {
+        it('allows authorized addresses to withdraw previous session tokens from house offerings',
+            async () => {
             let currentSession = await house.currentSession()
             let previousSession = currentSession.toNumber() - 1
 
@@ -1700,6 +1797,7 @@ contract('House', accounts => {
             const ethInWei = '1000000000000000000'
 
             let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
 
             let userCreditsStatsPreWithdraw = await houseFundsController.getUserCreditsForSession(
                 currentSession,

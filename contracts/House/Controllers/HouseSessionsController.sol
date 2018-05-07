@@ -10,6 +10,11 @@ import '../../Libraries/SafeMath.sol';
 // House sessions records are saved here to decouple the record keeping from the House contract to reduce gas costs on deployment.
 contract HouseSessionsController is SafeMath {
 
+    // TODO: Add offeringCount variable to Session to account for offerings that get removed
+    // since offerings.length remains the same even after an element is deleted
+
+    // All references to offerings.length should be replaced with offeringCount where necessary
+
     // Structs
     struct Session {
         uint startTime;
@@ -21,18 +26,24 @@ contract HouseSessionsController is SafeMath {
         // All offerings must be withdrawn to switch to the next session.
         mapping (address => bool) withdrawnOfferings;
         uint withdrawCount;
-        // %age allocation of total tokens for deposit at start of session.
-        mapping (address => TokenAllocations) offeringTokenAllocations;
+        // Details for an offering for a session.
+        mapping (address => OfferingDetails) offeringDetails;
         // Total % of tokens allocated, must be equal before switching to next session.
         uint totalTokensAllocated;
+        // Have the token allocations been finalized? (Possible only if all offerings have been
+        // allocated tokens and totalTokensAllocated == 100)
+        bool finalizedTokenAllocations;
         // Increments by 1 after each deposit to an offering allocation.
         uint depositedAllocations;
     }
 
-    struct TokenAllocations {
+    struct OfferingDetails {
         // Amount allocated to offering.
         uint allocation;
+        // True if tokens have been deposited to offering.
         bool deposited;
+        // True if offering has been added to session.
+        bool addedToSession;
     }
 
     struct Offering {
@@ -74,8 +85,9 @@ contract HouseSessionsController is SafeMath {
     }
 
     // Allows functions to execute only if the house offering exists.
-    modifier isValidHouseOffering(address offering) {
+    modifier isValidHouseOffering(address offering, uint session) {
         require(offerings[offering].exists);
+        require(sessions[session].offeringDetails[offering].addedToSession);
         _;
     }
 
@@ -83,32 +95,35 @@ contract HouseSessionsController is SafeMath {
     function addHouseOffering(address houseOfferingAddress)
     public
     onlyFounder {
-        // Empty address, invalid input
+        // Valid address
         require(houseOfferingAddress != 0x0);
-        // Not a house offering
+        // Is a house offering
         require(HouseOffering(houseOfferingAddress).isHouseOffering());
-
+        // Should not already be added
+        require(!offerings[houseOfferingAddress].exists);
         offeringAddresses.push(houseOfferingAddress);
+
         offerings[houseOfferingAddress] = Offering({
             houseOffering: HouseOffering(houseOfferingAddress),
             exists: true
-            });
+        });
         addOfferingToNextSession(houseOfferingAddress);
     }
 
     // Adds a house offering to the next session
     function addOfferingToNextSession(address houseOfferingAddress)
-    internal
-    isValidHouseOffering(houseOfferingAddress)
     onlyFounder {
+        require(offerings[houseOfferingAddress].exists);
+        require(!sessions[nextSession].offeringDetails[houseOfferingAddress].addedToSession);
         uint nextSession = house.currentSession() + 1;
         sessions[nextSession].offerings.push(houseOfferingAddress);
+        sessions[nextSession].offeringDetails[houseOfferingAddress].addedToSession = true;
     }
 
     // Remove an offering from the next session
     function removeOfferingFromNextSession(address houseOfferingAddress)
     public
-    isValidHouseOffering(houseOfferingAddress)
+    isValidHouseOffering(houseOfferingAddress, safeAdd(house.currentSession(), 1))
     onlyFounder {
         // TODO: Look into support for current session - freeze contract, allow token withdrawals etc.
         uint nextSession = house.currentSession() + 1;
@@ -122,7 +137,7 @@ contract HouseSessionsController is SafeMath {
     // Withdraws session tokens for the previously ended session from a house offering.
     function withdrawPreviousSessionTokensFromHouseOffering(address houseOffering)
     public
-    isValidHouseOffering(houseOffering)
+    isValidHouseOffering(houseOffering, safeSub(house.currentSession(), 1))
     onlyHouse
     returns (uint, bool) {
         uint currentSession = house.currentSession();
@@ -142,47 +157,78 @@ contract HouseSessionsController is SafeMath {
         sessions[previousSession].withdrawnOfferings[houseOffering] = true;
         sessions[previousSession].withdrawCount += 1;
 
-        // All offerings have been withdrawn.
-        bool allOfferingsWithdrawn =
-        sessions[previousSession].withdrawCount == sessions[previousSession].offerings.length;
-
-        return (previousSessionTokens, allOfferingsWithdrawn);
+        return (
+            previousSessionTokens,
+            haveAllOfferingsBeenWithdrawn(previousSession)
+        );
     }
 
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     public
-    isValidHouseOffering(houseOffering)
+    isValidHouseOffering(houseOffering, safeAdd(house.currentSession(), 1))
     onlyHouse
     returns (bool) {
         uint nextSession = house.currentSession() + 1;
+
+        // Can not allocate if allocation has been finalized
+        require(!sessions[nextSession].finalizedTokenAllocations);
 
         // Total %age of tokens can't be above 100.
         require(safeAdd(sessions[nextSession].totalTokensAllocated, percentage) <= 100);
 
         // Tokens have already been deposited to offering.
-        require(!sessions[nextSession].offeringTokenAllocations[houseOffering].deposited);
+        require(!sessions[nextSession].offeringDetails[houseOffering].deposited);
 
-        uint previousAllocation = sessions[nextSession].offeringTokenAllocations[houseOffering].allocation;
+        uint previousAllocation = sessions[nextSession].offeringDetails[houseOffering].allocation;
 
-        sessions[nextSession].offeringTokenAllocations[houseOffering].allocation = percentage;
+        sessions[nextSession].offeringDetails[houseOffering].allocation = percentage;
         sessions[nextSession].totalTokensAllocated =
-        safeSub(safeAdd(sessions[nextSession].totalTokensAllocated, percentage), previousAllocation);
+            safeSub(safeAdd(sessions[nextSession].totalTokensAllocated, percentage), previousAllocation);
+
+        return true;
+    }
+
+    // Finalizes token allocation for the next session after allocating to all offerings
+    function finalizeTokenAllocations()
+    public
+    onlyHouse
+    returns (bool) {
+        uint nextSession = house.currentSession() + 1;
+
+        // All offerings should be allocated tokens
+        for(uint i = 0; i < sessions[nextSession].offerings.length; i++) {
+            require(
+                sessions[nextSession].offeringDetails
+                    [sessions[nextSession].offerings[i]].allocation > 0
+            );
+        }
+
+        // Total tokens allocated must be 100%
+        require(sessions[nextSession].totalTokensAllocated == 100);
+
+        // Token allocation can not already be finalized
+        require(!sessions[nextSession].finalizedTokenAllocations);
+
+        sessions[nextSession].finalizedTokenAllocations = true;
 
         return true;
     }
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
     public
-    isValidHouseOffering(houseOffering)
+    isValidHouseOffering(houseOffering, safeAdd(house.currentSession(), 1))
     onlyHouse
     returns (bool) {
         uint nextSession = house.currentSession() + 1;
 
-        // Tokens have already been deposited to offering.
-        require(!sessions[nextSession].offeringTokenAllocations[houseOffering].deposited);
+        // Can not deposit if token allocation has not been finalized
+        require(sessions[nextSession].finalizedTokenAllocations);
 
-        sessions[nextSession].offeringTokenAllocations[houseOffering].deposited = true;
+        // Tokens have already been deposited to offering.
+        require(!sessions[nextSession].offeringDetails[houseOffering].deposited);
+
+        sessions[nextSession].offeringDetails[houseOffering].deposited = true;
         sessions[nextSession].depositedAllocations = safeAdd(sessions[nextSession].depositedAllocations, 1);
 
         return true;
@@ -190,7 +236,7 @@ contract HouseSessionsController is SafeMath {
 
     function emergencyWithdrawCurrentSessionTokensFromHouseOffering(address houseOffering)
     public
-    isValidHouseOffering(houseOffering)
+    isValidHouseOffering(houseOffering, house.currentSession())
     onlyHouse
     returns (uint, bool) {
         uint currentSession = house.currentSession();
@@ -229,7 +275,7 @@ contract HouseSessionsController is SafeMath {
             sessions[currentSession].startTime = startTime;
             sessions[currentSession].endTime = endTime;
 
-            // All offerings should have allocated tokens deposited before switching to next session.
+            // All offerings should have deposited allocated tokens before switching to next session.
             require(sessions[currentSession].depositedAllocations == sessions[currentSession].offerings.length);
         }
 
@@ -243,7 +289,10 @@ contract HouseSessionsController is SafeMath {
     public
     view
     returns (uint, uint) {
-        return (sessions[session].startTime, sessions[session].endTime);
+        return (
+            sessions[session].startTime,
+            sessions[session].endTime
+        );
     }
 
     // Returns whether a session is active.
@@ -279,12 +328,23 @@ contract HouseSessionsController is SafeMath {
     }
 
     // Returns offering token allocations and deposits.
-    function getOfferingTokenAllocations(uint session, address _address)
+    function getOfferingDetails(uint session, address _address)
     public
     view
-    returns (uint, bool) {
-        return (sessions[session].offeringTokenAllocations[_address].allocation,
-        sessions[session].offeringTokenAllocations[_address].deposited);
+    returns (uint, bool, bool) {
+        return (
+            sessions[session].offeringDetails[_address].allocation,
+            sessions[session].offeringDetails[_address].deposited,
+            sessions[session].offeringDetails[_address].addedToSession
+        );
+    }
+
+    // Returns total tokens allocated to offering
+    function areSessionTokenAllocationsFinalized(uint session)
+    public
+    view
+    returns (bool) {
+        return sessions[session].finalizedTokenAllocations;
     }
 
     function getSessionOfferingsLength(uint session)
@@ -306,6 +366,13 @@ contract HouseSessionsController is SafeMath {
     view
     returns (bool) {
         return sessions[session].withdrawnOfferings[offering];
+    }
+
+    function haveAllOfferingsBeenWithdrawn(uint session)
+    public
+    view
+    returns (bool) {
+        return sessions[session].withdrawCount == sessions[session].offerings.length;
     }
 
 }
