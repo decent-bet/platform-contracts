@@ -116,7 +116,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     modifier isProfitDistributionPeriod(uint session) {
         require(session != 0);
         uint endTime;
-        (,endTime,,,,,) = houseSessionsController.sessions(session);
+        (,endTime,,,,,,) = houseSessionsController.sessions(session);
         require(getTime() >= (endTime + 4 days));
         require(houseSessionsController.haveAllOfferingsBeenWithdrawn(session));
         _;

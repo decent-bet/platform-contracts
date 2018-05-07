@@ -130,24 +130,27 @@ contract HouseFundsController is SafeMath {
         require(currentSession > 0);
 
         // Payout and current session variables.
-        uint available = houseFunds[currentSession].userCredits[_address].amount;
-        uint rolledOverToNextSession = houseFunds[currentSession].userCredits[_address]
-                                        .rolledOverToNextSession;
+        uint available =
+            houseFunds[currentSession].userCredits[_address].amount;
+        uint rolledOverToNextSession =
+            houseFunds[currentSession].userCredits[_address].rolledOverToNextSession;
 
         // Rollover credits from current session to next.
-        houseFunds[currentSession].userCredits[_address].amount = safeSub(available, amount);
+        houseFunds[currentSession].userCredits[_address].amount =
+            safeSub(available, amount);
         houseFunds[currentSession].userCredits[_address].rolledOverToNextSession =
-        safeAdd(rolledOverToNextSession, amount);
+            safeAdd(rolledOverToNextSession, amount);
 
         // Next session variables.
-        uint nextSession = safeAdd(currentSession, 1);
+        uint nextSession =
+            safeAdd(currentSession, 1);
 
-        uint rolledOverFromPreviousSession = houseFunds[nextSession].userCredits[_address]
-                                             .rolledOverFromPreviousSession;
+        uint rolledOverFromPreviousSession =
+            houseFunds[nextSession].userCredits[_address].rolledOverFromPreviousSession;
 
         // Add to credits for next session.
         houseFunds[nextSession].userCredits[_address].rolledOverFromPreviousSession =
-        safeAdd(rolledOverFromPreviousSession, amount);
+            safeAdd(rolledOverFromPreviousSession, amount);
 
         return true;
     }
@@ -160,10 +163,13 @@ contract HouseFundsController is SafeMath {
         require(houseFunds[session].userCredits[_address].amount > 0);
 
         // Payout variables
-        uint payoutPerCredit = getPayoutPerCredit(session);
-        uint amount = houseFunds[session].userCredits[_address].amount;
+        uint payoutPerCredit =
+            getPayoutPerCredit(session);
+        uint amount =
+            houseFunds[session].userCredits[_address].amount;
         // (Payout per credit * amount of credits)
-        uint payout = safeDiv(safeMul(payoutPerCredit, amount), 1 ether);
+        uint payout =
+            safeDiv(safeMul(payoutPerCredit, amount), 1 ether);
 
         // Payout users for current session and liquidate credits.
         houseFunds[session].payouts[_address] =
@@ -203,8 +209,10 @@ contract HouseFundsController is SafeMath {
         uint userSessionCredits =
             houseFunds[currentSession].userCredits[_address].amount;
 
-        houseFunds[currentSession].userCredits[_address].claimedFromPreviousSession = adjustedCredits;
-        houseFunds[currentSession].userCredits[_address].rolledOverFromPreviousSession = 0;
+        houseFunds[currentSession].userCredits[_address].claimedFromPreviousSession =
+            adjustedCredits;
+        houseFunds[currentSession].userCredits[_address].rolledOverFromPreviousSession =
+            0;
         houseFunds[currentSession].userCredits[_address].amount =
             safeAdd(userSessionCredits, adjustedCredits);
 
@@ -238,20 +246,29 @@ contract HouseFundsController is SafeMath {
     public
     view
     returns (uint) {
-        uint totalWithdrawn = houseFunds[session].totalWithdrawn;
-        uint totalUnregisteredOfferingProfits = houseFunds[session].totalUnregisteredOfferingProfits;
-        int totalProfit = houseFunds[session].profit;
+        uint totalWithdrawn =
+            houseFunds[session].totalWithdrawn;
+        uint totalUnregisteredOfferingProfits =
+            houseFunds[session].totalUnregisteredOfferingProfits;
+        int totalProfit =
+            houseFunds[session].profit;
 
-        uint totalPayout = safeAdd(totalWithdrawn, totalUnregisteredOfferingProfits);
-        uint totalPurchasedUserCredits = houseFunds[session].totalPurchasedUserCredits;
+        uint totalPayout =
+            safeAdd(totalWithdrawn, totalUnregisteredOfferingProfits);
+        uint totalPurchasedUserCredits =
+            houseFunds[session].totalPurchasedUserCredits;
 
-        uint basePayoutPerCredit = safeDiv(safeMul(1 ether, totalPayout), totalPurchasedUserCredits);
+        uint basePayoutPerCredit =
+            safeDiv(safeMul(1 ether, totalPayout), totalPurchasedUserCredits);
 
         // Is a profitable session
         if(totalProfit > 0) {
-            uint profitPerCredit = safeSub(basePayoutPerCredit, 1 ether);
-            uint adjustedProfitPerCredit = safeDiv(safeMul(profitPerCredit, PROFIT_SHARE_PERCENT), 100);
-            uint payoutPerCredit = safeAdd(1 ether, adjustedProfitPerCredit);
+            uint profitPerCredit =
+                safeSub(basePayoutPerCredit, 1 ether);
+            uint adjustedProfitPerCredit =
+                safeDiv(safeMul(profitPerCredit, PROFIT_SHARE_PERCENT), 100);
+            uint payoutPerCredit =
+                safeAdd(1 ether, adjustedProfitPerCredit);
             return payoutPerCredit;
         } else
             // No profit
@@ -289,8 +306,13 @@ contract HouseFundsController is SafeMath {
             safeAdd(houseFunds[previousSession].totalWithdrawn, previousSessionTokens);
 
         if(allOfferingsWithdrawn)
-            houseFunds[previousSession].profit = (int)(houseFunds[previousSession].profit +
-            (int)(houseFunds[previousSession].totalWithdrawn - houseFunds[previousSession].totalFunds));
+            houseFunds[previousSession].profit =
+                (int)(houseFunds[previousSession].profit +
+                (int)(
+                        houseFunds[previousSession].totalWithdrawn -
+                        houseFunds[previousSession].totalFunds
+                     )
+                );
 
         return true;
     }
@@ -308,7 +330,10 @@ contract HouseFundsController is SafeMath {
 
         if(allOfferingsWithdrawn)
             houseFunds[currentSession].profit +=
-            (int)(houseFunds[currentSession].totalWithdrawn - houseFunds[currentSession].totalFunds);
+                (int)(
+                    houseFunds[currentSession].totalWithdrawn -
+                    houseFunds[currentSession].totalFunds
+                );
 
         return true;
     }
@@ -322,10 +347,13 @@ contract HouseFundsController is SafeMath {
         require(houseFunds[session].userCredits[_address].amount > 0);
 
         // Payout variables
-        uint payoutPerCredit = getPayoutPerCredit(session);
-        uint amount = houseFunds[session].userCredits[_address].amount;
+        uint payoutPerCredit =
+            getPayoutPerCredit(session);
+        uint amount =
+            houseFunds[session].userCredits[_address].amount;
         // (Payout per credit * amount of credits)
-        uint payout = safeDiv(safeMul(payoutPerCredit, amount), 1 ether);
+        uint payout =
+            safeDiv(safeMul(payoutPerCredit, amount), 1 ether);
 
         // Payout users for current session and liquidate credits.
         houseFunds[session].payouts[_address] =
@@ -352,12 +380,14 @@ contract HouseFundsController is SafeMath {
     view
     returns (uint amount, uint liquidated, uint rolledOverToNextSession, uint claimedFromPreviousSession,
         uint totalFunds, uint totalUserCredits) {
-        return (houseFunds[session].userCredits[_address].amount,
-        houseFunds[session].userCredits[_address].liquidated,
-        houseFunds[session].userCredits[_address].rolledOverToNextSession,
-        houseFunds[session].userCredits[_address].claimedFromPreviousSession,
-        houseFunds[session].totalFunds,
-        houseFunds[session].totalUserCredits);
+        return (
+            houseFunds[session].userCredits[_address].amount,
+            houseFunds[session].userCredits[_address].liquidated,
+            houseFunds[session].userCredits[_address].rolledOverToNextSession,
+            houseFunds[session].userCredits[_address].claimedFromPreviousSession,
+            houseFunds[session].totalFunds,
+            houseFunds[session].totalUserCredits
+        );
     }
 
     function getProfitForSession(uint session)
