@@ -11,6 +11,7 @@ let BettingProviderHelper = artifacts.require('BettingProviderHelper')
 let SportsOracle = artifacts.require('SportsOracle')
 let SlotsChannelManager = artifacts.require('SlotsChannelManager')
 let SlotsChannelFinalizer = artifacts.require('SlotsChannelFinalizer')
+let SlotsHelper = artifacts.require('SlotsHelper')
 
 module.exports = {
     MultiSigWallet,
@@ -25,5 +26,6 @@ module.exports = {
     BettingProviderHelper,
     SportsOracle,
     SlotsChannelManager,
-    SlotsChannelFinalizer
+    SlotsChannelFinalizer,
+    SlotsHelper
 }

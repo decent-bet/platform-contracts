@@ -87,9 +87,19 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     private
     view
     returns (bool) {
-        bytes32 hash = keccak256(s.reelHash, s.reel, s.reelSeedHash, s.prevReelSeedHash, s.userHash, s.prevUserHash,
-        uintToString(s.nonce), boolToString(s.turn), uintToString(s.userBalance), uintToString(s.houseBalance),
-        uintToString(s.betSize));
+        bytes32 hash = keccak256(
+            s.reelHash,
+            s.reel,
+            s.reelSeedHash,
+            s.prevReelSeedHash,
+            s.userHash,
+            s.prevUserHash,
+            uintToString(s.nonce),
+            boolToString(s.turn),
+            uintToString(s.userBalance),
+            uintToString(s.houseBalance),
+            uintToString(s.betSize)
+        );
         address player = slotsChannelManager.getPlayer(id, s.turn);
         return player == ecrecover(hash, s.v, s.r, s.s);
     }
@@ -124,6 +134,9 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         // If Player's turn
         if (curr.turn == false) {
 
+            // User submitted spin would need to be house spin nonce + 1
+            if(curr.nonce != prior.nonce + 1) revert();
+
             // The last reel hash needs to be a hash of the last reel seed, user hash and reel
             // The random numbers don't need to verified on contract, only the reel rewards
             // Random numbers could be verified off-chain using the seed-random library using the
@@ -139,6 +152,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
             // During the house's turn, the spin would have the user hash sent by the player
 
             // 32k gas for all conditions
+            if(curr.nonce != prior.nonce) revert();
 
             // Bet size can be only upto maximum number of lines
             if(!slotsHelper.isValidBetSize(curr.betSize)) return false;
@@ -160,21 +174,40 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         return toBytes32(prior.reelHash, 0) == sha256(hashSeed);
     }
 
+    function isValidSpinNonces(Spin curr, Spin prior)
+    private
+    pure
+    returns (bool) {
+        require(curr.nonce > 0 && curr.nonce < 1000);
+
+        if(curr.turn)
+            // If house turn, spin nonce are equal
+            require(curr.nonce == prior.nonce);
+        else
+            // If user turn, spin nonce is greater than
+            require(curr.nonce == prior.nonce + 1);
+
+        return true;
+    }
+
     // Compares two spins and checks whether balances reflect user winnings
     // Works only for user turns
     function isAccurateBalances(Spin curr, Spin prior, uint totalSpinReward)
     private
     pure
     returns (bool) {
-
         if(curr.turn) {
             // House turn
 
             // User balance for this spin must be the last user balance + reward
-            if (curr.userBalance != safeSub(safeAdd(prior.userBalance, totalSpinReward), prior.betSize)) return false;
+            if (curr.userBalance !=
+                safeSub(safeAdd(prior.userBalance, totalSpinReward), prior.betSize))
+                return false;
 
             // House balance for this spin must be the last house balance - reward
-            if (curr.houseBalance != safeAdd(safeSub(prior.houseBalance, totalSpinReward), prior.betSize)) return false;
+            if (curr.houseBalance !=
+                safeAdd(safeSub(prior.houseBalance, totalSpinReward), prior.betSize))
+                return false;
         } else {
             // User turn
 
@@ -187,43 +220,77 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         return true;
     }
 
+    // If finalize() is called for a 0 nonce, prior, priorR and priorS can be empty/0
     function finalize(bytes32 id, string _curr, string _prior,
     bytes32 currR, bytes32 currS, bytes32 priorR, bytes32 priorS)
     isSenderKycVerified
     isSlotsChannelManagerSet
     public
     returns (bool) {
-
         require(slotsChannelManager.isParticipant(id, msg.sender));
+        require(slotsChannelManager.isChannelActivated(id));
 
         Spin memory curr = convertSpin(_curr);
         // 5.6k gas
         curr.r = currR;
         curr.s = currS;
 
-        Spin memory prior = convertSpin(_prior);
-        // 5.6k gas
-        prior.r = priorR;
-        prior.s = priorS;
+        if(curr.nonce == 0)
+            return finalizeZeroNonce(id, curr);
+        else {
+            Spin memory prior = convertSpin(_prior);
+            // 5.6k gas
+            prior.r = priorR;
+            prior.s = priorS;
 
-        uint totalSpinReward = getTotalSpinReward(prior);
+            uint totalSpinReward = getTotalSpinReward(prior);
 
-        require(isAccurateBalances(curr, prior, totalSpinReward));
+            require(isValidSpinNonces(curr, prior));
+            require(isAccurateBalances(curr, prior, totalSpinReward));
 
-        // 26k gas
-        require(checkSigPrivate(id, curr));
-        require(checkSigPrivate(id, prior));
+            // 26k gas
+            require(checkSigPrivate(id, curr));
+            require(checkSigPrivate(id, prior));
 
-        // Checks if spin hashes are pre-images of previous hashes or are hashes in previous spins
-        require(checkSpinHashes(curr, prior));
+            // Checks if spin hashes are pre-images of previous hashes or are hashes in previous spins
+            require(checkSpinHashes(curr, prior));
 
-        // 5.6k gas
-        require(checkPair(curr, prior));
+            // 5.6k gas
+            require(checkPair(curr, prior));
 
-        // Finalized
-        if (shouldFinalizeChannel(id, curr.nonce))
-            slotsChannelManager.setFinal(id, curr.userBalance, curr.houseBalance,
-            curr.nonce, curr.turn); // 86k gas
+            // Finalized
+            if (shouldFinalizeChannel(id, curr.nonce))
+                slotsChannelManager.setFinal(id, curr.userBalance, curr.houseBalance,
+                    curr.nonce, curr.turn); // 86k gas
+
+            return true;
+        }
+    }
+
+    // Allow parties to close channels with 0 nonce
+    function finalizeZeroNonce(bytes32 id, Spin spin)
+    isSenderKycVerified
+    isSlotsChannelManagerSet
+    private
+    returns (bool) {
+        require(spin.nonce == 0);
+
+        require(
+            slotsChannelManager.isValidZeroNonceSpin(
+                id,
+                spin.reelHash,
+                spin.userHash,
+                spin.reelSeedHash,
+                spin.userBalance
+            )
+        );
+        require(spin.userBalance == spin.houseBalance);
+
+        require(checkSigPrivate(id, spin));
+
+        if (shouldFinalizeChannel(id, spin.nonce))
+            slotsChannelManager.setFinal(id, spin.userBalance, spin.houseBalance,
+                spin.nonce, spin.turn); // 86k gas
 
         return true;
     }
@@ -235,6 +302,10 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         bool finalized;
         uint finalNonce;
         (finalized, finalNonce) = slotsChannelManager.getChannelFinalized(id);
+
+        // If nonce == 0, the spin should be submitted when the channel has not yet been finalized.
+        // If it already has, there wouldn't be any need to submit a 0-nonce spin since
+        // the finalNonce would either already be 0 or greater than 0.
         return (!finalized || nonce > finalNonce);
     }
 

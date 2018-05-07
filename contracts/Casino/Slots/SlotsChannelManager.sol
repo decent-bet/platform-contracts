@@ -510,7 +510,28 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     view
     returns (bool) {
-        return (houseAuthorizedController.authorized(_address) || _address == players[id][false]);
+        return (
+            houseAuthorizedController.authorized(_address) || _address == players[id][false]
+        );
+    }
+
+    function isChannelActivated(bytes32 id)
+    public
+    view
+    returns (bool) {
+        return channels[id].activated;
+    }
+
+    function isValidZeroNonceSpin(bytes32 id, string reelHash, string userHash, string reelSeedHash, uint userBalance)
+    public
+    view
+    returns (bool) {
+        return (
+            strCompare(reelHash, channels[id].finalReelHash) &&
+            strCompare(userHash, channels[id].finalUserHash) &&
+            strCompare(reelSeedHash, channels[id].finalSeedHash) &&
+            userBalance == channels[id].initialDeposit
+        );
     }
 
     // Helper function to return channel information for the frontend
@@ -518,13 +539,15 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     view
     returns (address, bool, bool, bool, uint, uint, uint) {
-        return (players[id][false],
-        channels[id].ready,
-        channels[id].activated,
-        channels[id].finalized,
-        channels[id].initialDeposit,
-        channels[id].finalNonce,
-        channels[id].endTime);
+        return (
+            players[id][false],
+            channels[id].ready,
+            channels[id].activated,
+            channels[id].finalized,
+            channels[id].initialDeposit,
+            channels[id].finalNonce,
+            channels[id].endTime
+        );
     }
 
     // Helper function to return hashes used for the frontend/backend
@@ -532,10 +555,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     view
     returns (string, string, string, string) {
-        return (channels[id].finalUserHash,
-        channels[id].initialUserNumber,
-        channels[id].finalReelHash,
-        channels[id].finalSeedHash);
+        return (
+            channels[id].finalUserHash,
+            channels[id].initialUserNumber,
+            channels[id].finalReelHash,
+            channels[id].finalSeedHash
+        );
     }
 
     // Helper function to return whether a channel has been finalized and it's final nonce

@@ -123,12 +123,12 @@ contract SlotsHelper is SafeMath, Utils {
     // Checks if a line is a winning line and returns the reward multiplier
     //uint8[NUMBER_OF_REELS] line
     function getLineRewardMultiplier(uint[5] line)
-    internal
+    public
     view
     returns (uint) {
-        uint8 repetitions = 0;
+        uint8 repetitions = 1;
         uint rewardMultiplier = 0;
-        for (uint8 i = 1; i <= NUMBER_OF_REELS; i++) {
+        for (uint8 i = 1; i <= NUMBER_OF_REELS - 1; i++) {
             if (line[i] == line[i - 1]) {
                 repetitions++;
             }

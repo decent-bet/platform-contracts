@@ -116,6 +116,7 @@ const getChannelDepositParams = (id, key) => {
  * @param betSize
  * @param address
  * @param key
+ * @param finalize
  * @returns {Promise<any>}
  */
 const getSpin = async (
@@ -127,9 +128,11 @@ const getSpin = async (
     initialDeposit,
     betSize,
     address,
-    key
+    key,
+    finalize
 ) => {
     const lastHouseSpin = houseSpins[houseSpins.length - 1]
+    const spinNonce = finalize ? (nonce === 1 ? 0 : nonce) : nonce
 
     let reelHash = nonce === 1 ? finalReelHash : lastHouseSpin.reelHash
     let reel = ''
@@ -149,7 +152,7 @@ const getSpin = async (
         prevReelSeedHash: prevReelSeedHash,
         userHash: userHash,
         prevUserHash: prevUserHash,
-        nonce: nonce,
+        nonce: spinNonce,
         turn: false,
         userBalance: userBalance,
         houseBalance: houseBalance,
@@ -635,8 +638,8 @@ const _generateReels = reelSeedHashes => {
     for (let i = 0; i < reelSeedHashes.length; i++) {
         let hash = reelSeedHashes[i]
         let reel = []
+        let rng = seedRandom(hash)
         for (let j = 0; j < constants.NUMBER_OF_REELS; j++) {
-            let rng = seedRandom(hash + j)
             reel.push(Math.floor(rng() * 21))
         }
         reels.push(reel)
