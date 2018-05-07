@@ -329,17 +329,20 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
         for(uint i = 0; i < houseSessionsController.getSessionOfferingsLength(currentSession); i++) {
             address houseOffering = houseSessionsController.getSessionOffering(currentSession, i);
-            uint allocation;
-            (allocation,,) = houseSessionsController.getOfferingDetails(currentSession, houseOffering);
-            uint tokenAmount = safeDiv(safeMul(adjustedCredits, allocation), 100);
+            // If the offering has been deleted, it would return 0x0 here. Ignore it.
+            if(houseOffering != 0x0) {
+                uint allocation;
+                (allocation,,) = houseSessionsController.getOfferingDetails(currentSession, houseOffering);
+                uint tokenAmount = safeDiv(safeMul(adjustedCredits, allocation), 100);
 
-            if(!decentBetToken.approve(houseOffering, tokenAmount))
-                revert();
+                if(!decentBetToken.approve(houseOffering, tokenAmount))
+                    revert();
 
-            if(!HouseOffering(houseOffering).houseDeposit(tokenAmount, currentSession))
-                revert();
+                if(!HouseOffering(houseOffering).houseDeposit(tokenAmount, currentSession))
+                    revert();
 
-            emit LogOfferingDeposit(currentSession, houseOffering, allocation, tokenAmount);
+                emit LogOfferingDeposit(currentSession, houseOffering, allocation, tokenAmount);
+            }
         }
 
         if (!houseLotteryController.allotLotteryTickets(currentSession, msg.sender, adjustedCredits)) revert();

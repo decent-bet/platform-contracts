@@ -936,23 +936,41 @@ contract('House', accounts => {
             )
         })
 
+        it('allows founders to remove offerings', async () => {
+            let currentSession = await house.currentSession()
+            currentSession = currentSession.toNumber()
+
+            let nextSession = currentSession + 1
+
+            await houseSessionsController.removeOfferingFromNextSession(
+                newBettingProvider.address
+            )
+            let newProviderOffering = await houseSessionsController.getSessionOffering(
+                nextSession,
+                1
+            )
+
+            const emptyAddress = '0x0000000000000000000000000000000000000000'
+
+            assert.equal(
+                newProviderOffering,
+                emptyAddress,
+                'Invalid new provider address'
+            )
+        })
+
         it(
             'allows authorized addresses to allocate tokens for house offerings ' +
                 'during last week of session',
             async () => {
-                const providerPercentageAllocation = 40
+                const providerPercentageAllocation = 50
                 await house.allocateTokensForHouseOffering(
                     providerPercentageAllocation,
                     bettingProvider.address,
                     { from: founder }
                 )
-                await house.allocateTokensForHouseOffering(
-                    providerPercentageAllocation,
-                    newBettingProvider.address,
-                    { from: founder }
-                )
 
-                const slotsPercentageAllocation = 20
+                const slotsPercentageAllocation = 50
                 slotsChannelManager = await contracts.SlotsChannelManager.deployed()
                 await house.allocateTokensForHouseOffering(
                     slotsPercentageAllocation,
@@ -971,17 +989,6 @@ contract('House', accounts => {
                 let providerAllocation = providerTokenAllocation[0].toNumber()
                 assert.equal(
                     providerAllocation,
-                    providerPercentageAllocation,
-                    'Authorized addresses should be able to allocate tokens for house offerings'
-                )
-
-                let newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
-                    nextSession,
-                    newBettingProvider.address
-                )
-                let newProviderAllocation = newProviderTokenAllocation[0].toNumber()
-                assert.equal(
-                    newProviderAllocation,
                     providerPercentageAllocation,
                     'Authorized addresses should be able to allocate tokens for house offerings'
                 )
@@ -1047,12 +1054,6 @@ contract('House', accounts => {
                 )
                 let providerAllocation = providerTokenAllocation[0].toNumber()
 
-                let newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
-                    nextSession,
-                    newBettingProvider.address
-                )
-                let newProviderAllocation = newProviderTokenAllocation[0].toNumber()
-
                 let slotsTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     slotsChannelManager.address
@@ -1068,7 +1069,7 @@ contract('House', accounts => {
                 )
 
                 await house.depositAllocatedTokensToHouseOffering(
-                    newBettingProvider.address,
+                    bettingProvider.address,
                     { from: founder }
                 )
                 houseBalance = await token.balanceOf(house.address)
@@ -1077,7 +1078,7 @@ contract('House', accounts => {
                 assert.equal(
                     expectedHouseBalance.toFixed(),
                     houseBalance,
-                    'Invalid amount deposited to new betting provider'
+                    'Invalid amount deposited to betting provider'
                 )
 
                 // Slots channel manager
@@ -1101,27 +1102,6 @@ contract('House', accounts => {
                     'Invalid amount deposited to slots channel manager'
                 )
 
-                // New betting provider
-                let expectedNewProviderDeposit = initialHouseBalance
-                    .times(newProviderAllocation)
-                    .dividedBy(100)
-                expectedHouseBalance = new BigNumber(houseBalance).minus(
-                    expectedNewProviderDeposit
-                )
-
-                await house.depositAllocatedTokensToHouseOffering(
-                    bettingProvider.address,
-                    { from: founder }
-                )
-                houseBalance = await token.balanceOf(house.address)
-                houseBalance = houseBalance.toFixed(0)
-
-                assert.equal(
-                    expectedHouseBalance.toFixed(),
-                    houseBalance,
-                    'Invalid amount deposited to betting provider'
-                )
-
                 providerTokenAllocation = await houseSessionsController.getOfferingDetails(
                     nextSession,
                     bettingProvider.address
@@ -1131,17 +1111,6 @@ contract('House', accounts => {
                     depositedToProvider,
                     true,
                     'Tokens not deposited to betting provider'
-                )
-
-                newProviderTokenAllocation = await houseSessionsController.getOfferingDetails(
-                    nextSession,
-                    newBettingProvider.address
-                )
-                let depositedToNewProvider = newProviderTokenAllocation[1]
-                assert.equal(
-                    depositedToNewProvider,
-                    true,
-                    'Tokens not deposited to betting new betting provider'
                 )
 
                 slotsTokenAllocation = await houseSessionsController.getOfferingDetails(

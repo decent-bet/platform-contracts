@@ -137,7 +137,6 @@ contract HouseSessionsController is SafeMath {
             safeSub(sessions[nextSession].offeringCount, 1);
         sessions[nextSession].offeringDetails[houseOfferingAddress].addedToSession =
             false;
-        offerings[houseOfferingAddress].exists = false;
     }
 
     // Withdraws session tokens for the previously ended session from a house offering.
@@ -376,7 +375,7 @@ contract HouseSessionsController is SafeMath {
     public
     view
     returns (uint) {
-        return sessions[session].offeringCount;
+        return sessions[session].offerings.length;
     }
 
     function getOfferingAddressesLength()
