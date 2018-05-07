@@ -106,7 +106,9 @@ contract('KYC Manager', accounts => {
 
     it('allows authorized address to remove KYC enabled contracts', async () => {
         await kycManager.removeKycEnabledContract(house.address, 0)
-        let exists = await kycManager.kycEnabledContracts(house.address)
+        let contractDetails = await kycManager.kycEnabledContracts(house.address)
+        let exists = contractDetails[1]
+
         assert.equal(
             exists,
             false,
@@ -117,9 +119,11 @@ contract('KYC Manager', accounts => {
             slotsChannelManager.address,
             1
         )
-        exists = await kycManager.kycEnabledContracts(
+        contractDetails = await kycManager.kycEnabledContracts(
             slotsChannelManager.address
         )
+        exists = contractDetails[1]
+
         assert.equal(
             exists,
             false,
@@ -141,7 +145,9 @@ contract('KYC Manager', accounts => {
 
     it('allows authorized addresses to add contract addresses as KYC enabled contract', async () => {
         await kycManager.addKycEnabledContract(house.address)
-        let exists = await kycManager.kycEnabledContracts(house.address)
+        let contractDetails = await kycManager.kycEnabledContracts(house.address)
+        let exists = contractDetails[1]
+
         assert.equal(
             exists,
             true,
@@ -149,9 +155,11 @@ contract('KYC Manager', accounts => {
         )
 
         await kycManager.addKycEnabledContract(slotsChannelManager.address)
-        exists = await kycManager.kycEnabledContracts(
+        contractDetails = await kycManager.kycEnabledContracts(
             slotsChannelManager.address
         )
+        exists = contractDetails[1]
+
         assert.equal(
             exists,
             true,

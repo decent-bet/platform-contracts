@@ -1,13 +1,13 @@
 pragma solidity 0.4.21;
 
-import '../Token/ERC20.sol';
-import '../House/House.sol';
-import '../House/Controllers/HouseAuthorizedController.sol';
-import './BettingProviderHelper.sol';
-import './SportsOracle.sol';
-import '../Libraries/SafeMath.sol';
-import '../Libraries/TimeProvider.sol';
-import '../House/HouseOffering.sol';
+import "../Token/ERC20.sol";
+import "../House/House.sol";
+import "../House/Controllers/HouseAuthorizedController.sol";
+import "./BettingProviderHelper.sol";
+import "./SportsOracle.sol";
+import "../Libraries/SafeMath.sol";
+import "../Libraries/TimeProvider.sol";
+import "../House/HouseOffering.sol";
 
 contract BettingProvider is HouseOffering, SafeMath, TimeProvider {
 

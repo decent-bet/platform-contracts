@@ -1,15 +1,15 @@
 pragma solidity 0.4.21;
 
 
-import './SlotsImplementation.sol';
-import './SlotsChannelManager.sol';
-import './SlotsHelper.sol';
+import "./SlotsImplementation.sol";
+import "./SlotsChannelManager.sol";
+import "./SlotsHelper.sol";
 
-import '../../Libraries/SafeMath.sol';
-import '../../Libraries/strings.sol';
-import '../../Libraries/Utils.sol';
+import "../../Libraries/SafeMath.sol";
+import "../../Libraries/strings.sol";
+import "../../Libraries/Utils.sol";
 
-import '../../Kyc/KycManager.sol';
+import "../../Kyc/KycManager.sol";
 
 // Since the finalize function call requires a lot of gas and makes SlotsChannelManager
 // un-deployable due to an OOG exception, we move it into a separate contract.

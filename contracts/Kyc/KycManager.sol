@@ -1,8 +1,10 @@
 pragma solidity 0.4.21;
 
+import "../Libraries/SafeMath.sol";
+
 // KYC manager contract allowing authorized addresses to add/update/remove approved addresses
 // Approved addresses can be accessed from House/Gaming contracts
-contract KycManager {
+contract KycManager is SafeMath {
 
     // Structs
     struct User {
@@ -20,6 +22,8 @@ contract KycManager {
         mapping (address => User) users;
         // List of approved users for contract
         address[] approvedAddressList;
+        // Number of approved addresses
+        uint approvedAddressCount;
         // Exists
         bool exists;
     }
@@ -29,9 +33,11 @@ contract KycManager {
 
     mapping (address => bool) public authorized;
     address[] public authorizedAddressList;
+    uint authorizedAddressCount;
 
     mapping(address => KycEnabledContract) public kycEnabledContracts;
     address[] public kycEnabledContractList;
+    uint kycEnabledContractCount;
 
     // Events
     event LogNewKycEnabledContract (
@@ -93,6 +99,7 @@ contract KycManager {
         require(!kycEnabledContracts[_address].exists);
         kycEnabledContractList.push(_address);
         kycEnabledContracts[_address].exists = true;
+        kycEnabledContractCount = safeAdd(kycEnabledContractCount, 1);
         emit LogNewKycEnabledContract(_address, msg.sender);
     }
 
@@ -106,6 +113,7 @@ contract KycManager {
         require(kycEnabledContracts[_address].exists);
         require(kycEnabledContractList[index] == _address);
         delete kycEnabledContractList[index];
+        kycEnabledContractCount = safeSub(kycEnabledContractCount, 1);
         kycEnabledContracts[_address].exists = false;
         emit LogRemovedKycEnabledContract(_address, msg.sender);
     }
@@ -119,6 +127,7 @@ contract KycManager {
         require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddressList.push(_address);
+        authorizedAddressCount = safeAdd(authorizedAddressCount, 1);
         emit LogNewAuthorizedAddress(_address);
     }
 
@@ -133,6 +142,7 @@ contract KycManager {
         require(authorizedAddressList[index] == _address);
         authorized[_address] = false;
         delete authorizedAddressList[index];
+        authorizedAddressCount = safeSub(authorizedAddressCount, 1);
         emit LogRemoveAuthorizedAddress(_address);
     }
 
@@ -164,7 +174,14 @@ contract KycManager {
             s:             s
         });
         kycEnabledContracts[_contract].approvedAddressList.push(_address);
-        emit LogNewApprovedAddress(_contract, _address, kycEnabledContracts[_contract].approvedAddressList.length - 1);
+        kycEnabledContracts[_contract].approvedAddressCount =
+            safeAdd(kycEnabledContracts[_contract].approvedAddressCount, 1);
+
+        emit LogNewApprovedAddress(
+            _contract,
+            _address,
+            kycEnabledContracts[_contract].approvedAddressList.length - 1
+        );
     }
 
     // Removes an address from the KYC approved list
@@ -181,6 +198,8 @@ contract KycManager {
 
         kycEnabledContracts[_contract].users[_address].approved = false;
         delete kycEnabledContracts[_contract].approvedAddressList[index];
+        kycEnabledContracts[_contract].approvedAddressCount =
+            safeSub(kycEnabledContracts[_contract].approvedAddressCount, 1);
         emit LogRemoveApprovedAddress(_contract, _address);
     }
 
@@ -204,12 +223,14 @@ contract KycManager {
     public
     view
     returns (bool, string, string, uint8, bytes32, bytes32) {
-        return (kycEnabledContracts[_contract].users[_address].approved,
-                kycEnabledContracts[_contract].users[_address].applicantId,
-                kycEnabledContracts[_contract].users[_address].checkId,
-                kycEnabledContracts[_contract].users[_address].v,
-                kycEnabledContracts[_contract].users[_address].r,
-                kycEnabledContracts[_contract].users[_address].s);
+        return (
+            kycEnabledContracts[_contract].users[_address].approved,
+            kycEnabledContracts[_contract].users[_address].applicantId,
+            kycEnabledContracts[_contract].users[_address].checkId,
+            kycEnabledContracts[_contract].users[_address].v,
+            kycEnabledContracts[_contract].users[_address].r,
+            kycEnabledContracts[_contract].users[_address].s
+        );
     }
 
 }

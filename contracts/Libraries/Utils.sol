@@ -1,7 +1,7 @@
 pragma solidity 0.4.21;
 
 
-import './strings.sol';
+import "./strings.sol";
 
 
 // Utility functions used by contracts on the decent.bet platform

@@ -1,6 +1,6 @@
 pragma solidity 0.4.21;
 
-import '../Libraries/SafeMath.sol';
+import "../Libraries/SafeMath.sol";
 
 contract BettingProviderHelper is SafeMath {
 

@@ -1,18 +1,18 @@
 pragma solidity 0.4.21;
 
-import '../Libraries/SafeMath.sol';
-import '../Token/ERC20.sol';
-import '../Libraries/EmergencyOptions.sol';
-import '../Libraries/TimeProvider.sol';
+import "../Libraries/SafeMath.sol";
+import "../Token/ERC20.sol";
+import "../Libraries/EmergencyOptions.sol";
+import "../Libraries/TimeProvider.sol";
 
-import './HouseOffering.sol';
+import "./HouseOffering.sol";
 
-import './Controllers/HouseAuthorizedController.sol';
-import './Controllers/HouseFundsController.sol';
-import './Controllers/HouseLotteryController.sol';
-import './Controllers/HouseSessionsController.sol';
+import "./Controllers/HouseAuthorizedController.sol";
+import "./Controllers/HouseFundsController.sol";
+import "./Controllers/HouseLotteryController.sol";
+import "./Controllers/HouseSessionsController.sol";
 
-import '../Kyc/KycManager.sol';
+import "../Kyc/KycManager.sol";
 
 // Decent.bet House Contract.
 // All credits and payouts are in DBETs and are 18 decimal places in length.

@@ -1,19 +1,19 @@
 pragma solidity 0.4.21;
 
-import './SlotsImplementation.sol';
-import './SlotsHelper.sol';
-import '../../Token/ERC20.sol';
-import '../../House/House.sol';
-import '../../House/Controllers/HouseAuthorizedController.sol';
-import '../../House/Controllers/HouseSessionsController.sol';
-import '../../House/HouseOffering.sol';
+import "./SlotsImplementation.sol";
+import "./SlotsHelper.sol";
+import "../../Token/ERC20.sol";
+import "../../House/House.sol";
+import "../../House/Controllers/HouseAuthorizedController.sol";
+import "../../House/Controllers/HouseSessionsController.sol";
+import "../../House/HouseOffering.sol";
 
-import '../../Libraries/ECVerify.sol';
-import '../../Libraries/SafeMath.sol';
-import '../../Libraries/strings.sol';
-import '../../Libraries/Utils.sol';
+import "../../Libraries/ECVerify.sol";
+import "../../Libraries/SafeMath.sol";
+import "../../Libraries/strings.sol";
+import "../../Libraries/Utils.sol";
 
-import '../../Kyc/KycManager.sol';
+import "../../Kyc/KycManager.sol";
 
 // A State channel contract to handle slot games on the Decent.bet platform
 contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Utils {

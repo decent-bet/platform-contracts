@@ -1,9 +1,9 @@
 pragma solidity 0.4.21;
 
-import '../Token/ERC20.sol';
-import './BettingProvider.sol';
-import '../Libraries/SafeMath.sol';
-import '../Libraries/TimeProvider.sol';
+import "../Token/ERC20.sol";
+import "./BettingProvider.sol";
+import "../Libraries/SafeMath.sol";
+import "../Libraries/TimeProvider.sol";
 
 contract SportsOracle is SafeMath, TimeProvider {
 

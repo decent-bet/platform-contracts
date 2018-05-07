@@ -1,17 +1,18 @@
 pragma solidity 0.4.21;
 
-import '../House.sol';
+import "../House.sol";
+import "../../Libraries/SafeMath.sol";
 
-contract HouseAuthorizedController {
+contract HouseAuthorizedController is SafeMath {
 
     // Variables
     House public house;
-
-    address[] public authorizedAddresses;
     bool public isHouseAuthorizedController = true;
 
     // Authorized addresses.
+    address[] public authorizedAddresses;
     mapping (address => bool) public authorized;
+    uint authorizedAddressCount;
 
     function HouseAuthorizedController(address _house)
     public {
@@ -37,8 +38,10 @@ contract HouseAuthorizedController {
     onlyFounder
     public
     returns (bool) {
+        require(!authorized[_address]);
         authorizedAddresses.push(_address);
         authorized[_address] = true;
+        authorizedAddressCount = safeAdd(authorizedAddressCount, 1);
         return true;
     }
 
@@ -53,6 +56,7 @@ contract HouseAuthorizedController {
             if (authorizedAddresses[i] == _address) {
                 delete authorizedAddresses[i];
                 authorized[_address] = false;
+                authorizedAddressCount = safeSub(authorizedAddressCount, 1);
                 break;
             }
         }

@@ -1,8 +1,8 @@
 pragma solidity 0.4.21;
 
-import '../House.sol';
-import '../../Token/ERC20.sol';
-import '../../Libraries/SafeMath.sol';
+import "../House.sol";
+import "../../Token/ERC20.sol";
+import "../../Libraries/SafeMath.sol";
 
 // All functionality related to house funds reside here.
 // House fund records are saved here to decouple the record keeping from the House contract to reduce gas costs on deployment.
