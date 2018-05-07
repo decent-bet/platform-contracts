@@ -425,9 +425,14 @@ contract('House', accounts => {
             }
         )
 
-        it('disallows unauthorized addresses from allocating tokens for house offerings', async () => {
+        it('disallows authorized addresses to begin session one before tokens have been deposited to offerings', async () => {
             const oneWeek = 7 * 24 * 60 * 60
             await timeTravel(oneWeek)
+
+            utils.assertFail(house.beginNextSession({ from: founder }))
+        })
+
+        it('disallows unauthorized addresses from allocating tokens for house offerings', async () => {
             const percentageAllocation = 50
             await utils.assertFail(
                 house.allocateTokensForHouseOffering(
@@ -694,16 +699,9 @@ contract('House', accounts => {
             utils.assertFail(house.beginNextSession({ from: nonFounder }))
         })
 
-        it('disallows authorized addresses to begin session one', () => {
-            utils.assertFail(house.beginNextSession({ from: founder }))
-        })
-
         it('allows authorized addresses to begin session one after the end of session zero', async () => {
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
-
-            const oneWeek = 7 * 24 * 60 * 60
-            await timeTravel(oneWeek)
 
             await execAndLogGasUsed('Begin next session', async () => {
                 return house.beginNextSession({ from: founder })
@@ -814,7 +812,7 @@ contract('House', accounts => {
 
         it('allows users to purchase credits for the next session during credit buying periods', async () => {
             let oneWeek = 24 * 60 * 60 * 7
-            await timeTravel(oneWeek * 10)
+            await timeTravel(oneWeek * 11)
 
             const creditsToPurchase = '1000000000000000000000'
             let currentSession = await house.currentSession()
@@ -1207,9 +1205,6 @@ contract('House', accounts => {
         })
 
         it('allows authorized addresses to begin session two', async () => {
-            const oneWeek = 7 * 24 * 60 * 60
-            await timeTravel(oneWeek)
-
             await house.beginNextSession({ from: founder })
             let currentSession = await house.currentSession()
             currentSession = currentSession.toNumber()
@@ -1376,7 +1371,7 @@ contract('House', accounts => {
                 'during profit distribution period',
             async () => {
                 let oneDay = 24 * 60 * 60
-                await timeTravel(oneDay * 3)
+                await timeTravel(oneDay * 2)
 
                 let currentSession = await house.currentSession()
                 currentSession = currentSession.toNumber()

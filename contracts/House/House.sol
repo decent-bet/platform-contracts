@@ -63,12 +63,12 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     }
 
     // If this is the last week of a session - signifying the period when token deposits can be made to house offerings.
-    modifier isLastWeekForSession() {
+    modifier isEndOfActiveSession() {
         uint endTime;
         (,endTime) = houseSessionsController.getSessionTimes(currentSession);
         if(currentSession == 0)
             require(sessionZeroStartTime > 0);
-        require(getTime() >= (safeSub(endTime, 1 weeks)) && getTime() <= (endTime));
+        require(getTime() >= endTime);
         _;
     }
 
@@ -93,7 +93,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         uint startTime;
         uint endTime;
         (startTime,endTime) = houseSessionsController.getSessionTimes(currentSession);
-        require(getTime() >= startTime && getTime() <= (endTime - 2 weeks));
+        require(getTime() >= startTime && getTime() <= (endTime - 1 weeks));
         _;
     }
 
@@ -105,8 +105,8 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         uint endTime;
         (,endTime) = houseSessionsController.getSessionTimes(currentSession);
         require(
-            getTime() >= (safeSub(endTime, 2 weeks)) &&
-            getTime() <= (safeSub(endTime, 1 weeks))
+            getTime() >= (safeSub(endTime, 1 weeks)) &&
+            getTime() <= endTime
         );
         _;
     }
@@ -115,9 +115,11 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // after the end of the previous session and after all offering credits have been withdrawn.
     modifier isProfitDistributionPeriod(uint session) {
         require(session != 0);
-        uint endTime;
-        (,endTime,,,,,,) = houseSessionsController.sessions(session);
-        require(getTime() >= (endTime + 4 days));
+        uint nextSession = session + 1;
+        uint startTime;
+        (startTime,,,,,,,) = houseSessionsController.sessions(session + 1);
+        require(startTime > 0);
+        require(getTime() >= (startTime + 4 days));
         require(houseSessionsController.haveAllOfferingsBeenWithdrawn(session));
         _;
     }
@@ -400,7 +402,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Allocates a %age of tokens for a house offering for the next session
     function allocateTokensForHouseOffering(uint percentage, address houseOffering)
     public
-    isLastWeekForSession
+    isEndOfActiveSession
     onlyAuthorized {
         if(!houseSessionsController.allocateTokensForHouseOffering(percentage, houseOffering)) revert();
         emit LogOfferingAllocation((currentSession + 1), houseOffering, percentage);
@@ -409,7 +411,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Finalize token allocation among offerings for the next session
     function finalizeTokenAllocations()
     public
-    isLastWeekForSession
+    isEndOfActiveSession
     onlyAuthorized {
         if(!houseSessionsController.finalizeTokenAllocations()) revert();
         emit LogFinalizedTokenAllocations((currentSession + 1));
@@ -417,7 +419,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     function depositAllocatedTokensToHouseOffering(address houseOffering)
     public
-    isLastWeekForSession
+    isEndOfActiveSession
     areSessionTokenAllocationsFinalized(currentSession + 1)
     onlyAuthorized {
         uint nextSession = currentSession + 1;
@@ -488,7 +490,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
         if (currentSession == 0 && sessionZeroStartTime == 0) {
             sessionZeroStartTime = getTime();
-            endTime = safeAdd(startTime, 2 weeks);
+            endTime = safeAdd(startTime, 1 weeks);
             if(!houseSessionsController.beginNextSession(startTime, endTime, 0))
                 revert();
             emit LogNewSession(currentSession, startTime, 0, endTime, 0);
@@ -499,7 +501,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
             if(!houseSessionsController.beginNextSession(startTime, endTime, sessionZeroStartTime))
                 revert();
             for(uint i = 0; i < houseSessionsController.getOfferingAddressesLength(); i++)
-            // Offerings may be deleted from the next session i.e return 0x0. Ignore deleted offerings.
+                // Offerings may be deleted from the next session i.e return 0x0. Ignore deleted offerings.
                 if(houseSessionsController.offeringAddresses(i) != 0x0)
                     HouseOffering(houseSessionsController.offeringAddresses(i)).setSession(nextSession);
 
