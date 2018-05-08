@@ -378,6 +378,13 @@ contract HouseSessionsController is SafeMath {
         return sessions[session].offerings.length;
     }
 
+    function getSessionOfferingAddress(uint session, uint index)
+    public
+    view
+    returns (address) {
+        return sessions[session].offerings[index];
+    }
+
     function getOfferingAddressesLength()
     public
     view
