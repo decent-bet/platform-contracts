@@ -17,7 +17,7 @@
     "web3": "1.0.0-beta.30"
   },
   "scripts": {
-    "test": "truffle test",
+    "test": "truffle test ./test/House.js ./test/SlotsChannelManager.js ./test/KycManager.js",
     "test-house": "truffle test ./test/House.js",
     "test-slots": "truffle test ./test/SlotsChannelManager.js",
     "test-kyc": "truffle test ./test/KycManager.js"

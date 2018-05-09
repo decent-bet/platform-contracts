@@ -34,6 +34,11 @@ let getAccounts = () => {
     })
 }
 
+let getTimestamp = async () => {
+    let block = await web3.eth.getBlock('latest')
+    return block.timestamp
+}
+
 let deploy = async (deployer, network) => {
     let decentBetMultisig
     let upgradeMaster, agentOwner
@@ -72,7 +77,7 @@ let deploy = async (deployer, network) => {
     console.log('Deploying with network', network)
 
     if (network === 'rinkeby' || network === 'development') {
-        const timestamp = Math.round(new Date().getTime() / 1000)
+        const timestamp = await getTimestamp()
 
         await deployer.deploy(
             MultiSigWallet,
