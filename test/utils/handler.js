@@ -403,7 +403,7 @@ let processSpin = async (
         let payout = utils
             .getWeb3()
             .utils.toWei(
-                _calculateReelPayout(reel, spin.betSize).toString(),
+                calculateReelPayout(reel, spin.betSize).toString(),
                 'ether'
             )
 
@@ -576,7 +576,7 @@ const _getTightlyPackedSpin = spin => {
  * @param betSize
  * @returns {number}
  */
-const _calculateReelPayout = (reel, betSize) => {
+const calculateReelPayout = (reel, betSize) => {
     let adjustedBetSize = _getAdjustedBetSize(betSize)
     let isValid = true
     for (let i = 0; i < reel.length; i++) {
@@ -788,5 +788,6 @@ module.exports = {
     getSpin,
     generateReelsAndHashes,
     processSpin,
-    getSpinParts
+    getSpinParts,
+    calculateReelPayout
 }

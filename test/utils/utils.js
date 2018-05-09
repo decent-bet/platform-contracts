@@ -184,25 +184,38 @@ module.exports = {
         })
     },
     timeTravel: async function(bySeconds) {
+        const self = this
         return new Promise((resolve, reject) => {
-            myWeb3.currentProvider.send({
-                jsonrpc: '2.0',
-                method: 'evm_increaseTime',
-                params: [bySeconds],
-                id: 10
-            }, (err, response) => {
-                if(!err)
-                    resolve(response)
-                else
-                    reject()
-            })
+            myWeb3.currentProvider.send(
+                {
+                    jsonrpc: '2.0',
+                    method: 'evm_increaseTime',
+                    params: [bySeconds],
+                    id: 10
+                },
+                async (err, response) => {
+                    if (!err) {
+                        await self.mineOneBlock()
+                        resolve(response)
+                    } else reject()
+                }
+            )
         })
     },
-    mineOneBlock: function() {
-        myWeb3.currentProvider.send({
-            jsonrpc: '2.0',
-            method: 'evm_mine',
-            id: new Date().getTime()
+    mineOneBlock: async function() {
+        return new Promise((resolve, reject) => {
+            myWeb3.currentProvider.send(
+                {
+                    jsonrpc: '2.0',
+                    method: 'evm_mine',
+                    id: 10
+                },
+                (err, response) => {
+                    if (!err) {
+                        resolve(response)
+                    } else reject()
+                }
+            )
         })
     },
     mineToBlockHeight: function(targetBlockHeight) {

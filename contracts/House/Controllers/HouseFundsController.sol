@@ -378,8 +378,14 @@ contract HouseFundsController is SafeMath {
     function getUserCreditsForSession(uint session, address _address)
     public
     view
-    returns (uint amount, uint liquidated, uint rolledOverToNextSession, uint claimedFromPreviousSession,
-        uint totalFunds, uint totalUserCredits) {
+    returns (
+        uint amount,
+        uint liquidated,
+        uint rolledOverToNextSession,
+        uint claimedFromPreviousSession,
+        uint totalFunds,
+        uint totalUserCredits
+    ) {
         return (
             houseFunds[session].userCredits[_address].amount,
             houseFunds[session].userCredits[_address].liquidated,
