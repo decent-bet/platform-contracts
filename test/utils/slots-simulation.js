@@ -38,28 +38,6 @@ const calcAveragePayout = (multiplier) => {
     }
 }
 
-const getReelName = (index) => {
-    return 'Reel ' + (index + 1)
-}
-
-const countReelSymbolFrequency = () => {
-    let frequency = {}
-    for(let i = 1; i <= 7; i++) {
-        let symbolFrequency = {}
-        for(let j = 0; j < constants.reels.length; j++) {
-            symbolFrequency[getReelName(j)] = 0
-            constants.reels[j].map((symbol) => {
-                if(symbol === i)
-                    symbolFrequency[getReelName(j)] += 1
-            })
-        }
-        frequency[i] = symbolFrequency
-    }
-    console.log('Frequency', frequency)
-}
-
-// countReelSymbolFrequency()
-
 let payouts = {}
 let totalPayout = 0
 let totalAveragePayout = 0
