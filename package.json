@@ -20,6 +20,7 @@
     "test": "truffle test ./test/House.js ./test/SlotsChannelManager.js ./test/KycManager.js",
     "test-house": "truffle test ./test/House.js",
     "test-slots": "truffle test ./test/SlotsChannelManager.js",
-    "test-kyc": "truffle test ./test/KycManager.js"
+    "test-kyc": "truffle test ./test/KycManager.js",
+    "sim-slots": "node ./test/utils/slots-simulation.js"
   }
 }

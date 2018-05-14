@@ -97,17 +97,25 @@ Tests for the House contract - particularly the HouseLotteryController child con
 * All tests
 
   ```
-  yarn run test
+  yarn test
   ```
 
 * House contracts (Includes Authorized, Funds, Lottery and Sessions controller contracts)
 
   ```
-  yarn run test-house
+  yarn test-house
   ```
   
 * Slots channel manager contract
 
   ```
-  yarn run test-slots
+  yarn test-slots
+  ```
+
+### Slots Simulations
+
+Run the following for a simulation of the slots payouts based on the contract reels
+
+  ```
+  yarn sim-slots
   ```

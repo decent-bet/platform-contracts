@@ -247,21 +247,9 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         require(initialDeposit >= MIN_DEPOSIT && initialDeposit <= MAX_DEPOSIT);
         require(balanceOf(msg.sender, currentSession) >= initialDeposit);
         bytes32 channelId = keccak256(channelCount, msg.sender, getTime());
-        channels[channelId] = Channel({
-            ready: false,
-            activated: false,
-            finalized: false,
-            endTime: 0,
-            finalUserHash: '',
-            initialUserNumber: '',
-            initialDeposit: initialDeposit,
-            finalReelHash: '',
-            finalSeedHash: '',
-            finalNonce: 0,
-            finalTurn: false,
-            session: currentSession,
-            exists: true
-        });
+        channels[channelId].initialDeposit = initialDeposit;
+        channels[channelId].session = currentSession;
+        channels[channelId].exists = true;
         players[channelId][false] = msg.sender;
         emit LogNewChannel(channelId, msg.sender, initialDeposit, getTime());
         channelCount++;
