@@ -48,7 +48,7 @@ contract SlotsHelper is SafeMath, Utils {
         // 3x Multiplier
         paytable[symbolA] = 10;
         paytable[symbolB] = 20;
-        paytable[symbolC] = 40;
+        paytable[symbolC] = 30;
         paytable[symbolD] = 50;
         paytable[symbolE] = 75;
         paytable[symbolF] = 150;

@@ -46,11 +46,12 @@ module.exports = {
             gasPrice: '100000000000'
         },
         rinkeby: {
+            host: HOST,
             provider: provider,
             network_id: 4,
             from: provider.address,
             gas: '6721975',
-            gasPrice: '100000000000'
+            gasPrice: '5000000000'
         }
     }
 }

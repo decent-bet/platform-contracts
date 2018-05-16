@@ -775,6 +775,71 @@ contract('SlotsChannelManager', accounts => {
         )
     })
 
+    it('disallows non-house participant from calling light finalize', async () => {
+        // Max number of lines
+        let betSize = '5000000000000000000'
+
+        let userSpin = await handler.getSpin(
+            houseSpins,
+            nonce,
+            finalReelHash,
+            finalSeedHash,
+            userHashes,
+            initialDeposit,
+            betSize,
+            nonFounder,
+            constants.privateKeys.nonFounder,
+            true
+        )
+        userSpin = handler.getLightSpinParts(userSpin)
+
+        await utils.assertFail(
+            slotsChannelFinalizer.lightFinalize(
+                channelId,
+                userSpin.hashes,
+                userSpin.nonce,
+                userSpin.userBalance,
+                userSpin.houseBalance,
+                userSpin.betSize,
+                userSpin.v,
+                userSpin.r,
+                userSpin.s,
+                {
+                    from: nonFounder,
+                    gas: 6700000
+                }
+            )
+        )
+    })
+
+    it('allows house participant to call light finalize with valid data', async () => {
+        // Finalize with nonce < final nonce so finalize() can be called in next test case(s)
+        let secondLastHouseSpin = houseSpins[houseSpins.length - 2]
+        let houseSpin = handler.getLightSpinParts(secondLastHouseSpin)
+
+        let receipt = await slotsChannelFinalizer.lightFinalize(
+            channelId,
+            houseSpin.hashes,
+            houseSpin.nonce,
+            houseSpin.userBalance,
+            houseSpin.houseBalance,
+            houseSpin.betSize,
+            houseSpin.v,
+            houseSpin.r,
+            houseSpin.s,
+            {
+                from: founder,
+                gas: 6700000
+            }
+        )
+        console.log('Light finalize receipt', receipt)
+
+        let channelInfo = await slotsChannelManager.getChannelInfo(channelId)
+        let finalized = channelInfo[3]
+
+        assert.equal(finalized, true, 'Channel was not finalized')
+    })
+
     it('allows participants to finalize a channel with valid data', async () => {
         // Max number of lines
         let betSize = '5000000000000000000'
@@ -1170,26 +1235,9 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('Returns correct line reward multipliers', async () => {
-        const symbolA = 1
-        const symbolB = 2
-        const symbolC = 3
-        const symbolD = 4
-        const symbolE = 5
-        const symbolF = 6
-        const symbolG = 7
-
-        let paytable = {}
-        paytable[symbolA] = 10
-        paytable[symbolB] = 20
-        paytable[symbolC] = 40
-        paytable[symbolD] = 50
-        paytable[symbolE] = 75
-        paytable[symbolF] = 150
-        paytable[symbolG] = 300
-
         let reel
 
-        for (let i = symbolA; i <= symbolG; i++) {
+        for (let i = constants.symbolA; i <= constants.symbolG; i++) {
             for (let j = 1; j <= 5; j++) {
                 reel = Array(5)
                     .fill(0)
@@ -1197,7 +1245,7 @@ contract('SlotsChannelManager', accounts => {
                     .fill(0, j, 5)
 
                 let expectedRewardMultiplier =
-                    j >= 3 ? paytable[i] * (j - 2) : 0
+                    j >= 3 ? constants.paytable[i] * (j - 2) : 0
 
                 let rewardMultiplier = await slotsHelper.getLineRewardMultiplier(
                     reel

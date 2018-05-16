@@ -79,6 +79,9 @@ contract SlotsImplementation {
         // Indicates the final turn, whether it is the house or the player
         bool finalTurn;
 
+        // Indicates whether the channel was finalized with lightFinalize()
+        bool isLightFinalized;
+
         // Session number.
         uint session;
 

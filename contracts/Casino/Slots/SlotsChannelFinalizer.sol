@@ -220,6 +220,46 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         return true;
     }
 
+    // A "lighter" finalize function that can only be submitted by the house, this allows the house to finalize games
+    // at a lesser gas cost with the trade-off of lesser security.
+    // If the house tries to cheat by posting an older nonce, the user can challenge this with the
+    // finalize function below.
+    function lightFinalize(
+        bytes32 id,
+        string hashes,
+        uint nonce,
+        uint userBalance,
+        uint houseBalance,
+        uint betSize,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
+    isSlotsChannelManagerSet
+    public
+    returns (bool) {
+        // This can only be submitted by the house
+        require(slotsChannelManager.getPlayer(id, true) == msg.sender);
+        require(slotsChannelManager.isChannelActivated(id));
+
+        bytes32 hash = keccak256(
+            hashes,
+            uintToString(nonce),
+            "true",
+            uintToString(userBalance),
+            uintToString(houseBalance),
+            uintToString(betSize)
+        );
+        require(slotsChannelManager.getPlayer(id, true) == ecrecover(hash, v, r, s));
+
+        if (shouldFinalizeChannel(id, nonce, true))
+            slotsChannelManager.setFinal(id, userBalance, houseBalance,
+                nonce, true, true); // 86k gas
+
+        return true;
+    }
+
+
     // If finalize() is called for a 0 nonce, prior, priorR and priorS can be empty/0
     function finalize(bytes32 id, string _curr, string _prior,
     bytes32 currR, bytes32 currS, bytes32 priorR, bytes32 priorS)
@@ -259,9 +299,9 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
             require(checkPair(curr, prior));
 
             // Finalized
-            if (shouldFinalizeChannel(id, curr.nonce))
+            if (shouldFinalizeChannel(id, curr.nonce, false))
                 slotsChannelManager.setFinal(id, curr.userBalance, curr.houseBalance,
-                    curr.nonce, curr.turn); // 86k gas
+                    curr.nonce, curr.turn, false); // 86k gas
 
             return true;
         }
@@ -288,25 +328,37 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
         require(checkSigPrivate(id, spin));
 
-        if (shouldFinalizeChannel(id, spin.nonce))
+        if (shouldFinalizeChannel(id, spin.nonce, false))
             slotsChannelManager.setFinal(id, spin.userBalance, spin.houseBalance,
-                spin.nonce, spin.turn); // 86k gas
+                spin.nonce, spin.turn, false); // 86k gas
 
         return true;
     }
 
-    function shouldFinalizeChannel(bytes32 id, uint nonce)
+    function shouldFinalizeChannel(bytes32 id, uint nonce, bool lightFinalized)
     private
     view
     returns (bool) {
         bool finalized;
+        bool isChannelLightFinalized;
         uint finalNonce;
-        (finalized, finalNonce) = slotsChannelManager.getChannelFinalized(id);
+        (
+            finalized,
+            isChannelLightFinalized,
+            finalNonce
+        ) = slotsChannelManager.getChannelFinalized(id);
 
         // If nonce == 0, the spin should be submitted when the channel has not yet been finalized.
         // If it already has, there wouldn't be any need to submit a 0-nonce spin since
         // the finalNonce would either already be 0 or greater than 0.
-        return (!finalized || nonce > finalNonce);
+
+        // If a channel was finalized with isLightFinalized, it can replace the same spin nonce
+        // if it wasn't light finalized
+        return (
+            !finalized ||
+            nonce > finalNonce ||
+            (nonce == finalNonce && (isChannelLightFinalized && !lightFinalized))
+        );
     }
 
     function getParts(string _spin)

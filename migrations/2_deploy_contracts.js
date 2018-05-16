@@ -248,6 +248,8 @@ let deploy = async (deployer, network) => {
                 const r = ethUtil.bufferToHex(signedMessage.r)
                 const s = ethUtil.bufferToHex(signedMessage.s)
 
+                console.log('Approving address', accounts[i])
+
                 await kycManager.approveAddress(
                     house.address,
                     accounts[i],

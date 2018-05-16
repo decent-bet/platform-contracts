@@ -543,8 +543,39 @@ const getSpinParts = spin => {
             spin.betSize +
             '/' +
             v,
-        r: r,
-        s: s
+        v,
+        r,
+        s
+    }
+}
+
+const getLightSpinParts = spin => {
+    let sign = spin.sign
+
+    let sigParams = ethUtil.fromRpcSig(sign)
+
+    let v = ethUtil.bufferToInt(sigParams.v)
+    let r = ethUtil.bufferToHex(sigParams.r)
+    let s = ethUtil.bufferToHex(sigParams.s)
+
+    let hashes =
+        spin.reelHash +
+        (spin.reel !== '' ? spin.reel.toString() : '') +
+        spin.reelSeedHash +
+        spin.prevReelSeedHash +
+        spin.userHash +
+        spin.prevUserHash
+
+    return {
+        hashes,
+        nonce: spin.nonce,
+        turn: spin.turn,
+        userBalance: spin.userBalance,
+        houseBalance: spin.houseBalance,
+        betSize: spin.betSize,
+        v,
+        r,
+        s
     }
 }
 
@@ -789,5 +820,6 @@ module.exports = {
     generateReelsAndHashes,
     processSpin,
     getSpinParts,
+    getLightSpinParts,
     calculateReelPayout
 }

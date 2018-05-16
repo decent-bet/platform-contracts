@@ -408,7 +408,8 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         uint userBalance,
         uint houseBalance,
         uint nonce,
-        bool turn
+        bool turn,
+        bool isLightFinalized
     )
     external {
         require(msg.sender == address(slotsChannelFinalizer));
@@ -419,7 +420,9 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].finalTurn = turn;
         channels[id].endTime = getTime() + 1 minutes;
         // Set at 1 minute only for Testnet
-        if (!channels[id].finalized) channels[id].finalized = true;
+        if (!channels[id].finalized)
+            channels[id].finalized = true;
+        channels[id].isLightFinalized = isLightFinalized;
         emit LogChannelFinalized(id, turn);
     }
 
@@ -555,8 +558,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     function getChannelFinalized(bytes32 id)
     public
     view
-    returns (bool, uint) {
-        return (channels[id].finalized, channels[id].finalNonce);
+    returns (bool, bool, uint) {
+        return (
+            channels[id].finalized,
+            channels[id].isLightFinalized,
+            channels[id].finalNonce
+        );
     }
 
     function getPlayer(bytes32 id, bool isHouse)
