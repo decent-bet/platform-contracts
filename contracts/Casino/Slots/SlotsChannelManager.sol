@@ -347,7 +347,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].initialUserNumber = _initialUserNumber;
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
-        transferTokensToChannel(id, false);
+        transferTokensToChannel(id);
         emit LogChannelDeposit(id, players[id][false], _finalUserHash);
         return true;
     }
@@ -386,20 +386,20 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].finalSeedHash = _finalSeedHash;
         channels[id].activated = true;
         players[id][true] = msg.sender;
-        transferTokensToChannel(id, true);
+        // Dont transfer tokens to channel, allowing users to win more than channel initialDeposit * 2
         emit LogChannelActivate(id, players[id][true], _finalSeedHash, _finalReelHash);
         return true;
     }
 
     // Transfers tokens to a channel.
-    function transferTokensToChannel(bytes32 id, bool isHouse)
+    function transferTokensToChannel(bytes32 id)
     private {
         // Transfer from house address instead of authorized addresses sending txs on behalf of the house
-        address _address = isHouse ? address(this) : players[id][false];
-        channelDeposits[id][isHouse] =
-        safeAdd(channelDeposits[id][isHouse], channels[id].initialDeposit);
-        depositedTokens[_address][channels[id].session] =
-        safeSub(depositedTokens[_address][channels[id].session], channels[id].initialDeposit);
+        address player = players[id][false];
+        channelDeposits[id][false] =
+            safeAdd(channelDeposits[id][false], channels[id].initialDeposit);
+        depositedTokens[player][channels[id].session] =
+            safeSub(depositedTokens[player][channels[id].session], channels[id].initialDeposit);
     }
 
     // Sets the final spin for the channel
@@ -426,29 +426,33 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         emit LogChannelFinalized(id, turn);
     }
 
-    // Allows player/house to claim DBETs after the channel has closed
+    // Allows player/house to claim DBETs on behalf of the user after the channel has closed
     function claim(bytes32 id)
     public {
         require(isParticipant(id, msg.sender));
+        require(isChannelClosed(id));
+        require(channelDeposits[id][false] > 0);
 
-        bool isHouse = (players[id][true] == msg.sender);
+        uint256 amount = finalBalances[id][false];
 
-        if (isChannelClosed(id)) {
-            uint256 amount = finalBalances[id][isHouse];
-            if (amount > 0) {
-                finalBalances[id][isHouse] = 0;
-                channelDeposits[id][isHouse] = 0;
+        // Set user balances to 0 for this channel
+        finalBalances[id][false] = 0;
+        channelDeposits[id][false] = 0;
 
-                // Deposit to the house address instead of authorized addresses sending txs on behalf of the house
-                address _address = isHouse ? address(this) : msg.sender;
+        address player = players[id][false];
 
-                depositedTokens[_address][channels[id].session] =
-                safeAdd(depositedTokens[_address][channels[id].session], amount);
+        // Add to user tokens
+        depositedTokens[player][channels[id].session] =
+            safeAdd(depositedTokens[player][channels[id].session], amount);
 
-                emit LogClaimChannelTokens(id, isHouse, getTime());
-            }
-        } else
-            revert();
+        // Remove lost tokens from house if final user balance is greater than channel initialDeposit
+        if(amount > channels[id].initialDeposit) {
+            uint difference = safeSub(amount, channels[id].initialDeposit);
+            depositedTokens[address(this)][channels[id].session] =
+                safeSub(depositedTokens[address(this)][channels[id].session], difference);
+        }
+
+        emit LogClaimChannelTokens(id, false, getTime());
     }
 
     // Query balance of deposited tokens for a user.
@@ -477,9 +481,6 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     view
     returns (bool) {
-        //        bytes32 hash = sha3(reelHash, reel, reelSeedHash, prevReelSeedHash, userHash, prevUserHash,
-        //        nonce, turn, userBalance, houseBalance, betSize);
-        //        address player = players[turn];
         return ECVerify.ecverify(hash, sig, players[id][turn]);
     }
 
@@ -578,6 +579,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     view
     returns (bool) {
+        return channels[id].finalized && getTime() > channels[id].endTime;
         return channels[id].finalized && getTime() > channels[id].endTime;
     }
 

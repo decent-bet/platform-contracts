@@ -482,12 +482,6 @@ contract('SlotsChannelManager', accounts => {
                 true,
                 'House is not activated after calling activateChannel()'
             )
-
-            assert.equal(
-                contractBalancePreActivation.minus(initialDeposit).toFixed(),
-                contractBalancePostActivation.toFixed(),
-                'Invalid balance after activating channel'
-            )
         } catch (e) {
             throw e
         }
@@ -777,33 +771,28 @@ contract('SlotsChannelManager', accounts => {
 
     it('disallows non-house participant from calling light finalize', async () => {
         // Max number of lines
-        let betSize = '5000000000000000000'
+        let secondLastHouseSpin = houseSpins[houseSpins.length - 2]
+        let lastUserSpin = userSpins[userSpins.length - 1]
 
-        let userSpin = await handler.getSpin(
-            houseSpins,
-            nonce,
-            finalReelHash,
-            finalSeedHash,
-            userHashes,
-            initialDeposit,
-            betSize,
-            nonFounder,
-            constants.privateKeys.nonFounder,
-            true
-        )
-        userSpin = handler.getLightSpinParts(userSpin)
+        let houseSpin = handler.getLightSpinParts(secondLastHouseSpin)
+        let userSpin = handler.getLightSpinParts(lastUserSpin)
+
+        let getSpinPartArray = prop => {
+            return [houseSpin[prop], userSpin[prop]]
+        }
 
         await utils.assertFail(
             slotsChannelFinalizer.lightFinalize(
                 channelId,
+                houseSpin.hashes,
                 userSpin.hashes,
-                userSpin.nonce,
-                userSpin.userBalance,
-                userSpin.houseBalance,
-                userSpin.betSize,
-                userSpin.v,
-                userSpin.r,
-                userSpin.s,
+                houseSpin.nonce,
+                getSpinPartArray('userBalance'),
+                getSpinPartArray('houseBalance'),
+                houseSpin.betSize,
+                getSpinPartArray('v'),
+                getSpinPartArray('r'),
+                getSpinPartArray('s'),
                 {
                     from: nonFounder,
                     gas: 6700000
@@ -815,18 +804,39 @@ contract('SlotsChannelManager', accounts => {
     it('allows house participant to call light finalize with valid data', async () => {
         // Finalize with nonce < final nonce so finalize() can be called in next test case(s)
         let secondLastHouseSpin = houseSpins[houseSpins.length - 2]
+        let lastUserSpin = userSpins[userSpins.length - 2]
+
         let houseSpin = handler.getLightSpinParts(secondLastHouseSpin)
+        let userSpin = handler.getLightSpinParts(lastUserSpin)
+
+        let getSpinPartArray = prop => {
+            return [houseSpin[prop], userSpin[prop]]
+        }
+
+        console.log(
+            'Light finalize',
+            houseSpin.hashes,
+            userSpin.hashes,
+            houseSpin.nonce,
+            getSpinPartArray('userBalance'),
+            getSpinPartArray('houseBalance'),
+            houseSpin.betSize,
+            getSpinPartArray('v'),
+            getSpinPartArray('r'),
+            getSpinPartArray('s')
+        )
 
         let receipt = await slotsChannelFinalizer.lightFinalize(
             channelId,
             houseSpin.hashes,
-            houseSpin.nonce,
-            houseSpin.userBalance,
-            houseSpin.houseBalance,
-            houseSpin.betSize,
-            houseSpin.v,
-            houseSpin.r,
-            houseSpin.s,
+            userSpin.hashes,
+            userSpin.nonce,
+            getSpinPartArray('userBalance'),
+            getSpinPartArray('houseBalance'),
+            userSpin.betSize,
+            getSpinPartArray('v'),
+            getSpinPartArray('r'),
+            getSpinPartArray('s'),
             {
                 from: founder,
                 gas: 6700000
@@ -897,10 +907,15 @@ contract('SlotsChannelManager', accounts => {
     })
 
     it('allows user to claim a channel after it closes', async () => {
+        let channelInfo = await slotsChannelManager.getChannelInfo(channelId)
+        let initialDeposit = channelInfo[4]
+
         let userChannelBalance = await slotsChannelManager.channelBalanceOf(
             channelId,
             false
         )
+        let userProfit = (userChannelBalance.greaterThan(initialDeposit) ?
+                          userChannelBalance.minus(initialDeposit) : 0)
 
         let houseChannelBalance = await slotsChannelManager.channelBalanceOf(
             channelId,
@@ -921,6 +936,8 @@ contract('SlotsChannelManager', accounts => {
         )
 
         console.log(
+            'User profit',
+            userProfit.toFixed(),
             'User channel balance',
             userChannelBalance.toFixed(),
             '\nUser balance pre-claim',
@@ -972,12 +989,12 @@ contract('SlotsChannelManager', accounts => {
 
         assert.equal(
             houseBalancePostClaim.toFixed(),
-            houseBalancePreClaim.toFixed(),
+            houseBalancePreClaim.minus(userProfit).toFixed(),
             'Invalid house balance post claim'
         )
     })
 
-    it('allows house to claim a channel after it closes', async () => {
+    it('disallows participants to claim a channel after it has been already claimed', async () => {
         let userChannelBalance = await slotsChannelManager.channelBalanceOf(
             channelId,
             false
@@ -1015,54 +1032,10 @@ contract('SlotsChannelManager', accounts => {
             houseBalancePreClaim.toFixed()
         )
 
-        await slotsChannelManager.claim(channelId, {
-            from: founder
-        })
-
-        let userBalancePostClaim = await slotsChannelManager.balanceOf(
-            nonFounder,
-            currentSession
-        )
-
-        console.log('User balance post claim', userBalancePostClaim.toFixed())
-
-        assert.equal(
-            userBalancePostClaim.toFixed(),
-            userBalancePreClaim.toFixed(),
-            'Invalid user balance '
-        )
-
-        userChannelBalance = await slotsChannelManager.channelBalanceOf(
-            channelId,
-            false
-        )
-        userChannelBalance = userChannelBalance.toNumber()
-
-        assert.equal(userChannelBalance, 0, 'Invalid user channel balance')
-
-        let houseBalancePostClaim = await slotsChannelManager.balanceOf(
-            slotsChannelManager.address,
-            currentSession
-        )
-
-        console.log('House balance post claim', houseBalancePostClaim.toFixed())
-
-        assert.equal(
-            houseBalancePostClaim.toFixed(),
-            houseBalancePreClaim.add(houseChannelBalance).toFixed(),
-            'Invalid house balance post claim'
-        )
-
-        houseChannelBalance = await slotsChannelManager.channelBalanceOf(
-            channelId,
-            true
-        )
-        houseChannelBalance = houseChannelBalance.toNumber()
-
-        assert.equal(
-            houseChannelBalance,
-            0,
-            'Invalid user channel balance post claim'
+        await utils.assertFail(
+            slotsChannelManager.claim(channelId, {
+                from: founder
+            })
         )
     })
 
@@ -1179,12 +1152,6 @@ contract('SlotsChannelManager', accounts => {
                 true,
                 'House is not activated after calling activateChannel()'
             )
-
-            assert.equal(
-                contractBalancePreActivation.minus(initialDeposit).toFixed(),
-                contractBalancePostActivation.toFixed(),
-                'Invalid balance after activating channel'
-            )
         } catch (e) {
             throw e
         }
@@ -1206,12 +1173,12 @@ contract('SlotsChannelManager', accounts => {
             constants.privateKeys.nonFounder,
             true
         )
+        console.log('Finalizing channel with 0 nonce', userSpin)
 
         userSpin = handler.getSpinParts(userSpin)
 
         const emptyBytes32 =
             '0x0000000000000000000000000000000000000000000000000000000000000000'
-
         await slotsChannelFinalizer.finalize(
             channelId,
             userSpin.parts,
@@ -1228,10 +1195,60 @@ contract('SlotsChannelManager', accounts => {
 
         channelInfo = await slotsChannelManager.getChannelInfo(channelId)
         let finalized = channelInfo[3]
-
-        console.log('Finalized', channelId, finalized)
-
         assert.equal(finalized, true, 'Channel was not finalized')
+
+        const oneDay = 24 * 60 * 60
+        await timeTravel(oneDay)
+
+        let userChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            false
+        )
+
+        let currentSession = await slotsChannelManager.currentSession()
+        currentSession = currentSession.toNumber()
+
+        let userBalancePreClaim = await slotsChannelManager.balanceOf(
+            nonFounder,
+            currentSession
+        )
+
+        console.log(
+            'User channel balance',
+            userChannelBalance.toFixed(),
+            '\nUser balance pre-claim',
+            userBalancePreClaim.toFixed()
+        )
+
+        // Claims can be done by user/house authorized addresses
+        await slotsChannelManager.claim(channelId, {
+            from: founder
+        })
+
+        let userBalancePostClaim = await slotsChannelManager.balanceOf(
+            nonFounder,
+            currentSession
+        )
+
+        console.log('User balance post claim', userBalancePostClaim.toFixed())
+
+        assert.equal(
+            userBalancePostClaim.toFixed(),
+            userBalancePreClaim.add(userChannelBalance).toFixed(),
+            'Invalid user balance post claim'
+        )
+
+        userChannelBalance = await slotsChannelManager.channelBalanceOf(
+            channelId,
+            false
+        )
+        userChannelBalance = userChannelBalance.toNumber()
+
+        assert.equal(
+            userChannelBalance,
+            0,
+            'Invalid user channel balance post claim'
+        )
     })
 
     it('Returns correct line reward multipliers', async () => {
