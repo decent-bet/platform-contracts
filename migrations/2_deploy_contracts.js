@@ -232,9 +232,6 @@ let deploy = async (deployer, network) => {
                 }
             )
 
-            await kycManager.addKycEnabledContract(house.address)
-            await kycManager.addKycEnabledContract(slotsChannelManager.address)
-
             // Approve first 9 accounts obtained from mnemonic
             let wallet
             for (let i = 0; i < 9; i++) {
@@ -251,17 +248,6 @@ let deploy = async (deployer, network) => {
                 console.log('Approving address', accounts[i])
 
                 await kycManager.approveAddress(
-                    house.address,
-                    accounts[i],
-                    SAMPLE_APPLICANT_ID,
-                    SAMPLE_CHECK_ID,
-                    v,
-                    r,
-                    s
-                )
-
-                await kycManager.approveAddress(
-                    slotsChannelManager.address,
                     accounts[i],
                     SAMPLE_APPLICANT_ID,
                     SAMPLE_CHECK_ID,

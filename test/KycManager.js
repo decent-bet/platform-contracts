@@ -10,7 +10,6 @@ let house
 let houseAuthorizedController
 let houseFundsController
 let houseSessionsController
-let slotsChannelManager
 let kycManager
 
 let founder
@@ -33,7 +32,6 @@ contract('KYC Manager', accounts => {
         houseAuthorizedController = await contracts.HouseAuthorizedController.deployed()
         houseFundsController = await contracts.HouseFundsController.deployed()
         houseSessionsController = await contracts.HouseSessionsController.deployed()
-        slotsChannelManager = await contracts.SlotsChannelManager.deployed()
         kycManager = await contracts.KycManager.deployed()
 
         await token.ownerFaucet()
@@ -88,104 +86,23 @@ contract('KYC Manager', accounts => {
         )
     })
 
-    // Remove contracts before adding them since they're already added with the migration script
-    it('disallows non-authorized address from removing KYC enabled contracts', async () => {
-        await utils.assertFail(
-            kycManager.removeKycEnabledContract(house.address, 0, {
-                from: nonFounder
-            })
-        )
-        await utils.assertFail(
-            kycManager.removeKycEnabledContract(
-                slotsChannelManager.address,
-                1,
-                { from: nonFounder }
-            )
-        )
-    })
-
-    it('allows authorized address to remove KYC enabled contracts', async () => {
-        await kycManager.removeKycEnabledContract(house.address, 0)
-        let contractDetails = await kycManager.kycEnabledContracts(house.address)
-        let exists = contractDetails[1]
-
-        assert.equal(
-            exists,
-            false,
-            'House address was not removed from KYC enabled contracts'
-        )
-
-        await kycManager.removeKycEnabledContract(
-            slotsChannelManager.address,
-            1
-        )
-        contractDetails = await kycManager.kycEnabledContracts(
-            slotsChannelManager.address
-        )
-        exists = contractDetails[1]
-
-        assert.equal(
-            exists,
-            false,
-            'Slots channel manager address was not removed from KYC enabled contracts'
-        )
-    })
-
-    it('disallows unauthorized addresses from adding KYC enabled contracts', async () => {
-        await utils.assertFail(
-            kycManager.addKycEnabledContract(house.address, {
-                from: nonFounder
-            })
-        )
-    })
-
-    it('disallows authorized addresses from adding non-contract address as KYC enabled contract', async () => {
-        await utils.assertFail(kycManager.addKycEnabledContract(nonFounder))
-    })
-
-    it('allows authorized addresses to add contract addresses as KYC enabled contract', async () => {
-        await kycManager.addKycEnabledContract(house.address)
-        let contractDetails = await kycManager.kycEnabledContracts(house.address)
-        let exists = contractDetails[1]
-
-        assert.equal(
-            exists,
-            true,
-            'House was not added as KYC enabled contract'
-        )
-
-        await kycManager.addKycEnabledContract(slotsChannelManager.address)
-        contractDetails = await kycManager.kycEnabledContracts(
-            slotsChannelManager.address
-        )
-        exists = contractDetails[1]
-
-        assert.equal(
-            exists,
-            true,
-            'SlotsChannelManager was not added as KYC enabled contract'
-        )
-    })
-
-    // Since migration script adds first 5 available mnemonic addresses to approved list, remove non-authorized from the list first
+    // Since migration script adds all available mnemonic addresses to approved list, remove it from the list first
     it('disallows unauthorized addresses from removing approved addresses', async () => {
         await utils.assertFail(
-            kycManager.removeApprovedAddress(house.address, nonAuthorized, 2, {
+            kycManager.removeApprovedAddress(nonAuthorized, 2, {
                 from: nonAuthorized
             })
         )
     })
 
     it('allows authorized addresses to remove approved addresses', async () => {
-        await kycManager.removeApprovedAddress(
-            house.address,
-            nonAuthorized,
-            2,
-            {
-                from: founder
-            }
-        )
-        let approved = await kycManager.isVerified(house.address, nonAuthorized)
+        let address = await kycManager.approvedAddressList(2)
+        console.log('Approved address', address, nonAuthorized)
+
+        await kycManager.removeApprovedAddress(nonAuthorized, 2, {
+            from: founder
+        })
+        let approved = await kycManager.approved(nonAuthorized)
         assert.equal(
             approved,
             false,
@@ -195,7 +112,7 @@ contract('KYC Manager', accounts => {
 
     it('disallows authorized addresses from removing non-approved addresses', async () => {
         await utils.assertFail(
-            kycManager.removeApprovedAddress(house.address, nonAuthorized, 2, {
+            kycManager.removeApprovedAddress(nonAuthorized, 2, {
                 from: founder
             })
         )
@@ -212,18 +129,9 @@ contract('KYC Manager', accounts => {
         const s = ethUtil.bufferToHex(signedMessage.s)
 
         await utils.assertFail(
-            kycManager.approveAddress(
-                house.address,
-                nonAuthorized,
-                SAMPLE_APPLICANT_ID,
-                SAMPLE_CHECK_ID,
-                v,
-                r,
-                s,
-                {
-                    from: nonAuthorized
-                }
-            )
+            kycManager.approveAddress(nonAuthorized, SAMPLE_APPLICANT_ID, SAMPLE_CHECK_ID, v, r, s, {
+                from: nonAuthorized
+            })
         )
     })
 
@@ -232,18 +140,9 @@ contract('KYC Manager', accounts => {
         let r = '0x'
         let s = '0x'
         await utils.assertFail(
-            kycManager.approveAddress(
-                house.address,
-                nonAuthorized,
-                SAMPLE_APPLICANT_ID,
-                SAMPLE_CHECK_ID,
-                v,
-                r,
-                s,
-                {
-                    from: founder
-                }
-            )
+            kycManager.approveAddress(nonAuthorized, SAMPLE_APPLICANT_ID, SAMPLE_CHECK_ID, v, r, s, {
+                from: founder
+            })
         )
     })
 
@@ -258,7 +157,6 @@ contract('KYC Manager', accounts => {
         const s = ethUtil.bufferToHex(signedMessage.s)
 
         await kycManager.approveAddress(
-            house.address,
             nonAuthorized,
             SAMPLE_APPLICANT_ID,
             SAMPLE_CHECK_ID,
@@ -268,7 +166,7 @@ contract('KYC Manager', accounts => {
             { from: founder }
         )
 
-        let approved = await kycManager.isVerified(house.address, nonAuthorized)
+        let approved = await kycManager.approved(nonAuthorized)
         assert.equal(approved, true, 'Non authorized has not been approved')
     })
 })
