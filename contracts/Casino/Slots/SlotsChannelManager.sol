@@ -160,13 +160,24 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     /* Modifiers */
 
+    // Allows functions to be executed only by the house contract
     modifier onlyHouse() {
         require(msg.sender == houseAddress);
         _;
     }
 
+    // Allows functions to be execute only by authorized addresses
     modifier onlyAuthorized() {
         require(houseAuthorizedController.authorized(msg.sender));
+        _;
+    }
+
+    // Allows functions to be executed by house or authorized addresses
+    modifier houseOrAuthorized() {
+        require(
+            msg.sender == houseAddress ||
+            houseAuthorizedController.authorized(msg.sender)
+        );
         _;
     }
 
@@ -233,11 +244,20 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // Allows functions to execute only if the sender has been KYC verified.
     modifier isSenderKycVerified() {
-        require(kycManager.isVerified(msg.sender));
+        require(kycManager.isKYCVerified(msg.sender));
+        _;
+    }
+
+    // Checks if a withdrawal is allowed with the KYC manager contract.
+    modifier isWithdrawalAllowed(uint amount) {
+        require(kycManager.isWithdrawalAllowed(msg.sender, amount));
         _;
     }
 
     /* Functions */
+
+    // Channel interactions would not be possible during session zero since deposits and withdrawals
+    // are not allowed at the time.
     function createChannel(uint initialDeposit)
     public
     isSenderKycVerified
@@ -255,14 +275,19 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channelCount++;
     }
 
-    // Allows the house to add funds to the provider for this session or the next.
+    // Allows the house to add funds to the provider for this session or the next OR
+    // authorized house addresses to call for adding liquidity mid-session
     function houseDeposit(uint amount, uint session)
     public
     isNotHouseEmergency
-    onlyHouse
+    houseOrAuthorized
     returns (bool) {
         // House deposits are allowed only for this session or the next.
-        require(session == currentSession || session == currentSession + 1);
+        if(msg.sender == houseAddress)
+            require(session == currentSession || session == currentSession + 1);
+        else
+        // Authorized addresses can only deposit mid-session
+            require(session != 0 && session == currentSession);
 
         // Record the total number of tokens deposited into the house.
         depositedTokens[address(this)][session] = safeAdd(depositedTokens[address(this)][session], amount);
@@ -270,7 +295,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         // Transfer tokens from house to betting provider.
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
-        emit LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
+        emit LogDeposit(
+                address(this),
+                amount,
+                session,
+                depositedTokens[address(this)][session]
+        );
         return true;
     }
 
@@ -279,6 +309,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     onlyHouse
     returns (bool) {
+        require(currentSession > 1);
         uint previousSession = safeSub(currentSession, 1);
         require(depositedTokens[address(this)][previousSession] > 0);
         uint previousSessionTokens = depositedTokens[address(this)][previousSession];
@@ -304,11 +335,14 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // User needs to approve contract address for amount prior to calling this function.
     function deposit(uint amount)
     public
+    isSenderKycVerified
     isDbetsAvailable(amount)
     returns (bool) {
+        require(currentSession > 0);
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount))
+            revert();
         emit LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
@@ -316,11 +350,15 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // Withdraw DBETS from contract to sender address.
     function withdraw(uint amount, uint session)
     public
+    isSenderKycVerified
+    isWithdrawalAllowed(amount)
     isValidPriorSession(session)
     isTokensAvailable(amount, session)
     returns (bool) {
+        require(currentSession > 0);
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
-        if(!decentBetToken.transfer(msg.sender, amount)) revert();
+        if(!decentBetToken.transfer(msg.sender, amount))
+            revert();
         emit LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }

@@ -65,8 +65,8 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // If this is the last week of a session - signifying the period when token deposits can be made to house offerings.
     modifier isEndOfActiveSession() {
         uint endTime;
-        (,endTime) = houseSessionsController.getSessionTimes(currentSession);
-        if(currentSession == 0)
+        (, endTime) = houseSessionsController.getSessionTimes(currentSession);
+        if (currentSession == 0)
             require(sessionZeroStartTime > 0);
         require(getTime() >= endTime);
         _;
@@ -81,7 +81,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Allows functions to execute only if it is the end of the current session.
     modifier isEndOfSession() {
         uint endTime;
-        (,endTime) = houseSessionsController.getSessionTimes(currentSession);
+        (, endTime) = houseSessionsController.getSessionTimes(currentSession);
         require((currentSession == 0 && endTime == 0) || getTime() >= endTime);
         _;
     }
@@ -92,7 +92,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         require(currentSession > 0);
         uint startTime;
         uint endTime;
-        (startTime,endTime) = houseSessionsController.getSessionTimes(currentSession);
+        (startTime, endTime) = houseSessionsController.getSessionTimes(currentSession);
         require(getTime() >= startTime && getTime() <= (endTime - 1 weeks));
         _;
     }
@@ -100,10 +100,10 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // Allows functions to execute only if it's currently a credit-buying period i.e
     // 1 week before the end of the current session.
     modifier isCreditBuyingPeriod() {
-        if(currentSession == 0)
+        if (currentSession == 0)
             require(sessionZeroStartTime != 0);
         uint endTime;
-        (,endTime) = houseSessionsController.getSessionTimes(currentSession);
+        (, endTime) = houseSessionsController.getSessionTimes(currentSession);
         require(
             getTime() >= (safeSub(endTime, 1 weeks)) &&
             getTime() <= endTime
@@ -115,9 +115,9 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     // after the end of the previous session and after all offering credits have been withdrawn.
     modifier isProfitDistributionPeriod(uint session) {
         require(session != 0);
-        uint nextSession = session + 1;
+        uint nextSession = safeAdd(session, 1);
         uint startTime;
-        (startTime,,,,,,,) = houseSessionsController.sessions(session + 1);
+        (startTime, ,,,,,,) = houseSessionsController.sessions(nextSession);
         require(startTime > 0);
         require(getTime() >= (startTime + 4 days));
         require(houseSessionsController.haveAllOfferingsBeenWithdrawn(session));
@@ -139,7 +139,13 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
     // Allows functions to execute only if the sender has been KYC verified.
     modifier isSenderKycVerified() {
-        require(kycManager.isVerified(msg.sender));
+        require(kycManager.isKYCVerified(msg.sender));
+        _;
+    }
+
+    // Checks if a withdrawal is allowed with the KYC manager contract.
+    modifier isWithdrawalAllowed(uint amount) {
+        require(kycManager.isWithdrawalAllowed(msg.sender, amount));
         _;
     }
 
@@ -269,7 +275,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         uint userCredits = houseFundsController.purchaseCredits(msg.sender, amount);
         uint nextSession = currentSession + 1;
 
-        if(!houseLotteryController.allotLotteryTickets(nextSession, msg.sender, amount)) revert();
+        if (!houseLotteryController.allotLotteryTickets(nextSession, msg.sender, amount)) revert();
 
         // Transfer tokens to house contract address.
         if (!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
@@ -278,15 +284,15 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     }
 
     // Allows users to return credits and receive tokens along with profit in return.
-    function liquidateCredits(uint session)
+    function liquidateCredits(uint session, uint amount)
     public
+    isWithdrawalAllowed(amount)
     isSenderKycVerified
     isNotEmergencyPaused
     isProfitDistributionPeriod(session) {
         uint payout;
-        uint amount;
 
-        (payout, amount) = houseFundsController.liquidateCredits(msg.sender, session);
+        (payout) = houseFundsController.liquidateCredits(msg.sender, session, amount);
 
         // Transfers from house to user.
         if (!decentBetToken.transfer(msg.sender, payout)) revert();
@@ -310,7 +316,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     isSenderKycVerified
     isNotEmergencyPaused
     isCreditBuyingPeriod {
-        if(!houseFundsController.rollOverCredits(msg.sender, amount)) revert();
+        if (!houseFundsController.rollOverCredits(msg.sender, amount)) revert();
 
         emit LogRolledOverCredits(msg.sender, currentSession, amount);
     }
@@ -327,20 +333,20 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         uint creditsForCurrentSession;
 
         (adjustedCredits, rolledOverFromPreviousSession, creditsForCurrentSession) =
-            houseFundsController.claimRolledOverCredits(msg.sender);
+        houseFundsController.claimRolledOverCredits(msg.sender);
 
-        for(uint i = 0; i < houseSessionsController.getSessionOfferingsLength(currentSession); i++) {
+        for (uint i = 0; i < houseSessionsController.getSessionOfferingsLength(currentSession); i++) {
             address houseOffering = houseSessionsController.getSessionOffering(currentSession, i);
             // If the offering has been deleted, it would return 0x0 here. Ignore it.
-            if(houseOffering != 0x0) {
+            if (houseOffering != 0x0) {
                 uint allocation;
-                (allocation,,) = houseSessionsController.getOfferingDetails(currentSession, houseOffering);
+                (allocation, ,) = houseSessionsController.getOfferingDetails(currentSession, houseOffering);
                 uint tokenAmount = safeDiv(safeMul(adjustedCredits, allocation), 100);
 
-                if(!decentBetToken.approve(houseOffering, tokenAmount))
+                if (!decentBetToken.approve(houseOffering, tokenAmount))
                     revert();
 
-                if(!HouseOffering(houseOffering).houseDeposit(tokenAmount, currentSession))
+                if (!HouseOffering(houseOffering).houseDeposit(tokenAmount, currentSession))
                     revert();
 
                 emit LogOfferingDeposit(currentSession, houseOffering, allocation, tokenAmount);
@@ -362,15 +368,19 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
         // Checks for getTime() >= previousSession + 2 days are made here
         (previousSessionTokens, allOfferingsWithdrawn) =
-            houseSessionsController.withdrawPreviousSessionTokensFromHouseOffering(houseOffering);
+        houseSessionsController.withdrawPreviousSessionTokensFromHouseOffering(houseOffering);
 
-        houseFundsController.withdrawPreviousSessionTokensFromHouseOffering(
+        if(!houseFundsController.withdrawPreviousSessionTokensFromHouseOffering(
             previousSessionTokens,
             allOfferingsWithdrawn
-        );
+        ))
+            revert();
 
         // Withdraw from previous session
-        if(!HouseOffering(houseOffering).withdrawPreviousSessionTokens()) revert();
+        // Do not withdraw if balance is already 0
+        if(previousSessionTokens > 0)
+            if (!HouseOffering(houseOffering).withdrawPreviousSessionTokens())
+                revert();
     }
 
     // Allow authorized addresses to add profits for offerings that haven't been registered
@@ -384,22 +394,23 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     onlyAuthorized {
         // Session zero doesn't have profits
         require(currentSession != 0);
-
         // Can only be for current and previous sessions
         require(session == currentSession || session == (safeSub(currentSession, 1)));
-
         // Check if a balance is available with offering
         require(decentBetToken.balanceOf(msg.sender) >= amount);
-
         // Sender must have allowance greater than the amount to be transferred
         require(decentBetToken.allowance(msg.sender, address(this)) >= amount);
 
-        houseFundsController
-            .addToSessionProfitsFromUnregisteredHouseOffering(session, amount);
+        if (!houseFundsController.addToSessionProfitsFromUnregisteredHouseOffering(session, amount))
+            revert();
+        if (!decentBetToken.transferFrom(msg.sender, address(this), amount))
+            revert();
 
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
-
-        emit LogAddToSessionProfitsFromUnregisteredHouseOffering(session, unregisteredOffering, amount);
+        emit LogAddToSessionProfitsFromUnregisteredHouseOffering(
+            session,
+            unregisteredOffering,
+            amount
+        );
     }
 
     // Allocates a %age of tokens for a house offering for the next session
@@ -407,7 +418,8 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     public
     isEndOfActiveSession
     onlyAuthorized {
-        if(!houseSessionsController.allocateTokensForHouseOffering(percentage, houseOffering)) revert();
+        if (!houseSessionsController.allocateTokensForHouseOffering(percentage, houseOffering))
+            revert();
         emit LogOfferingAllocation((currentSession + 1), houseOffering, percentage);
     }
 
@@ -416,7 +428,8 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     public
     isEndOfActiveSession
     onlyAuthorized {
-        if(!houseSessionsController.finalizeTokenAllocations()) revert();
+        if (!houseSessionsController.finalizeTokenAllocations())
+            revert();
         emit LogFinalizedTokenAllocations((currentSession + 1));
     }
 
@@ -429,19 +442,15 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
         uint totalSessionFunds;
         (totalSessionFunds,,,,,,) = houseFundsController.houseFunds(nextSession);
-
         uint allocation;
         (allocation,,) = houseSessionsController.getOfferingDetails(nextSession, houseOffering);
-
         uint tokenAmount = safeDiv(safeMul(totalSessionFunds, allocation), 100);
 
-        if(!houseSessionsController.depositAllocatedTokensToHouseOffering(houseOffering))
+        if (!houseSessionsController.depositAllocatedTokensToHouseOffering(houseOffering))
             revert();
-
-        if(!decentBetToken.approve(houseOffering, tokenAmount))
+        if (!decentBetToken.approve(houseOffering, tokenAmount))
             revert();
-
-        if(!HouseOffering(houseOffering).houseDeposit(tokenAmount, nextSession))
+        if (!HouseOffering(houseOffering).houseDeposit(tokenAmount, nextSession))
             revert();
 
         emit LogOfferingDeposit(nextSession, houseOffering, allocation, tokenAmount);
@@ -454,7 +463,8 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     onlyAuthorized
     isProfitDistributionPeriod(session)
     returns (bool) {
-        if(!houseLotteryController.pickWinner(currentSession)) revert();
+        if (!houseLotteryController.pickWinner(currentSession))
+            revert();
         emit LogPickLotteryWinner(currentSession);
         return true;
     }
@@ -466,16 +476,13 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
     isProfitDistributionPeriod(session)
     returns (uint, uint){
         int sessionProfit = houseFundsController.getProfitForSession(session);
-
         require(sessionProfit > 0);
 
         uint uSessionProfit = (uint) (sessionProfit);
-
         uint lotteryPayout = safeDiv(safeMul(uSessionProfit, 5), 100);
 
-        if(!houseLotteryController.updateLotteryPayout(session, msg.sender, lotteryPayout)) revert();
-
-        if(!decentBetToken.transfer(msg.sender, lotteryPayout)) revert();
+        if (!houseLotteryController.updateLotteryPayout(session, msg.sender, lotteryPayout)) revert();
+        if (!decentBetToken.transfer(msg.sender, lotteryPayout)) revert();
 
         return (uSessionProfit, lotteryPayout);
     }
@@ -494,18 +501,18 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         if (currentSession == 0 && sessionZeroStartTime == 0) {
             sessionZeroStartTime = getTime();
             endTime = safeAdd(startTime, 1 weeks);
-            if(!houseSessionsController.beginNextSession(startTime, endTime, 0))
+            if (!houseSessionsController.beginNextSession(startTime, endTime, 0))
                 revert();
             emit LogNewSession(currentSession, startTime, 0, endTime, 0);
         } else {
             currentSession = nextSession;
             endTime = safeAdd(startTime, 12 weeks);
 
-            if(!houseSessionsController.beginNextSession(startTime, endTime, sessionZeroStartTime))
+            if (!houseSessionsController.beginNextSession(startTime, endTime, sessionZeroStartTime))
                 revert();
-            for(uint i = 0; i < houseSessionsController.getOfferingAddressesLength(); i++)
-                // Offerings may be deleted from the next session i.e return 0x0. Ignore deleted offerings.
-                if(houseSessionsController.offeringAddresses(i) != 0x0)
+            for (uint i = 0; i < houseSessionsController.getOfferingAddressesLength(); i++)
+            // Offerings may be deleted from the next session i.e return 0x0. Ignore deleted offerings.
+                if (houseSessionsController.offeringAddresses(i) != 0x0)
                     HouseOffering(houseSessionsController.offeringAddresses(i)).setSession(nextSession);
 
             emit LogNewSession(nextSession, startTime, 0, endTime, 0);
@@ -525,9 +532,9 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         bool allOfferingsWithdrawn;
 
         (sessionTokens, allOfferingsWithdrawn) =
-            houseSessionsController.emergencyWithdrawCurrentSessionTokensFromHouseOffering(
-                houseOffering
-            );
+        houseSessionsController.emergencyWithdrawCurrentSessionTokensFromHouseOffering(
+            houseOffering
+        );
 
         houseFundsController.emergencyWithdrawCurrentSessionTokensFromHouseOffering(
             sessionTokens,
@@ -535,7 +542,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
         );
 
         // Withdraw from previous session
-        if(!HouseOffering(houseOffering).emergencyWithdrawCurrentSessionTokens()) revert();
+        if (!HouseOffering(houseOffering).emergencyWithdrawCurrentSessionTokens()) revert();
     }
 
     // Allows users to withdraw tokens if the contract is in an emergencyPaused state.
@@ -548,7 +555,7 @@ contract House is SafeMath, EmergencyOptions, TimeProvider {
 
         (payout, amount) = houseFundsController.emergencyWithdraw(msg.sender);
 
-        if(!decentBetToken.transfer(msg.sender, payout)) revert();
+        if (!decentBetToken.transfer(msg.sender, payout)) revert();
 
         emit LogEmergencyWithdraw(msg.sender, currentSession, amount, payout);
     }

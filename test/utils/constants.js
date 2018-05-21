@@ -32,6 +32,9 @@ paytable[symbolE] = 75
 paytable[symbolF] = 150
 paytable[symbolG] = 300
 
+const BTC_KYC_LIMIT = 2
+const DBET_BTC = 0.00004
+
 const privateKeys = {
     nonFounder:
         '0x5c7f17702c636b560743b0dcb1b1d2b18e64de0667010ca4d9cac4f7119d0428',
@@ -44,6 +47,8 @@ module.exports = {
     NUMBER_OF_LINES,
     NUMBER_OF_REELS,
     CHANNEL_HOUSE_STARTING_BALANCE,
+    BTC_KYC_LIMIT,
+    DBET_BTC,
     symbolA,
     symbolB,
     symbolC,

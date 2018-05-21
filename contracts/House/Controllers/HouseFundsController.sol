@@ -45,7 +45,7 @@ contract HouseFundsController is SafeMath {
 
     bool public isHouseFundsController = true;
     uint public constant PROFIT_SHARE_PERCENT = 95;
-    uint public MIN_CREDIT_PURCHASE = 1000 ether;
+    uint public MIN_CREDIT_PURCHASE = 1 ether;
 
     // Mappings
     // House funds per session
@@ -92,7 +92,7 @@ contract HouseFundsController is SafeMath {
     areTokensAvailable(_address, amount)
     onlyHouse
     returns (uint) {
-        // The minimum credit purchase needs to be 1000 DBETs
+        // The minimum credit purchase needs to be 1 DBET
         require(amount >= MIN_CREDIT_PURCHASE);
         require(decentBetToken.allowance(_address, address(house)) >= amount);
 
@@ -156,17 +156,18 @@ contract HouseFundsController is SafeMath {
     }
 
     // Allows users to return credits and receive tokens along with profit in return.
-    function liquidateCredits(address _address, uint session)
+    function liquidateCredits(address _address, uint session, uint amount)
     public
     onlyHouse
-    returns (uint, uint) {
-        require(houseFunds[session].userCredits[_address].amount > 0);
+    returns (uint) {
+        require(
+            houseFunds[session].userCredits[_address].amount >= amount &&
+            amount > 0
+        );
 
         // Payout variables
         uint payoutPerCredit =
             getPayoutPerCredit(session);
-        uint amount =
-            houseFunds[session].userCredits[_address].amount;
         // (Payout per credit * amount of credits)
         uint payout =
             safeDiv(safeMul(payoutPerCredit, amount), 1 ether);
@@ -185,7 +186,7 @@ contract HouseFundsController is SafeMath {
         houseFunds[session].totalHousePayouts =
             safeAdd(houseFunds[session].totalHousePayouts, payout);
 
-        return (payout, amount);
+        return (payout);
     }
 
     // Allows users who've rolled over credits from a session to claim credits in the next session based on the
@@ -296,14 +297,19 @@ contract HouseFundsController is SafeMath {
     }
 
     // Withdraws session tokens for the previously ended session from a house offering.
-    function withdrawPreviousSessionTokensFromHouseOffering(uint previousSessionTokens,
-        bool allOfferingsWithdrawn)
+    function withdrawPreviousSessionTokensFromHouseOffering(
+        uint previousSessionTokens,
+        bool allOfferingsWithdrawn
+    )
     public
     onlyHouse
     returns (bool) {
         uint previousSession = safeSub(house.currentSession(), 1);
         houseFunds[previousSession].totalWithdrawn =
-            safeAdd(houseFunds[previousSession].totalWithdrawn, previousSessionTokens);
+            safeAdd(
+                houseFunds[previousSession].totalWithdrawn,
+                previousSessionTokens
+            );
 
         if(allOfferingsWithdrawn)
             houseFunds[previousSession].profit =

@@ -143,10 +143,7 @@ contract('SlotsChannelManager', accounts => {
         await timeTravel(oneWeek)
 
         // Allocate 50% of tokens to both offerings
-        await house.allocateTokensForHouseOffering(
-            50,
-            bettingProvider.address
-        )
+        await house.allocateTokensForHouseOffering(50, bettingProvider.address)
         await house.allocateTokensForHouseOffering(
             50,
             slotsChannelManager.address
@@ -914,8 +911,9 @@ contract('SlotsChannelManager', accounts => {
             channelId,
             false
         )
-        let userProfit = (userChannelBalance.greaterThan(initialDeposit) ?
-                          userChannelBalance.minus(initialDeposit) : 0)
+        let userProfit = userChannelBalance.greaterThan(initialDeposit)
+            ? userChannelBalance.minus(initialDeposit)
+            : 0
 
         let houseChannelBalance = await slotsChannelManager.channelBalanceOf(
             channelId,
