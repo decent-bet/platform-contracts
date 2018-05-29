@@ -577,14 +577,14 @@ contract('KYC Manager', accounts => {
 
     it('disallows non-authorized addresses from removing addresses from blacklist', async () => {
         await utils.assertFail(
-            kycManager.removeFromBlacklist(nonAuthorized, {
+            kycManager.removeFromBlacklist(nonAuthorized, 0, {
                 from: nonAuthorized
             })
         )
     })
 
     it('allows authorized address to remove addresses from blacklist', async () => {
-        await kycManager.removeFromBlacklist(nonAuthorized)
+        await kycManager.removeFromBlacklist(nonAuthorized, 0)
 
         let isBlacklisted = await kycManager.blacklist(nonAuthorized)
 

@@ -27,6 +27,7 @@ contract KycManager {
 
     // Blacklist mapping
     mapping (address => bool) public blacklist;
+    address[] public blacklistedAddresses;
 
     // Maps address to last timeout timestamp.
     // Withdrawals would not be allowed up to 24 hrs after the last timeout timestamp
@@ -42,12 +43,13 @@ contract KycManager {
     event LogApprovedAddressWithEnhancedKYC     (address _address);
     event LogRemoveApprovedAddress              (address _address);
 
-    event LogAddToBlacklist                     (address _address);
+    event LogAddToBlacklist                     (address _address, uint index);
     event LogRemoveFromBlacklist                (address _address);
     event LogAddToTimeoutBlacklist              (address _address, uint timestamp);
     event LogUpdateDbetsNonEnhancedKycLimit     (address sender, uint timestamp);
 
-    function KycManager() {
+    function KycManager()
+    public {
         founder = msg.sender;
         addAuthorizedAddress(msg.sender);
     }
@@ -66,7 +68,8 @@ contract KycManager {
 
     // Adds an authorized address
     function addAuthorizedAddress(address _address)
-    onlyFounder {
+    onlyFounder
+    public {
         require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddressList.push(_address);
@@ -75,7 +78,8 @@ contract KycManager {
 
     // Removes an authorized address
     function removeAuthorizedAddress(address _address, uint index)
-    onlyFounder {
+    onlyFounder
+    public {
         require(authorized[_address]);
         require(authorizedAddressList[index] == _address);
         authorized[_address] = false;
@@ -94,7 +98,8 @@ contract KycManager {
         bytes32 r,
         bytes32 s
     )
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         require(!approvals[_address].approved);
         bytes32 hash = keccak256(approvalId);
         require(_address == ecrecover(hash, v, r, s));
@@ -120,7 +125,8 @@ contract KycManager {
         bytes32 r,
         bytes32 s
     )
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         require(approvals[_address].approved);
         // Applicant ID could be changed in case of cases such as user account deletion in KYC and re-creation
         // require(approvals[_address].applicantId != '');
@@ -133,7 +139,8 @@ contract KycManager {
 
     // Removes an address from the KYC approved list
     function removeApprovedAddress(address _address)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         require(approvals[_address].approved);
         delete approvedAddressList[approvals[_address].index];
         approvals[_address].approved = false;
@@ -147,17 +154,22 @@ contract KycManager {
 
     // Adds an address to blacklist
     function addToBlacklist(address _address)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         require(!blacklist[_address]);
         blacklist[_address] = true;
-        emit LogAddToBlacklist(_address);
+        blacklistedAddresses.push(_address);
+        emit LogAddToBlacklist(_address, blacklistedAddresses.length - 1);
     }
 
     // Removes an address from blacklist
-    function removeFromBlacklist(address _address)
-    onlyAuthorized {
+    function removeFromBlacklist(address _address, uint index)
+    onlyAuthorized
+    public {
         require(blacklist[_address]);
+        require(blacklistedAddresses[index] == _address);
         blacklist[_address] = false;
+        delete blacklistedAddresses[index];
         emit LogRemoveFromBlacklist(_address);
     }
 
@@ -165,7 +177,8 @@ contract KycManager {
     // If timeoutBlacklist timestamp is less than 24 hr prior to the current block timestamp,
     // Further withdrawals would not be allowed from house/offering contracts.
     function addToTimeoutBlacklist(address _address)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         require(!isEnhancedKYCVerified(_address));
         timeoutBlacklist[_address] = block.timestamp;
         emit LogAddToTimeoutBlacklist(_address, block.timestamp);
@@ -173,14 +186,15 @@ contract KycManager {
 
     // Update DBETs non-enhanced KYC limit
     function updateDbetsNonEnhancedKycLimit(uint _dbetsNonEnhancedKycLimit)
-    onlyAuthorized {
+    onlyAuthorized
+    public {
         dbetsNonEnhancedKycLimit = _dbetsNonEnhancedKycLimit;
-        LogUpdateDbetsNonEnhancedKycLimit(msg.sender, block.timestamp);
+        emit LogUpdateDbetsNonEnhancedKycLimit(msg.sender, block.timestamp);
     }
 
     // Returns whether an address has been verified with
     // atleast basic verification and is not blacklisted
-    function isKYCVerified(address _address) view returns (bool) {
+    function isKYCVerified(address _address) public view returns (bool) {
     return  !blacklist[_address] &&
             approvals[_address].exists &&
             approvals[_address].approved;
@@ -188,14 +202,14 @@ contract KycManager {
 
     // Returns whether an address has been verified with
     // enhanced verification and is not blacklisted
-    function isEnhancedKYCVerified(address _address) view returns (bool) {
+    function isEnhancedKYCVerified(address _address) public view returns (bool) {
         return  !blacklist[_address] &&
                 isKYCVerified(_address) &&
                 bytes(approvals[_address].applicantId).length > 0;
     }
 
     // Returns whether an address can withdraw from a house/offering contract
-    function areWithdrawalsAllowed(address _address) view returns (bool) {
+    function areWithdrawalsAllowed(address _address) public view returns (bool) {
         return (
                     !blacklist[_address] &&
                     (
@@ -209,7 +223,7 @@ contract KycManager {
     }
 
     // Returns whether a single withdrawal is allowed
-    function isWithdrawalAllowed(address _address, uint amount) view returns (bool) {
+    function isWithdrawalAllowed(address _address, uint amount) public view returns (bool) {
         return
             (   areWithdrawalsAllowed(_address) &&
                 (
