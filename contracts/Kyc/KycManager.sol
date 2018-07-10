@@ -1,4 +1,4 @@
-pragma solidity 0.4.21;
+pragma solidity 0.4.24;
 
 // KYC manager contract allowing authorized addresses to add/update/remove approved addresses
 // Approved addresses can be accessed from House/Gaming contracts

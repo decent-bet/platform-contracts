@@ -126,6 +126,8 @@ let deploy = async (deployer, network) => {
             await deployer.deploy(House, token.address, kycManager.address)
             house = await getContractInstanceAndInfo(House)
 
+            console.log('Contract info', contractInfo)
+
             // Deploy House controller contracts
             await deployer.deploy(HouseAuthorizedController, house.address)
             houseAuthorizedController = await getContractInstanceAndInfo(
