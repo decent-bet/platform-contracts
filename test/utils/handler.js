@@ -134,15 +134,25 @@ const getSpin = async (
     const lastHouseSpin = houseSpins[houseSpins.length - 1]
     const spinNonce = finalize ? (nonce === 1 ? 0 : nonce) : nonce
 
-    let reelHash = nonce === 1 ? finalReelHash : lastHouseSpin.reelHash
+    let reelHash = nonce === 1 ?
+                    finalReelHash :
+                    lastHouseSpin.reelHash
     let reel = ''
-    let reelSeedHash = nonce === 1 ? finalSeedHash : lastHouseSpin.reelSeedHash
-    let prevReelSeedHash = nonce === 1 ? '' : lastHouseSpin.prevReelSeedHash
+    let reelSeedHash = nonce === 1 ?
+                        finalSeedHash :
+                        lastHouseSpin.reelSeedHash
+    let prevReelSeedHash = nonce === 1 ?
+                            '' :
+                            lastHouseSpin.prevReelSeedHash
     let userHash = userHashes[userHashes.length - nonce]
     let prevUserHash = userHashes[userHashes.length - nonce - 1]
-    let userBalance = nonce === 1 ? initialDeposit : lastHouseSpin.userBalance
+    let userBalance = nonce === 1 ?
+                        initialDeposit :
+                        lastHouseSpin.userBalance
     userBalance = new BigNumber(userBalance).toFixed(0)
-    let houseBalance = nonce === 1 ? initialDeposit : lastHouseSpin.houseBalance
+    let houseBalance = nonce === 1 ?
+                        constants.CHANNEL_HOUSE_STARTING_BALANCE :
+                        lastHouseSpin.houseBalance
     houseBalance = new BigNumber(houseBalance).toFixed(0)
 
     let spin = {
@@ -247,8 +257,7 @@ let processSpin = async (
 
         return (
             nonce > 0 &&
-            (lastHouseSpin.userBalance === 0 ||
-                lastHouseSpin.houseBalance === 0)
+            (lastHouseSpin.userBalance === 0 || lastHouseSpin.houseBalance === 0)
         )
     }
 
@@ -339,7 +348,7 @@ let processSpin = async (
         } else {
             return (
                 spin.userBalance === dbChannel.deposit &&
-                spin.houseBalance === dbChannel.deposit
+                spin.houseBalance === constants.CHANNEL_HOUSE_STARTING_BALANCE
             )
         }
     }

@@ -1,4 +1,4 @@
-pragma solidity 0.4.21;
+pragma solidity 0.4.24;
 
 import "./SlotsImplementation.sol";
 import "./SlotsHelper.sol";
@@ -160,13 +160,24 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     /* Modifiers */
 
+    // Allows functions to be executed only by the house contract
     modifier onlyHouse() {
         require(msg.sender == houseAddress);
         _;
     }
 
+    // Allows functions to be execute only by authorized addresses
     modifier onlyAuthorized() {
         require(houseAuthorizedController.authorized(msg.sender));
+        _;
+    }
+
+    // Allows functions to be executed by house or authorized addresses
+    modifier houseOrAuthorized() {
+        require(
+            msg.sender == houseAddress ||
+            houseAuthorizedController.authorized(msg.sender)
+        );
         _;
     }
 
@@ -233,11 +244,20 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
 
     // Allows functions to execute only if the sender has been KYC verified.
     modifier isSenderKycVerified() {
-        require(kycManager.isVerified(address(this), msg.sender));
+        require(kycManager.isKYCVerified(msg.sender));
+        _;
+    }
+
+    // Checks if a withdrawal is allowed with the KYC manager contract.
+    modifier isWithdrawalAllowed(uint amount) {
+        require(kycManager.isWithdrawalAllowed(msg.sender, amount));
         _;
     }
 
     /* Functions */
+
+    // Channel interactions would not be possible during session zero since deposits and withdrawals
+    // are not allowed at the time.
     function createChannel(uint initialDeposit)
     public
     isSenderKycVerified
@@ -255,14 +275,19 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channelCount++;
     }
 
-    // Allows the house to add funds to the provider for this session or the next.
+    // Allows the house to add funds to the provider for this session or the next OR
+    // authorized house addresses to call for adding liquidity mid-session
     function houseDeposit(uint amount, uint session)
     public
     isNotHouseEmergency
-    onlyHouse
+    houseOrAuthorized
     returns (bool) {
         // House deposits are allowed only for this session or the next.
-        require(session == currentSession || session == currentSession + 1);
+        if(msg.sender == houseAddress)
+            require(session == currentSession || session == currentSession + 1);
+        else
+        // Authorized addresses can only deposit mid-session
+            require(session != 0 && session == currentSession);
 
         // Record the total number of tokens deposited into the house.
         depositedTokens[address(this)][session] = safeAdd(depositedTokens[address(this)][session], amount);
@@ -270,7 +295,12 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         // Transfer tokens from house to betting provider.
         if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
 
-        emit LogDeposit(address(this), amount, session, depositedTokens[address(this)][session]);
+        emit LogDeposit(
+                address(this),
+                amount,
+                session,
+                depositedTokens[address(this)][session]
+        );
         return true;
     }
 
@@ -279,6 +309,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     onlyHouse
     returns (bool) {
+        require(currentSession > 1);
         uint previousSession = safeSub(currentSession, 1);
         require(depositedTokens[address(this)][previousSession] > 0);
         uint previousSessionTokens = depositedTokens[address(this)][previousSession];
@@ -304,11 +335,14 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // User needs to approve contract address for amount prior to calling this function.
     function deposit(uint amount)
     public
+    isSenderKycVerified
     isDbetsAvailable(amount)
     returns (bool) {
+        require(currentSession > 0);
         depositedTokens[msg.sender][currentSession] =
         safeAdd(depositedTokens[msg.sender][currentSession], amount);
-        if(!decentBetToken.transferFrom(msg.sender, address(this), amount)) revert();
+        if(!decentBetToken.transferFrom(msg.sender, address(this), amount))
+            revert();
         emit LogDeposit(msg.sender, amount, currentSession, depositedTokens[msg.sender][currentSession]);
         return true;
     }
@@ -316,11 +350,15 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     // Withdraw DBETS from contract to sender address.
     function withdraw(uint amount, uint session)
     public
+    isSenderKycVerified
+    isWithdrawalAllowed(amount)
     isValidPriorSession(session)
     isTokensAvailable(amount, session)
     returns (bool) {
+        require(currentSession > 0);
         depositedTokens[msg.sender][session] = safeSub(depositedTokens[msg.sender][session], amount);
-        if(!decentBetToken.transfer(msg.sender, amount)) revert();
+        if(!decentBetToken.transfer(msg.sender, amount))
+            revert();
         emit LogWithdraw(msg.sender, amount, session, depositedTokens[msg.sender][session]);
         return true;
     }
@@ -347,7 +385,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].initialUserNumber = _initialUserNumber;
         channels[id].finalUserHash = _finalUserHash;
         channels[id].ready = true;
-        transferTokensToChannel(id, false);
+        transferTokensToChannel(id);
         emit LogChannelDeposit(id, players[id][false], _finalUserHash);
         return true;
     }
@@ -386,20 +424,20 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         channels[id].finalSeedHash = _finalSeedHash;
         channels[id].activated = true;
         players[id][true] = msg.sender;
-        transferTokensToChannel(id, true);
+        // Dont transfer tokens to channel, allowing users to win more than channel initialDeposit * 2
         emit LogChannelActivate(id, players[id][true], _finalSeedHash, _finalReelHash);
         return true;
     }
 
     // Transfers tokens to a channel.
-    function transferTokensToChannel(bytes32 id, bool isHouse)
+    function transferTokensToChannel(bytes32 id)
     private {
         // Transfer from house address instead of authorized addresses sending txs on behalf of the house
-        address _address = isHouse ? address(this) : players[id][false];
-        channelDeposits[id][isHouse] =
-        safeAdd(channelDeposits[id][isHouse], channels[id].initialDeposit);
-        depositedTokens[_address][channels[id].session] =
-        safeSub(depositedTokens[_address][channels[id].session], channels[id].initialDeposit);
+        address player = players[id][false];
+        channelDeposits[id][false] =
+            safeAdd(channelDeposits[id][false], channels[id].initialDeposit);
+        depositedTokens[player][channels[id].session] =
+            safeSub(depositedTokens[player][channels[id].session], channels[id].initialDeposit);
     }
 
     // Sets the final spin for the channel
@@ -426,29 +464,33 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
         emit LogChannelFinalized(id, turn);
     }
 
-    // Allows player/house to claim DBETs after the channel has closed
+    // Allows player/house to claim DBETs on behalf of the user after the channel has closed
     function claim(bytes32 id)
     public {
         require(isParticipant(id, msg.sender));
+        require(isChannelClosed(id));
+        require(channelDeposits[id][false] > 0);
 
-        bool isHouse = (players[id][true] == msg.sender);
+        uint256 amount = finalBalances[id][false];
 
-        if (isChannelClosed(id)) {
-            uint256 amount = finalBalances[id][isHouse];
-            if (amount > 0) {
-                finalBalances[id][isHouse] = 0;
-                channelDeposits[id][isHouse] = 0;
+        // Set user balances to 0 for this channel
+        finalBalances[id][false] = 0;
+        channelDeposits[id][false] = 0;
 
-                // Deposit to the house address instead of authorized addresses sending txs on behalf of the house
-                address _address = isHouse ? address(this) : msg.sender;
+        address player = players[id][false];
 
-                depositedTokens[_address][channels[id].session] =
-                safeAdd(depositedTokens[_address][channels[id].session], amount);
+        // Add to user tokens
+        depositedTokens[player][channels[id].session] =
+            safeAdd(depositedTokens[player][channels[id].session], amount);
 
-                emit LogClaimChannelTokens(id, isHouse, getTime());
-            }
-        } else
-            revert();
+        // Remove lost tokens from house if final user balance is greater than channel initialDeposit
+        if(amount > channels[id].initialDeposit) {
+            uint difference = safeSub(amount, channels[id].initialDeposit);
+            depositedTokens[address(this)][channels[id].session] =
+                safeSub(depositedTokens[address(this)][channels[id].session], difference);
+        }
+
+        emit LogClaimChannelTokens(id, false, getTime());
     }
 
     // Query balance of deposited tokens for a user.
@@ -477,9 +519,6 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     view
     returns (bool) {
-        //        bytes32 hash = sha3(reelHash, reel, reelSeedHash, prevReelSeedHash, userHash, prevUserHash,
-        //        nonce, turn, userBalance, houseBalance, betSize);
-        //        address player = players[turn];
         return ECVerify.ecverify(hash, sig, players[id][turn]);
     }
 
@@ -578,6 +617,7 @@ contract SlotsChannelManager is SlotsImplementation, HouseOffering, SafeMath, Ut
     public
     view
     returns (bool) {
+        return channels[id].finalized && getTime() > channels[id].endTime;
         return channels[id].finalized && getTime() > channels[id].endTime;
     }
 

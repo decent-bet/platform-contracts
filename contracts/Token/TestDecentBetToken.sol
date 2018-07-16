@@ -1,4 +1,4 @@
-pragma solidity 0.4.21;
+pragma solidity 0.4.24;
 
 // Decent.bet Token only for testing purposes
 
@@ -172,8 +172,8 @@ contract TestDecentBetToken is SafeMath, ERC20, TimeProvider {
     }
 
     function faucet() public {
-        balances[msg.sender] = 10000 ether;
-        emit Transfer(0, msg.sender, 10000 ether);
+        balances[msg.sender] = 100000 ether;
+        emit Transfer(0, msg.sender, 100000 ether);
     }
 
     function ownerFaucet() public {

@@ -1,30 +1,18 @@
-pragma solidity 0.4.21;
-
-import "../Libraries/SafeMath.sol";
+pragma solidity 0.4.24;
 
 // KYC manager contract allowing authorized addresses to add/update/remove approved addresses
 // Approved addresses can be accessed from House/Gaming contracts
-contract KycManager is SafeMath {
+contract KycManager {
 
     // Structs
-    struct User {
-        address _address;
+    struct Approval {
         bool approved;
+        uint index;
+        // Basic verification
+        string id;
+        // Enhanced verification
         string applicantId;
         string checkId;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-    }
-
-    struct KycEnabledContract {
-        // User mapping
-        mapping (address => User) users;
-        // List of approved users for contract
-        address[] approvedAddressList;
-        // Number of approved addresses
-        uint approvedAddressCount;
-        // Exists
         bool exists;
     }
 
@@ -33,37 +21,32 @@ contract KycManager is SafeMath {
 
     mapping (address => bool) public authorized;
     address[] public authorizedAddressList;
-    uint authorizedAddressCount;
 
-    mapping(address => KycEnabledContract) public kycEnabledContracts;
-    address[] public kycEnabledContractList;
-    uint kycEnabledContractCount;
+    mapping (address => Approval) public approvals;
+    address[] public approvedAddressList;
+
+    // Blacklist mapping
+    mapping (address => bool) public blacklist;
+    address[] public blacklistedAddresses;
+
+    // Maps address to last timeout timestamp.
+    // Withdrawals would not be allowed up to 24 hrs after the last timeout timestamp
+    mapping (address => uint) public timeoutBlacklist;
+
+    // Non enhanced KYC DBETs limit
+    uint public dbetsNonEnhancedKycLimit;
 
     // Events
-    event LogNewKycEnabledContract (
-        address _address,
-        address authorized
-    );
+    event LogNewAuthorizedAddress               (address _address);
+    event LogRemoveAuthorizedAddress            (address _address);
+    event LogNewApprovedAddress                 (address _address, uint index);
+    event LogApprovedAddressWithEnhancedKYC     (address _address);
+    event LogRemoveApprovedAddress              (address _address);
 
-    event LogRemovedKycEnabledContract(
-        address _address,
-        address authorized
-    );
-
-    event LogNewAuthorizedAddress (address _address);
-
-    event LogRemoveAuthorizedAddress (address _address);
-
-    event LogNewApprovedAddress (
-        address _contract,
-        address _address,
-        uint index
-    );
-
-    event LogRemoveApprovedAddress (
-        address _contract,
-        address _address
-    );
+    event LogAddToBlacklist                     (address _address, uint index);
+    event LogRemoveFromBlacklist                (address _address);
+    event LogAddToTimeoutBlacklist              (address _address, uint timestamp);
+    event LogUpdateDbetsNonEnhancedKycLimit     (address sender, uint timestamp);
 
     function KycManager()
     public {
@@ -83,74 +66,58 @@ contract KycManager is SafeMath {
         _;
     }
 
-    // Allows function to execute only if passed address is of a contract
-    modifier isContract(address _address) {
-        uint size;
-        assembly { size := extcodesize(_address) }
-        require(size > 0);
-        _;
-    }
-
-    // Allows authorized addresses to add a KYC enabled contract
-    function addKycEnabledContract(address _address)
-    public
-    isContract(_address)
-    onlyAuthorized {
-        require(!kycEnabledContracts[_address].exists);
-        kycEnabledContractList.push(_address);
-        kycEnabledContracts[_address].exists = true;
-        kycEnabledContractCount = safeAdd(kycEnabledContractCount, 1);
-        emit LogNewKycEnabledContract(_address, msg.sender);
-    }
-
-    // Allows authorized addresses to remove a KYC enabled contract
-    function removeKycEnabledContract(
-        address _address,
-        uint index
-    )
-    public
-    onlyAuthorized {
-        require(kycEnabledContracts[_address].exists);
-        require(kycEnabledContractList[index] == _address);
-        delete kycEnabledContractList[index];
-        kycEnabledContractCount = safeSub(kycEnabledContractCount, 1);
-        kycEnabledContracts[_address].exists = false;
-        emit LogRemovedKycEnabledContract(_address, msg.sender);
-    }
-
     // Adds an authorized address
-    function addAuthorizedAddress(
-        address _address
-    )
-    public
-    onlyFounder {
+    function addAuthorizedAddress(address _address)
+    onlyFounder
+    public {
         require(!authorized[_address]);
         authorized[_address] = true;
         authorizedAddressList.push(_address);
-        authorizedAddressCount = safeAdd(authorizedAddressCount, 1);
         emit LogNewAuthorizedAddress(_address);
     }
 
     // Removes an authorized address
-    function removeAuthorizedAddress(
-        address _address,
-        uint index
-    )
-    public
-    onlyFounder {
+    function removeAuthorizedAddress(address _address, uint index)
+    onlyFounder
+    public {
         require(authorized[_address]);
         require(authorizedAddressList[index] == _address);
         authorized[_address] = false;
         delete authorizedAddressList[index];
-        authorizedAddressCount = safeSub(authorizedAddressCount, 1);
         emit LogRemoveAuthorizedAddress(_address);
     }
 
-    // Approves a user address after KYC checks from onfido backend
-    // checkId would be the checkId for a successful verification from the onfido backend
-    // Signed message would be of the format sgn(sha3(applicantId))
+    // Approves an address for basic verification
+    // Addresses with basic verification are subject to < 2 BTC/day withdrawal limits
+    // Signed message would be of the format sgn(sha3(uid)) where approvalId is an
+    // id returned from decent.bet's KYC api during the initial verification process
     function approveAddress(
-        address _contract,
+        address _address,
+        string approvalId,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
+    onlyAuthorized
+    public {
+        require(!approvals[_address].approved);
+        bytes32 hash = keccak256(approvalId);
+        require(_address == ecrecover(hash, v, r, s));
+        approvals[_address].approved = true;
+        approvals[_address].exists = true;
+        approvals[_address].id = approvalId;
+        approvals[_address].index = approvedAddressList.length;
+        approvedAddressList.push(_address);
+        emit LogNewApprovedAddress(_address, approvedAddressList.length - 1);
+    }
+
+    // Approves a user address after KYC checks from Onfido backend for enhanced verification
+    // This can only be called after basic verification has been performed.
+    // Addresses with enhanced verification are not subject to any withdrawal limits
+    // applicantId would be the applicantId created by Onfido
+    // checkId would be the checkId for a successful verification from the Onfido backend
+    // Signed message would be of the format sgn(sha3(checkId))
+    function approveAddressWithEnhancedKYC(
         address _address,
         string applicantId,
         string checkId,
@@ -158,79 +125,112 @@ contract KycManager is SafeMath {
         bytes32 r,
         bytes32 s
     )
-    public
-    onlyAuthorized {
-        require(kycEnabledContracts[_contract].exists);
-        require(!kycEnabledContracts[_contract].users[_address].approved);
+    onlyAuthorized
+    public {
+        require(approvals[_address].approved);
+        // Applicant ID could be changed in case of cases such as user account deletion in KYC and re-creation
+        // require(approvals[_address].applicantId != '');
         bytes32 hash = keccak256(applicantId);
         require(_address == ecrecover(hash, v, r, s));
-        kycEnabledContracts[_contract].users[_address] = User({
-            _address:      _address,
-            approved:      true,
-            applicantId:   applicantId,
-            checkId:       checkId,
-            v:             v,
-            r:             r,
-            s:             s
-        });
-        kycEnabledContracts[_contract].approvedAddressList.push(_address);
-        kycEnabledContracts[_contract].approvedAddressCount =
-            safeAdd(kycEnabledContracts[_contract].approvedAddressCount, 1);
-
-        emit LogNewApprovedAddress(
-            _contract,
-            _address,
-            kycEnabledContracts[_contract].approvedAddressList.length - 1
-        );
+        approvals[_address].applicantId = applicantId;
+        approvals[_address].checkId = checkId;
+        emit LogApprovedAddressWithEnhancedKYC(_address);
     }
 
     // Removes an address from the KYC approved list
-    function removeApprovedAddress(
-        address _contract,
-        address _address,
-        uint index
-    )
-    public
-    onlyAuthorized {
-        require(kycEnabledContracts[_contract].exists);
-        require(kycEnabledContracts[_contract].users[_address].approved);
-        require(kycEnabledContracts[_contract].approvedAddressList[index] == _address);
-
-        kycEnabledContracts[_contract].users[_address].approved = false;
-        delete kycEnabledContracts[_contract].approvedAddressList[index];
-        kycEnabledContracts[_contract].approvedAddressCount =
-            safeSub(kycEnabledContracts[_contract].approvedAddressCount, 1);
-        emit LogRemoveApprovedAddress(_contract, _address);
+    function removeApprovedAddress(address _address)
+    onlyAuthorized
+    public {
+        require(approvals[_address].approved);
+        delete approvedAddressList[approvals[_address].index];
+        approvals[_address].approved = false;
+        approvals[_address].index = 0;
+        approvals[_address].id = "";
+        approvals[_address].applicantId = "";
+        approvals[_address].checkId = "";
+        approvals[_address].exists = false;
+        emit LogRemoveApprovedAddress(_address);
     }
 
-    // Returns whether an address has been verified for a contract.
-    // Works even if KYC enabled contract has been removed from this contract.
-    function isVerified(
-        address _contract,
-        address _address
-    )
-    public
-    view
-    returns (bool) {
-        return kycEnabledContracts[_contract].users[_address].approved;
+    // Adds an address to blacklist
+    function addToBlacklist(address _address)
+    onlyAuthorized
+    public {
+        require(!blacklist[_address]);
+        blacklist[_address] = true;
+        blacklistedAddresses.push(_address);
+        emit LogAddToBlacklist(_address, blacklistedAddresses.length - 1);
     }
 
-    // Returns a KYC enabled contract user.
-    function getKYCEnabledContractUser(
-        address _contract,
-        address _address
-    )
-    public
-    view
-    returns (bool, string, string, uint8, bytes32, bytes32) {
+    // Removes an address from blacklist
+    function removeFromBlacklist(address _address, uint index)
+    onlyAuthorized
+    public {
+        require(blacklist[_address]);
+        require(blacklistedAddresses[index] == _address);
+        blacklist[_address] = false;
+        delete blacklistedAddresses[index];
+        emit LogRemoveFromBlacklist(_address);
+    }
+
+    // Adds an address to a timeout blacklist.
+    // If timeoutBlacklist timestamp is less than 24 hr prior to the current block timestamp,
+    // Further withdrawals would not be allowed from house/offering contracts.
+    function addToTimeoutBlacklist(address _address)
+    onlyAuthorized
+    public {
+        require(!isEnhancedKYCVerified(_address));
+        timeoutBlacklist[_address] = block.timestamp;
+        emit LogAddToTimeoutBlacklist(_address, block.timestamp);
+    }
+
+    // Update DBETs non-enhanced KYC limit
+    function updateDbetsNonEnhancedKycLimit(uint _dbetsNonEnhancedKycLimit)
+    onlyAuthorized
+    public {
+        dbetsNonEnhancedKycLimit = _dbetsNonEnhancedKycLimit;
+        emit LogUpdateDbetsNonEnhancedKycLimit(msg.sender, block.timestamp);
+    }
+
+    // Returns whether an address has been verified with
+    // atleast basic verification and is not blacklisted
+    function isKYCVerified(address _address) public view returns (bool) {
+    return  !blacklist[_address] &&
+            approvals[_address].exists &&
+            approvals[_address].approved;
+    }
+
+    // Returns whether an address has been verified with
+    // enhanced verification and is not blacklisted
+    function isEnhancedKYCVerified(address _address) public view returns (bool) {
+        return  !blacklist[_address] &&
+                isKYCVerified(_address) &&
+                bytes(approvals[_address].applicantId).length > 0;
+    }
+
+    // Returns whether an address can withdraw from a house/offering contract
+    function areWithdrawalsAllowed(address _address) public view returns (bool) {
         return (
-            kycEnabledContracts[_contract].users[_address].approved,
-            kycEnabledContracts[_contract].users[_address].applicantId,
-            kycEnabledContracts[_contract].users[_address].checkId,
-            kycEnabledContracts[_contract].users[_address].v,
-            kycEnabledContracts[_contract].users[_address].r,
-            kycEnabledContracts[_contract].users[_address].s
-        );
+                    !blacklist[_address] &&
+                    (
+                        isEnhancedKYCVerified(_address) ||
+                        (
+                            isKYCVerified(_address) &&
+                            (block.timestamp > timeoutBlacklist[_address] + 24 hours)
+                        )
+                    )
+               );
+    }
+
+    // Returns whether a single withdrawal is allowed
+    function isWithdrawalAllowed(address _address, uint amount) public view returns (bool) {
+        return
+            (   areWithdrawalsAllowed(_address) &&
+                (
+                    isEnhancedKYCVerified(_address) ||
+                    amount <= dbetsNonEnhancedKycLimit
+                )
+            );
     }
 
 }

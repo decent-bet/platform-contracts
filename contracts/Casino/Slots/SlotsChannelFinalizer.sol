@@ -1,4 +1,4 @@
-pragma solidity 0.4.21;
+pragma solidity 0.4.24;
 
 
 import "./SlotsImplementation.sol";
@@ -26,6 +26,9 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     // Number of lines
     uint constant NUMBER_OF_LINES = 5;
 
+    // Starting balance for the house
+    uint constant CHANNEL_HOUSE_STARTING_BALANCE = 10000 ether;
+
     SlotsChannelManager slotsChannelManager;
     SlotsHelper slotsHelper;
     KycManager kycManager;
@@ -42,7 +45,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
 
     // Allows functions to execute only if the sender has been KYC verified.
     modifier isSenderKycVerified() {
-        require(kycManager.isVerified(address(slotsChannelManager), msg.sender));
+        require(kycManager.isKYCVerified(msg.sender));
         _;
     }
 
@@ -226,14 +229,15 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
     // finalize function below.
     function lightFinalize(
         bytes32 id,
-        string hashes,
+        string houseHashes,
+        string userHashes,
         uint nonce,
-        uint userBalance,
-        uint houseBalance,
+        uint[2] userBalance,
+        uint[2] houseBalance,
         uint betSize,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        uint8[2] v,
+        bytes32[2] r,
+        bytes32[2] s
     )
     isSlotsChannelManagerSet
     public
@@ -242,27 +246,60 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
         require(slotsChannelManager.getPlayer(id, true) == msg.sender);
         require(slotsChannelManager.isChannelActivated(id));
 
-        bytes32 hash = keccak256(
-            hashes,
+        bytes32 houseHash = keccak256(
+            houseHashes,
             uintToString(nonce),
             "true",
-            uintToString(userBalance),
-            uintToString(houseBalance),
+            uintToString(userBalance[0]),
+            uintToString(houseBalance[0]),
             uintToString(betSize)
         );
-        require(slotsChannelManager.getPlayer(id, true) == ecrecover(hash, v, r, s));
+        require(
+            slotsChannelManager.getPlayer(id, true) ==
+            ecrecover(houseHash, v[0], r[0], s[0])
+        );
+
+        bytes32 userHash = keccak256(
+            userHashes,
+            uintToString(nonce),
+            "false",
+            uintToString(userBalance[1]),
+            uintToString(houseBalance[1]),
+            uintToString(betSize)
+        );
+
+        require(
+            slotsChannelManager.getPlayer(id, false) ==
+            ecrecover(userHash, v[1], r[1], s[1])
+        );
+
+        // Validate bet size
+        require(slotsHelper.isValidBetSize(betSize));
 
         if (shouldFinalizeChannel(id, nonce, true))
-            slotsChannelManager.setFinal(id, userBalance, houseBalance,
-                nonce, true, true); // 86k gas
+            slotsChannelManager.setFinal(
+                id,
+                userBalance[0],
+                houseBalance[0],
+                nonce,
+                true,
+                true
+            );
 
         return true;
     }
 
 
     // If finalize() is called for a 0 nonce, prior, priorR and priorS can be empty/0
-    function finalize(bytes32 id, string _curr, string _prior,
-    bytes32 currR, bytes32 currS, bytes32 priorR, bytes32 priorS)
+    function finalize(
+        bytes32 id,
+        string _curr,
+        string _prior,
+        bytes32 currR,
+        bytes32 currS,
+        bytes32 priorR,
+        bytes32 priorS
+    )
     isSenderKycVerified
     isSlotsChannelManagerSet
     public
@@ -324,8 +361,7 @@ contract SlotsChannelFinalizer is SlotsImplementation, SafeMath, Utils {
                 spin.userBalance
             )
         );
-        require(spin.userBalance == spin.houseBalance);
-
+        require(spin.houseBalance == CHANNEL_HOUSE_STARTING_BALANCE);
         require(checkSigPrivate(id, spin));
 
         if (shouldFinalizeChannel(id, spin.nonce, false))

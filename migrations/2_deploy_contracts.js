@@ -16,13 +16,14 @@ const SlotsChannelFinalizer = artifacts.require('SlotsChannelFinalizer')
 const SlotsChannelManager = artifacts.require('SlotsChannelManager')
 const SlotsHelper = artifacts.require('SlotsHelper')
 
+const BigNumber = require('bignumber.js')
 const ethUtil = require('ethereumjs-util')
 const Wallet = require('ethers').Wallet
 
+const constants = require('../test/utils/constants')
 const utils = require('../test/utils/utils')
 
-const SAMPLE_APPLICANT_ID = '1030303-123123-123123'
-const SAMPLE_CHECK_ID = '8546921-123123-123123'
+const SAMPLE_APPROVAL_ID = '5b00158631f075a494163e06'
 const ORACLIZE_ADDRESS = '0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475'
 
 let getAccounts = () => {
@@ -115,9 +116,17 @@ let deploy = async (deployer, network) => {
             await deployer.deploy(KycManager)
             kycManager = await getContractInstanceAndInfo(KycManager)
 
+            let ether = new BigNumber(10).exponentiatedBy(18)
+            let limit = ether
+                .multipliedBy(constants.BTC_KYC_LIMIT)
+                .dividedBy(constants.DBET_BTC).toFixed(0)
+            await kycManager.updateDbetsNonEnhancedKycLimit(limit)
+
             // Deploy the House contract
             await deployer.deploy(House, token.address, kycManager.address)
             house = await getContractInstanceAndInfo(House)
+
+            console.log('Contract info', contractInfo)
 
             // Deploy House controller contracts
             await deployer.deploy(HouseAuthorizedController, house.address)
@@ -232,15 +241,12 @@ let deploy = async (deployer, network) => {
                 }
             )
 
-            await kycManager.addKycEnabledContract(house.address)
-            await kycManager.addKycEnabledContract(slotsChannelManager.address)
-
             // Approve first 9 accounts obtained from mnemonic
             let wallet
             for (let i = 0; i < 9; i++) {
                 wallet = Wallet.fromMnemonic(process.env.MNEMONIC, "m/44'/60'/0'/0/" + i)
                 let signedMessage = await utils.signString(
-                    SAMPLE_APPLICANT_ID,
+                    SAMPLE_APPROVAL_ID,
                     accounts[i],
                     wallet.privateKey
                 )
@@ -251,20 +257,8 @@ let deploy = async (deployer, network) => {
                 console.log('Approving address', accounts[i])
 
                 await kycManager.approveAddress(
-                    house.address,
                     accounts[i],
-                    SAMPLE_APPLICANT_ID,
-                    SAMPLE_CHECK_ID,
-                    v,
-                    r,
-                    s
-                )
-
-                await kycManager.approveAddress(
-                    slotsChannelManager.address,
-                    accounts[i],
-                    SAMPLE_APPLICANT_ID,
-                    SAMPLE_CHECK_ID,
+                    SAMPLE_APPROVAL_ID,
                     v,
                     r,
                     s
